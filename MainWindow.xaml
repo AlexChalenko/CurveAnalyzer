@@ -14,63 +14,111 @@
     <Grid Margin="5">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
-            <RowDefinition Height="*" />
+            <RowDefinition />
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
-        <StackPanel Grid.Row="0" Orientation="Horizontal">
-            <StackPanel.Resources>
-                <Style TargetType="{x:Type Button}">
-                    <Setter Property="Margin" Value="5" />
-                    <Setter Property="Padding" Value="5" />
-                </Style>
-            </StackPanel.Resources>
-            <Button
-                x:Name="GetDataButton"
-                Click="GetData_Click"
-                Content="Получить данные" />
-            <StackPanel
-                VerticalAlignment="Center"
-                Background="AliceBlue"
-                Orientation="Horizontal" Width="100" Height="Auto">
-                <!--<Button
+        <Menu
+            Grid.Row="0"
+            Grid.ColumnSpan="2"
+            Margin="0,0,0,5">
+            <MenuItem Header="Test">
+                <MenuItem Header="Test1.1" />
+            </MenuItem>
+            <MenuItem Header="Test2" />
+            <MenuItem Header="Test3" />
+        </Menu>
+        <TabControl
+            Grid.Row="1"
+            Grid.ColumnSpan="2"
+            HorizontalContentAlignment="Center"
+            VerticalContentAlignment="Center"
+            TabStripPlacement="Left">
+            <TabItem Height="50" Header="Кривая ОФЗ">
+                <Grid Margin="5">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition />
+
+                    </Grid.RowDefinitions>
+                    <StackPanel Grid.Row="0" Orientation="Horizontal">
+                        <StackPanel.Resources>
+                            <Style TargetType="{x:Type Button}">
+                                <Setter Property="Margin" Value="5" />
+                                <Setter Property="Padding" Value="5" />
+                            </Style>
+                        </StackPanel.Resources>
+                        <Button
+                            x:Name="GetDataButton"
+                            Click="GetData_Click"
+                            Content="Получить данные" />
+                        <StackPanel
+                            Width="100"
+                            Height="Auto"
+                            VerticalAlignment="Center"
+                            Background="AliceBlue"
+                            Orientation="Horizontal">
+                            <!--<Button
                     Content="3"
                     FontFamily="Marlett"
                     FontSize="20" />-->
-                <ToggleButton
-                    x:Name="ToggleButton"
-                    Margin="5"
-                    Padding="5"
-                    Content="{Binding SelectedDate, ElementName=CalendarControl, FallbackValue='99.99.9999'}" />
-                <Popup IsOpen="{Binding ElementName=ToggleButton, Path=IsChecked}" StaysOpen="False">
-                    <Calendar
-                        x:Name="CalendarControl"
-                        HorizontalAlignment="Center"
-                        VerticalAlignment="Center"
-                        SelectedDatesChanged="CalendarControl_SelectedDatesChanged" />
-                </Popup>
-                <!--<Button
+                            <ToggleButton
+                                x:Name="ToggleButton"
+                                Margin="5"
+                                Padding="5"
+                                Content="{Binding SelectedDate, ElementName=CalendarControl, FallbackValue='99.99.9999'}" />
+                            <Popup IsOpen="{Binding ElementName=ToggleButton, Path=IsChecked}" StaysOpen="False">
+                                <Calendar
+                                    x:Name="CalendarControl"
+                                    HorizontalAlignment="Center"
+                                    VerticalAlignment="Center"
+                                    SelectedDatesChanged="CalendarControl_SelectedDatesChanged" />
+                            </Popup>
+                            <!--<Button
                     Content="4"
                     FontFamily="Marlett"
                     FontSize="20" />-->
-            </StackPanel>
-            <Button Content="Очистить" Click="ClearButton_Click"/>
-            <CheckBox
-                Margin="10,0,0,0"
-                VerticalAlignment="Center"
-                Click="CheckBox_Click"
-                Content="Обновление" />
-        </StackPanel>
-        <lvc:CartesianChart
-            x:Name="MainChart"
-            Grid.Row="1"
-            DataClick="MainChart_DataClick"
-            Series="{Binding SeriesCollection}">
-            <lvc:CartesianChart.AxisX>
-                <lvc:Axis LabelFormatter="{Binding XFormatter}" Labels="{Binding LabelsX}" />
-            </lvc:CartesianChart.AxisX>
-        </lvc:CartesianChart>
-        <Popup x:Name="MyPopsup" Placement="MousePoint">
-            <Button Content="wewdwaw" />
-        </Popup>
+                        </StackPanel>
+                        <Button Click="ClearButton_Click" Content="Очистить" />
+                        <CheckBox
+                            Margin="10,0,0,0"
+                            VerticalAlignment="Center"
+                            Click="CheckBox_Click"
+                            Content="Обновление" />
+                    </StackPanel>
+                    <!--  Labels="{Binding LabelsX}" />  -->
+                    <lvc:CartesianChart
+                        x:Name="MainChart"
+                        Grid.Row="1"
+                        DataClick="MainChart_DataClick"
+                        DisableAnimations="True"
+                        Series="{Binding SeriesCollection}">
+                        <lvc:CartesianChart.AxisX>
+                            <lvc:Axis Title="Дюрация" />
+                        </lvc:CartesianChart.AxisX>
+                        <lvc:CartesianChart.AxisY>
+                            <lvc:Axis
+                                Title="Доходность"
+                                LabelFormatter="{Binding XFormatter}"
+                                Position="LeftBottom" />
+                        </lvc:CartesianChart.AxisY>
+                    </lvc:CartesianChart>
+                    <Popup x:Name="MyPopsup" Placement="MousePoint">
+                        <Button Content="wewdwaw" />
+                    </Popup>
+                </Grid>
+
+            </TabItem>
+            <TabItem
+                x:Name="DataTab"
+                Height="50"
+                Header="Data" />
+        </TabControl>
+        <StackPanel
+            Grid.Row="2"
+            Grid.ColumnSpan="2"
+            Height="20" />
     </Grid>
+
+
+
 </Window>
