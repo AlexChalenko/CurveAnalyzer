@@ -6,6 +6,7 @@
     xmlns:local="clr-namespace:CurveAnalyzer"
     xmlns:lvc="clr-namespace:LiveCharts.Wpf;assembly=LiveCharts.Wpf"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:oxy="http://oxyplot.org/wpf"
     Title="Кривая ОФЗ по дням"
     Width="800"
     Height="450"
@@ -111,12 +112,31 @@
             <TabItem
                 x:Name="DataTab"
                 Height="50"
-                Header="Data" />
+                Header="Data">
+                <Grid>
+                    <oxy:PlotView Model="{Binding DataModel}" />
+                </Grid>
+            </TabItem>
+
+            <TabItem
+                x:Name="OxyPlot"
+                Height="50"
+                Header="OxyPlot">
+                <Grid>
+                    <oxy:PlotView Model="{Binding MyModel}" />
+                </Grid>
+            </TabItem>
         </TabControl>
-        <StackPanel
+        <!--<StackPanel
             Grid.Row="2"
             Grid.ColumnSpan="2"
-            Height="20" />
+            Height="20" />-->
+        <StatusBar Grid.Row="2" VerticalAlignment="Bottom">
+            <StatusBarItem>
+                <Label x:Name="StatusText" />
+            </StatusBarItem>
+        </StatusBar>
+
     </Grid>
 
 

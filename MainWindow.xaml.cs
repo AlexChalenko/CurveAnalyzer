@@ -4,6 +4,8 @@ using LiveCharts.Defaults;
 using LiveCharts.Wpf;
 using Microsoft.EntityFrameworkCore;
 using MoexData;
+using OxyPlot;
+using OxyPlot.Axes;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -19,6 +21,7 @@ using System.Windows.Threading;
 using System.Xml;
 using System.Xml.Serialization;
 using TicTacTec.TA.Library;
+using AxisPosition = OxyPlot.Axes.AxisPosition;
 
 namespace CurveAnalyzer
 {
@@ -32,6 +35,9 @@ namespace CurveAnalyzer
 
         public SeriesCollection SeriesCollection { get; private set; }
         public ObservableCollection<string> LabelsX { get; set; }
+
+        public OxyPlot.PlotModel MyModel { get; private set; }
+        public OxyPlot.PlotModel DataModel { get; private set; }
 
         public Func<double, string> XFormatter { get; set; }
         public IssData IssData { get; set; }
@@ -55,6 +61,9 @@ namespace CurveAnalyzer
             }
         }
 
+        private string statusText;
+
+
         static int weekYear(DateTime date)
         {
             CultureInfo ciCurr = CultureInfo.CurrentCulture;
@@ -67,6 +76,44 @@ namespace CurveAnalyzer
 
             LabelsX = new ObservableCollection<string>();
             SeriesCollection = new SeriesCollection(mapper1);
+
+            MyModel = new OxyPlot.PlotModel();
+
+            var lineAxisX = new LinearAxis
+            {
+                Title = "Доходность",
+                Font = "Calibri",
+                //lineAxisX.FontSize = 8;
+                TextColor = OxyColors.Blue
+            };
+            MyModel.Axes.Add(lineAxisX);
+
+            DataModel = new PlotModel();
+            var lineAxisY1 = new LinearAxis
+            {
+                Title = "График",
+                Key = "Y1",
+                StartPosition = 0.3,
+                Position = AxisPosition.Right,
+            };
+            var lineAxisY2 = new LinearAxis
+            {
+                Title = "Индикатор",
+                Position = AxisPosition.Right,
+                Key = "Y2",
+                EndPosition = 0.3
+            };
+
+            var dateTimeAxis1 = new DateTimeAxis
+            {
+                Key = "X"
+            };
+
+            DataModel.Axes.Add(dateTimeAxis1);
+            DataModel.Axes.Add(lineAxisY1);
+            DataModel.Axes.Add(lineAxisY2);
+
+            //MyModel.Axes.Add(lineAxisX);
 
             XFormatter = x => x.ToString("0.00");
             DataContext = this;
@@ -81,6 +128,8 @@ namespace CurveAnalyzer
 
             getDates().ContinueWith(t =>
             {
+                //statusText = "get dates";
+
                 if (t.IsFaulted)
                 {
                 }
@@ -133,6 +182,7 @@ namespace CurveAnalyzer
                     var res = firstFinishedTask;
                     if (res.Result != null)
                     {
+                        StatusText.Dispatcher.Invoke(() => StatusText.Content = $"Загрузка данных за {res.Result.data.rows[0].tradedate}");
                         foreach (var row in res.Result.data.rows)
                         {
                             try
@@ -156,6 +206,7 @@ namespace CurveAnalyzer
                         Debug.WriteLine("********************" + res.Result.data.rows[0].tradedate);
                     }
                 }
+                StatusText.Dispatcher.Invoke(() => StatusText.Content = $"Загрузка данных завершена");
             }
         }
 
@@ -168,8 +219,10 @@ namespace CurveAnalyzer
         {
             var tcs = new TaskCompletionSource<Tuple<DateTime, DateTime>>();
 
-            XmlReaderSettings settings = new XmlReaderSettings();
-            settings.Async = true;
+            XmlReaderSettings settings = new XmlReaderSettings
+            {
+                Async = true
+            };
 
             using (XmlReader reader = XmlReader.Create("https://iss.moex.com/iss/engines/stock/zcyc.xml?iss.only=yearyields.dates&iss.meta=off", settings))
             {
@@ -204,7 +257,7 @@ namespace CurveAnalyzer
             return await tcs.Task;
         }
 
-        private Task<IssData> getData(DateTime date)
+        private static Task<IssData> getData(DateTime date)
         {
             var tcs = new TaskCompletionSource<IssData>();
 
@@ -213,8 +266,10 @@ namespace CurveAnalyzer
                 var dbData = db.Zcycs.Where(r => r.Tradedate.Equals(date)).ToList();
                 if (dbData.Count > 0)
                 {
-                    IssData issData = new IssData();
-                    issData.data = new documentData();
+                    IssData issData = new IssData
+                    {
+                        data = new documentData()
+                    };
                     issData.data.rows = new documentDataRow[12];
                     for (int i = 0; i < dbData.Count; i++)
                     {
@@ -257,6 +312,47 @@ namespace CurveAnalyzer
             return tcs.Task;
         }
 
+        List<OxyPlot.Series.HighLowItem> getOxyWeeklyOhlcs(double period)
+        {
+            var output = new List<OxyPlot.Series.HighLowItem>();
+
+            DateTime startDate = new DateTime(1900, 1, 1);
+
+            using (var db = new MoexContext())
+            {
+                var query = db.Zcycs.Where(p => p.Period == period)
+                                 .AsEnumerable()
+                                 .GroupBy(g => weekYear(g.Tradedate))
+                                 .Select(w => w.ToList())
+                                 .ToList();
+
+                foreach (var item in query)
+                {
+                    var date = item.Select(d => d.Tradedate).First();
+                    var open = item.Select(o => o.Value).First();
+                    var high = double.MinValue;
+                    var low = double.MaxValue;
+                    var close = item.Select(c => c.Value).Last();
+                    foreach (var item2 in item)
+                    {
+                        high = Math.Max(high, item2.Value);
+                        low = Math.Min(low, item2.Value);
+                    }
+                    //Debug.WriteLine($"{date} {open} {high} {low} {close}");
+                    output.Add(new OxyPlot.Series.HighLowItem
+                    {
+                        X = date.Subtract(startDate).TotalDays,
+                        Open = open,
+                        High = high,
+                        Low = low,
+                        Close = close
+                    });
+                }
+            }
+
+            return output;
+        }
+
         ChartValues<OhlcPoint> getWeeklyOhlcs(double period)
         {
             var output = new ChartValues<OhlcPoint>();
@@ -281,7 +377,7 @@ namespace CurveAnalyzer
                         high = Math.Max(high, item2.Value);
                         low = Math.Min(low, item2.Value);
                     }
-                    //Debug.WriteLine($"{date} {open} {high} {low} {close}");
+                    Debug.WriteLine($"{date} {open} {high} {low} {close}");
                     output.Add(new OhlcPoint
                     {
                         Open = open,
@@ -392,6 +488,24 @@ namespace CurveAnalyzer
                       //axis.MinValue = minValue;
                       //Separator separator = new Separator { Step = 0.25d, IsEnabled = false };
                       //axis.Separator = separator;
+                      var lineSeries1 = new OxyPlot.Series.LineSeries
+                      {
+                          Color = OxyColor.FromRgb(33, 149, 242),
+                          MarkerType = MarkerType.Circle,
+                          MarkerStroke = OxyColor.FromRgb(33, 149, 242),
+                          MarkerStrokeThickness = 2,
+                          MarkerFill = OxyColors.White,
+                          MarkerSize = 3,
+                          StrokeThickness = 2,
+                          //lineSeries1.MarkerFill = OxyColors.Transparent;
+                          InterpolationAlgorithm = InterpolationAlgorithms.CanonicalSpline
+                      };
+
+                      foreach (var item in task.Result.data.rows)
+                      {
+                          lineSeries1.Points.Add(new OxyPlot.DataPoint(item.period, item.value));
+                      }
+                      MyModel.Series.Add(lineSeries1);
                   }
               }, TaskScheduler.FromCurrentSynchronizationContext());
         }
@@ -412,79 +526,80 @@ namespace CurveAnalyzer
             //MyPopsup.IsOpen = false;
             //MyPopsup.IsOpen = true;
 
-            var data2 = getWeeklyOhlcs(chartPoint.X);
+            //var data2 = getWeeklyOhlcs(chartPoint.X);
+            var data2 = getOxyWeeklyOhlcs(chartPoint.X);
 
+            //var chart = new CartesianChart
+            //{
+            //    DisableAnimations = true
+            //};
+            //var seriesCollection = new SeriesCollection
+            //{
+            //    new OhlcSeries
+            //    {
+            //        Values = data2
+            //    }
+            //};
 
-            var chart = new CartesianChart();
-            chart.DisableAnimations = true;
-            var seriesCollection = new SeriesCollection
+            var lineSeries1 = new OxyPlot.Series.CandleStickSeries
             {
-                new OhlcSeries
-                {
-                    Values = data2
-                }
+                XAxisKey = "X",
+                YAxisKey = "Y1"
             };
 
 
-            int begIdx;
-            int element;
+            //foreach (var item in data2)
+            //{
+            //lineSeries1.Items.Add(item);
+            //}
+            lineSeries1.Items.AddRange(data2);
+
+            var lineSeries2 = new OxyPlot.Series.LineSeries
+            {
+                XAxisKey = "X",
+                YAxisKey = "Y2"
+            };
+
+
+            DataModel.Series.Add(lineSeries1);
+
             double[] outData = new double[data2.Count];
-
-            var res = Core.Roc(0, data2.Count - 1, data2.Select(d => d.Close).ToArray(), 13, out begIdx, out element, outData);
-
-            var rocData = new ChartValues<double>();
+            var res = Core.Roc(0, data2.Count - 1, data2.Select(d => d.Close).ToArray(), 13, out int begIdx, out int element, outData);
 
             for (int i = 0; i < data2.Count; i++)
             {
                 double item = 0d;
                 if (i >= begIdx)
-                    item = outData[i- begIdx];
-                rocData.Add(item);
+                    item = outData[i - begIdx];
+                lineSeries2.Points.Add(new DataPoint(data2[i].X, item));
             }
 
-            if (res == Core.RetCode.Success)
-            {
-                Debug.WriteLine($"{begIdx} {element}");
-                var lineSeries = new LineSeries
-                {
-                    Values = rocData,
-                };
-                seriesCollection.Add(lineSeries);
-            }
+            DataModel.Series.Add(lineSeries2);
 
 
-            chart.Series = seriesCollection;
-            DataTab.Content = chart;
+            //var rocData = new ChartValues<double>();
 
-            //using (var db = new MoexContext())
+            //for (int i = 0; i < data2.Count; i++)
             //{
-            //    var output = db.Zcycs
-            //        .Where(d => d.Period == chartPoint.X && d.Tradedate >= DateTime.Today.AddYears(-1))
-            //        .ToList();
+            //    double item = 0d;
+            //    if (i >= begIdx)
+            //        item = outData[i - begIdx];
+            //    rocData.Add(item);
+            //}
 
-            //    var chart = new CartesianChart();
-
-            //    //var mapper1 = Mappers.Xy<ObservablePoint>().X(point => point.X).Y(point => point.Y);
-            //    var seriesCollection = new SeriesCollection();
-
-
-            //    var data = new ChartValues<double>();
-            //    data.AddRange(output.Select(d => d.Value).ToList());
-
-            //    seriesCollection.Add(new LineSeries
+            //if (res == Core.RetCode.Success)
+            //{
+            //    Debug.WriteLine($"{begIdx} {element}");
+            //    var lineSeries = new LineSeries
             //    {
-            //        Values = data,
-            //        PointGeometry = null
-            //    });
-
-            //    chart.Series = seriesCollection;
-
-            //    DataTab.Content = chart;
-            //    DataTab.IsSelected = true;
+            //        Values = rocData,
+            //    };
+            //    seriesCollection.Add(lineSeries);
             //}
 
 
-
+            //chart.Series = seriesCollection;
+            //DataTab.Content = chart;
         }
 
         private void DeleteChart_Click(object sender, RoutedEventArgs e)
@@ -507,11 +622,11 @@ namespace CurveAnalyzer
 
         private void ClearButton_Click(object sender, RoutedEventArgs e)
         {
-            foreach (var item in SeriesCollection)
-            {
-                //item.Values.Clear();
-                //item.Values.Remove();
-            }
+            //foreach (var item in SeriesCollection)
+            //{
+            //    //item.Values.Clear();
+            //    //item.Values.Remove();
+            //}
             SeriesCollection.Clear();
         }
     }
