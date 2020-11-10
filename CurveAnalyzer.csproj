@@ -2,10 +2,10 @@
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
-    <TargetFramework>netcoreapp3.1</TargetFramework>
+    <TargetFramework>net5.0-windows</TargetFramework>
     <StartWorkingDirectory>$(MSBuildProjectDirectory)</StartWorkingDirectory>
     <UseWPF>true</UseWPF>
-    <ApplicationIcon>moex.ico</ApplicationIcon>
+    <ApplicationIcon>favicon (1).ico</ApplicationIcon>
   </PropertyGroup>
 
   <ItemGroup>

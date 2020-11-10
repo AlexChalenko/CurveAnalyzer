@@ -4,7 +4,7 @@ using System.Text;
 
 namespace CurveAnalyzer
 {
-    class MainViewModel
+    internal class MainViewModel
     {
     }
 }
