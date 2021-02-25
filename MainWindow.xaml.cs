@@ -18,6 +18,7 @@ using LiveCharts;
 using LiveCharts.Configurations;
 using LiveCharts.Defaults;
 using LiveCharts.Wpf;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Internal;
 using Microsoft.Scripting.Utils;
 using MoexData;
@@ -285,7 +286,8 @@ namespace CurveAnalyzer
                     high = Math.Max(high, item2.Value);
                     low = Math.Min(low, item2.Value);
                 }
-                //Debug.WriteLine($"{date} {open} {high} {low} {close}");
+
+                //Debug.WriteLine($"{ date} {open} {high} {low} {close}");
                 output.Add(new OxyPlot.Series.HighLowItem
                 {
                     X = date.Subtract(startDate).TotalDays,

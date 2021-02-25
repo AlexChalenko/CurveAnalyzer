@@ -11,8 +11,8 @@ namespace CurveAnalyzer.Tools
     {
         public static int YearAndWeekToNumber(this DateTime date)
         {
-            CultureInfo ciCurr = CultureInfo.CurrentCulture;
-            return date.Year * 100 + ciCurr.Calendar.GetWeekOfYear(date, CalendarWeekRule.FirstFourDayWeek, DayOfWeek.Monday);
+            CultureInfo culInfo = CultureInfo.CurrentCulture;
+            return (date.Year * 100) + culInfo.Calendar.GetWeekOfYear(date, CalendarWeekRule.FirstFourDayWeek, DayOfWeek.Monday);
         }
     }
 }
