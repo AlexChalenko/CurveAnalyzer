@@ -9,7 +9,7 @@ namespace CurveAnalyzer.Interfaces
     public interface ZcycDataProvider
     {
         Task<DateRange> GetAvailableDates();
-        Task<ZcycData> ReadDataForDay(DateTime date);
+        Task<ZcycData> ReadDataForDate(DateTime date);
         Task<bool> SaveData(ZcycData data);
     }
 }

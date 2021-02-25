@@ -13,7 +13,7 @@ namespace CurveAnalyzer.DataProviders
         private const string DataUrl = "https://iss.moex.com/iss/engines/stock/zcyc.xml?date={0}&iss.only=yearyields&iss.meta=off";
         private const string DatesPath = "https://iss.moex.com/iss/engines/stock/zcyc.xml?iss.only=yearyields.dates&iss.meta=off";
 
-        public Task<ZcycData> ReadDataForDay(DateTime date)
+        public Task<ZcycData> ReadDataForDate(DateTime date)
         {
             var tcs = new TaskCompletionSource<ZcycData>();
 
@@ -29,7 +29,6 @@ namespace CurveAnalyzer.DataProviders
                 using XmlReader xmlReader = XmlReader.Create(url); //gets only 500 lines
                 var issData = (IssData)serializer.Deserialize(xmlReader);
                 if (issData == null || issData.data == null || issData.data.rows.Length == 0)
-                    //tcs.SetException(new Exception("No data for the day {date}"));
                     tcs.TrySetResult(zData);
 
                 foreach (var item in issData.data.rows)

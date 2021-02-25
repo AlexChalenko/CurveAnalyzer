@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Data.Common;
+using System.Diagnostics;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -13,11 +14,12 @@ namespace CurveAnalyzer.DataProviders
 {
     public class SQLiteDataProvider : ZcycDataProvider
     {
-        public Task<ZcycData> ReadDataForDay(DateTime date)
+        public Task<ZcycData> ReadDataForDate(DateTime date)
         {
             var tcs = new TaskCompletionSource<ZcycData>();
 
             using var db = new MoexContext();
+            //db.Database.EnsureCreated();
 
             var dbData = db.Zcycs.Where(r => r.Tradedate.Equals(date)).ToList();
             var zData = new ZcycData();
@@ -41,23 +43,37 @@ namespace CurveAnalyzer.DataProviders
 
         public Task<DateRange> GetAvailableDates()
         {
+            DateTime startDate = DateTime.MinValue;
+            DateTime endDate = DateTime.Now.AddDays(-1);
+
             using var db = new MoexContext();
-            long maxNum = db.Zcycs.Max(r => r.Num);
-            long minNum = db.Zcycs.Min(r => r.Num);
-            var startDate = db.Zcycs.Where(r => r.Num == minNum).Select(r => r.Tradedate).FirstOrDefault();
-            var endDate = db.Zcycs.Where(r => r.Num == maxNum).Select(r => r.Tradedate).FirstOrDefault();
-            var output = new Tuple<DateTime, DateTime>(startDate, endDate);
+            //db.Database.EnsureCreated();
+
+            try
+            {
+                long maxNum = db.Zcycs.Max(r => r.Num);
+                long minNum = db.Zcycs.Min(r => r.Num);
+                startDate = db.Zcycs.Where(r => r.Num == minNum).Select(r => r.Tradedate).FirstOrDefault();
+                endDate = db.Zcycs.Where(r => r.Num == maxNum).Select(r => r.Tradedate).FirstOrDefault();
+                var output = new Tuple<DateTime, DateTime>(startDate, endDate);
+            }
+            catch (Exception ex)
+            {
+                Debug.Print(ex.ToString());
+            }
+
             return Task.FromResult(new DateRange(startDate, endDate));
         }
 
-        public async Task<bool> SaveData(ZcycData data) //todo add error checking
+        public Task<bool> SaveData(ZcycData data) //todo add error checking
         {
-            if (data.Date == null || data.DataRow == null || data.DataRow.Count == 0)
+            if (data.DataRow == null || data.DataRow.Count == 0)
             {
-                return await Task.FromResult(false);
+                return Task.FromResult(false);
             }
 
             using var db = new MoexContext();
+            //db.Database.EnsureCreated();
             for (int i = 0; i < data.DataRow.Count; i++)
             {
                 var row = data.DataRow[i];
@@ -68,8 +84,17 @@ namespace CurveAnalyzer.DataProviders
                     Value = row.Value
                 });
             }
-            var res = await db.SaveChangesAsync().ConfigureAwait(false);
-            return await Task.FromResult(res > 0);
+
+            try
+            {
+                var res = db.SaveChanges();
+                return Task.FromResult(res > 0);
+            }
+            catch (Exception ex)
+            {
+                Debug.Print($"Saving data to database error: {ex.InnerException}");
+                return Task.FromResult(false);
+            }
         }
     }
 }

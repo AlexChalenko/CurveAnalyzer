@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using MoexData;
 using System;
 using System.Collections.Generic;
@@ -15,6 +15,5 @@ namespace CurveAnalyzer
     /// </summary>
     public partial class App : Application
     {
-
     }
 }

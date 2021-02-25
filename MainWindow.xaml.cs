@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Diagnostics;
-using System.Drawing;
 using System.Globalization;
 using System.Linq;
 using System.Runtime.CompilerServices;
@@ -14,11 +13,13 @@ using System.Windows.Threading;
 using CurveAnalyzer.Data;
 using CurveAnalyzer.DataProviders;
 using CurveAnalyzer.Interfaces;
+using CurveAnalyzer.Tools;
 using LiveCharts;
 using LiveCharts.Configurations;
 using LiveCharts.Defaults;
 using LiveCharts.Wpf;
-using Microsoft.EntityFrameworkCore.Diagnostics;
+using Microsoft.EntityFrameworkCore.Internal;
+using Microsoft.Scripting.Utils;
 using MoexData;
 using OxyPlot;
 using OxyPlot.Axes;
@@ -113,21 +114,48 @@ namespace CurveAnalyzer
             timer.Tick += onTimerTick;
 
             updateHistory();
+
+            //AppDomain.CurrentDomain.UnhandledException += OnUnhandledException;
         }
+
+        //private void OnUnhandledException(object sender, UnhandledExceptionEventArgs e)
+        //{
+        //    var ex = e.ExceptionObject as Exception;
+        //    if (ex != null)
+        //    {
+        //        ExceptionUtils.LogException(ex,Events.Log.UnhandledException,
+        //        true);
+        //    }
+        //    else if (e.ExceptionObject != null)
+        //    {
+        //        var type = e.ExceptionObject.GetType().ToString();
+        //        Console.WriteLine(
+        //        $"Non-exception object: {type} - {e.ExceptionObject}");
+        //    }
+        //    else
+        //    {
+        //        Console.WriteLine("Unknown object");
+        //    }
+        //}
 
         private void updateHistory()
         {
             realtimeDataProvider.GetAvailableDates().ContinueWith(async t =>
             {
-                var startDay = t.Result.StartDate;
-                var endDay = t.Result.EndDate;
-                CalendarControl.DisplayDateStart = startDay;
-                CalendarControl.DisplayDateEnd = endDay;
+                var startDateFromRealtime = t.Result.StartDate;
+                var endDateFromRealtime = t.Result.EndDate;
+                CalendarControl.DisplayDateStart = startDateFromRealtime;
+                CalendarControl.DisplayDateEnd = endDateFromRealtime;
 
                 histotyDateRange = await historyDataProvider.GetAvailableDates();
 
+
                 var startDate = histotyDateRange.EndDate.AddDays(1d);
                 var endDate = DateTime.Today.AddDays(-1d);
+
+                if (histotyDateRange.StartDate == DateTime.MinValue)
+                    startDate = startDateFromRealtime;
+
                 if ((endDate - startDate).TotalDays >= 0)
                 {
                     await Task.Run(() => downloadAndSaveData(new DateRange(startDate, endDate)));
@@ -140,7 +168,6 @@ namespace CurveAnalyzer
         public event PropertyChangedEventHandler PropertyChanged;
 
         public OxyPlot.PlotModel DataModel { get; private set; }
-        public IssData IssData { get; set; }
         public ObservableCollection<string> LabelsX { get; set; }
 
         //private double minValue = double.MaxValue;
@@ -161,12 +188,6 @@ namespace CurveAnalyzer
         public Func<double, string> XFormatter { get; set; }
 
         protected void OnPropertyChanged([CallerMemberName] string name = null!) => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
-
-        private static int YearAndWeekToNumber(DateTime date)
-        {
-            CultureInfo ciCurr = CultureInfo.CurrentCulture;
-            return date.Year * 100 + ciCurr.Calendar.GetWeekOfYear(date, CalendarWeekRule.FirstFourDayWeek, DayOfWeek.Monday);
-        }
 
         private void CalendarControl_SelectedDatesChanged(object sender, SelectionChangedEventArgs e)
         {
@@ -213,10 +234,10 @@ namespace CurveAnalyzer
 
             if (dates.Count > 0)
             {
-                foreach (var item in from date in dates select realtimeDataProvider.ReadDataForDay(date))
+                foreach (var item in from date in dates select realtimeDataProvider.ReadDataForDate(date))
                 {
-                    Task<ZcycData> firstFinishedTask = await Task.WhenAny(item).ConfigureAwait(false);
-                    var res = await firstFinishedTask.ConfigureAwait(false);
+                    Task<ZcycData> firstFinishedTask = await Task.WhenAny(item);
+                    var res = await firstFinishedTask;
                     if (res?.Date != null && res.DataRow.Count > 0)
                     {
                         StatusText.Dispatcher.Invoke(() => StatusText.Content = $"Загрузка данных за {res.Date}");
@@ -245,11 +266,11 @@ namespace CurveAnalyzer
             var startDate = new DateTime(1900, 1, 1);
 
             using var db = new MoexContext();
+            //db.Database.EnsureCreated();
 
             var query = db.Zcycs.Where(p => p.Period == period)
                              .AsEnumerable()
-                             .GroupBy(g => YearAndWeekToNumber(g.Tradedate))
-                             .Select(w => w.ToList())
+                             .GroupBy(g => g.Tradedate.YearAndWeekToNumber())
                              .ToList();
 
             foreach (var item in query)
@@ -283,11 +304,11 @@ namespace CurveAnalyzer
             var output = new ChartValues<OhlcPoint>();
 
             using var db = new MoexContext();
+            //db.Database.EnsureCreated();
 
             var query = db.Zcycs.Where(p => p.Period == period)
                              .AsEnumerable()
-                             .GroupBy(g => YearAndWeekToNumber(g.Tradedate))
-                             .Select(w => w.ToList())
+                             .GroupBy(g => g.Tradedate.YearAndWeekToNumber())
                              .ToList();
 
             foreach (var item in query)
@@ -405,9 +426,9 @@ namespace CurveAnalyzer
             ZcycData dataToPlot;
 
             if (histotyDateRange.IsInRange(dateTime))
-                dataToPlot = historyDataProvider.ReadDataForDay(dateTime).Result; //todo
+                dataToPlot = historyDataProvider.ReadDataForDate(dateTime).Result; //todo
             else
-                dataToPlot = realtimeDataProvider.ReadDataForDay(dateTime).Result;
+                dataToPlot = realtimeDataProvider.ReadDataForDate(dateTime).Result;
 
             GetDataButton.IsEnabled = true;
 
@@ -416,6 +437,9 @@ namespace CurveAnalyzer
 
             bool isDataNew = true;
             int index = -1;
+
+            //var ind = SeriesCollection.ToList().FindIndex(r=> r.Title == lastUpdateDate);
+            //var ind2 = SeriesCollection.Select((v, i) => new { v, i }).Single(p => p.v.Title == lastUpdateDate); // returns error
 
             for (int i = 0; i < SeriesCollection.Count; i++)
             {
