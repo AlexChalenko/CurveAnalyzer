@@ -32,6 +32,9 @@ namespace CurveAnalyzer
 {
     public partial class MainWindow : Window, INotifyPropertyChanged
     {
+
+        MainViewModel mainViewModel;
+
         private readonly DispatcherTimer timer;
         private string lastUpdateDate;
 
@@ -41,80 +44,80 @@ namespace CurveAnalyzer
 
         public MainWindow()
         {
-            realtimeDataProvider = new IssMoexDataProvider();
-            historyDataProvider = new SQLiteDataProvider();
+            //realtimeDataProvider = new IssMoexDataProvider();
+            //historyDataProvider = new SQLiteDataProvider();
 
-            var mapper1 = Mappers.Xy<ObservablePoint>().X(point => point.X).Y(point => point.Y);
+            //var mapper1 = Mappers.Xy<ObservablePoint>().X(point => point.X).Y(point => point.Y);
 
-            LabelsX = new ObservableCollection<string>();
-            SeriesCollection = new SeriesCollection(mapper1);
+            //LabelsX = new ObservableCollection<string>();
+            //SeriesCollection = new SeriesCollection(mapper1);
 
-            MyModel = new OxyPlot.PlotModel();
+            //MyModel = new OxyPlot.PlotModel();
 
-            var linearAxis1 = new LinearAxis
-            {
-                MajorGridlineStyle = LineStyle.Solid,
-                MinorGridlineStyle = LineStyle.Dot,
-                Font = "Tahoma",
-                Title = "Доходность",
-                MaximumPadding = 0.1,
-                MinimumPadding = 0.1
-            };
-            MyModel.Axes.Add(linearAxis1);
-            var linearAxis2 = new LinearAxis
-            {
-                MajorGridlineStyle = LineStyle.Solid,
-                MinorGridlineStyle = LineStyle.Dot,
-                Position = AxisPosition.Bottom,
-                IsZoomEnabled = false,
-                Title = "Дюрация",
-                TitleFont = "Segoe UI",
-                TitleFontWeight = FontWeights.Bold,
-            };
+            //var linearAxis1 = new LinearAxis
+            //{
+            //    MajorGridlineStyle = LineStyle.Solid,
+            //    MinorGridlineStyle = LineStyle.Dot,
+            //    Font = "Tahoma",
+            //    Title = "Доходность",
+            //    MaximumPadding = 0.1,
+            //    MinimumPadding = 0.1
+            //};
+            //MyModel.Axes.Add(linearAxis1);
+            //var linearAxis2 = new LinearAxis
+            //{
+            //    MajorGridlineStyle = LineStyle.Solid,
+            //    MinorGridlineStyle = LineStyle.Dot,
+            //    Position = AxisPosition.Bottom,
+            //    IsZoomEnabled = false,
+            //    Title = "Дюрация",
+            //    TitleFont = "Segoe UI",
+            //    TitleFontWeight = FontWeights.Bold,
+            //};
 
-            MyModel.Axes.Add(linearAxis2);
+            //MyModel.Axes.Add(linearAxis2);
 
-            DataModel = new PlotModel();
-            var lineAxisY1 = new LinearAxis
-            {
-                Title = "График",
-                Key = "Y1",
-                StartPosition = 0.3,
-                Position = AxisPosition.Right,
-            };
-            var lineAxisY2 = new LinearAxis
-            {
-                Title = "Индикатор",
-                Position = AxisPosition.Right,
-                Key = "Y2",
-                EndPosition = 0.3
-            };
+            //DataModel = new PlotModel();
+            //var lineAxisY1 = new LinearAxis
+            //{
+            //    Title = "График",
+            //    Key = "Y1",
+            //    StartPosition = 0.3,
+            //    Position = AxisPosition.Right,
+            //};
+            //var lineAxisY2 = new LinearAxis
+            //{
+            //    Title = "Индикатор",
+            //    Position = AxisPosition.Right,
+            //    Key = "Y2",
+            //    EndPosition = 0.3
+            //};
 
-            var dateTimeAxis1 = new DateTimeAxis
-            {
-                Key = "X"
-            };
+            //var dateTimeAxis1 = new DateTimeAxis
+            //{
+            //    Key = "X"
+            //};
 
-            DataModel.Axes.Add(dateTimeAxis1);
-            DataModel.Axes.Add(lineAxisY1);
-            DataModel.Axes.Add(lineAxisY2);
+            //DataModel.Axes.Add(dateTimeAxis1);
+            //DataModel.Axes.Add(lineAxisY1);
+            //DataModel.Axes.Add(lineAxisY2);
 
-            //MyModel.Axes.Add(lineAxisX);
+            ////MyModel.Axes.Add(lineAxisX);
 
-            XFormatter = x => x.ToString("0.00");
-            DataContext = this;
+            //XFormatter = x => x.ToString("0.00");
+            DataContext = mainViewModel = new MainViewModel();
             InitializeComponent();
 
-            MainChart.LegendLocation = LegendLocation.Right;
-            CalendarControl.SelectedDate = DateTime.Today;
-            LastUpdateDate = CalendarControl.SelectedDate.Value.ToShortDateString();
-            timer = new DispatcherTimer
-            {
-                Interval = new TimeSpan(0, 1, 0)
-            };
-            timer.Tick += onTimerTick;
+            //MainChart.LegendLocation = LegendLocation.Right;
+            //CalendarControl.SelectedDate = DateTime.Today;
+            //LastUpdateDate = CalendarControl.SelectedDate.Value.ToShortDateString();
+            //timer = new DispatcherTimer
+            //{
+            //    Interval = new TimeSpan(0, 1, 0)
+            //};
+            //timer.Tick += onTimerTick;
 
-            updateHistory();
+            //updateHistory();
 
             //AppDomain.CurrentDomain.UnhandledException += OnUnhandledException;
         }
@@ -139,33 +142,7 @@ namespace CurveAnalyzer
         //    }
         //}
 
-        private void updateHistory()
-        {
-            realtimeDataProvider.GetAvailableDates().ContinueWith(async t =>
-            {
-                var startDateFromRealtime = t.Result.StartDate;
-                var endDateFromRealtime = t.Result.EndDate;
-                CalendarControl.DisplayDateStart = startDateFromRealtime;
-                CalendarControl.DisplayDateEnd = endDateFromRealtime;
-
-                histotyDateRange = await historyDataProvider.GetAvailableDates();
-
-
-                var startDate = histotyDateRange.EndDate.AddDays(1d);
-                var endDate = DateTime.Today.AddDays(-1d);
-
-                if (histotyDateRange.StartDate == DateTime.MinValue)
-                    startDate = startDateFromRealtime;
-
-                if ((endDate - startDate).TotalDays >= 0)
-                {
-                    await Task.Run(() => downloadAndSaveData(new DateRange(startDate, endDate)));
-                }
-
-                //Task.Run(() => downloadData(startDay, endDay.AddDays(-1d)));
-            }, TaskScheduler.FromCurrentSynchronizationContext());
-        }
-
+        
         public event PropertyChangedEventHandler PropertyChanged;
 
         public OxyPlot.PlotModel DataModel { get; private set; }
@@ -190,10 +167,6 @@ namespace CurveAnalyzer
 
         protected void OnPropertyChanged([CallerMemberName] string name = null!) => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
 
-        private void CalendarControl_SelectedDatesChanged(object sender, SelectionChangedEventArgs e)
-        {
-            ToggleButton.IsChecked = false;
-        }
 
         private void CheckBox_Click(object sender, RoutedEventArgs e)
         {
@@ -207,16 +180,6 @@ namespace CurveAnalyzer
             {
                 timer.Stop();
             }
-        }
-
-        private void ClearButton_Click(object sender, RoutedEventArgs e)
-        {
-            //foreach (var item in SeriesCollection)
-            //{
-            //    //item.Values.Clear();
-            //    //item.Values.Remove();
-            //}
-            SeriesCollection.Clear();
         }
 
         private void DeleteChart_Click(object sender, RoutedEventArgs e)
@@ -235,7 +198,7 @@ namespace CurveAnalyzer
 
             if (dates.Count > 0)
             {
-                foreach (var item in from date in dates select realtimeDataProvider.ReadDataForDate(date))
+                foreach (var item in from date in dates select realtimeDataProvider.GetDataForDate(date))
                 {
                     Task<ZcycData> firstFinishedTask = await Task.WhenAny(item);
                     var res = await firstFinishedTask;
@@ -252,12 +215,6 @@ namespace CurveAnalyzer
                 }
                 StatusText.Dispatcher.Invoke(() => StatusText.Content = "Загрузка данных завершена");
             }
-        }
-
-        private void GetData_Click(object sender, RoutedEventArgs e)
-        {
-            if (CalendarControl.SelectedDate.HasValue)
-                updateChart(CalendarControl.SelectedDate.Value);
         }
 
         private List<OxyPlot.Series.HighLowItem> getOxyWeeklyOhlcs(double period)
@@ -428,9 +385,9 @@ namespace CurveAnalyzer
             ZcycData dataToPlot;
 
             if (histotyDateRange.IsInRange(dateTime))
-                dataToPlot = historyDataProvider.ReadDataForDate(dateTime).Result; //todo
+                dataToPlot = historyDataProvider.GetDataForDate(dateTime).Result; //todo
             else
-                dataToPlot = realtimeDataProvider.ReadDataForDate(dateTime).Result;
+                dataToPlot = realtimeDataProvider.GetDataForDate(dateTime).Result;
 
             GetDataButton.IsEnabled = true;
 

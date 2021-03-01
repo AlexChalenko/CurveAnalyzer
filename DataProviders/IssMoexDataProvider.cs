@@ -13,7 +13,7 @@ namespace CurveAnalyzer.DataProviders
         private const string DataUrl = "https://iss.moex.com/iss/engines/stock/zcyc.xml?date={0}&iss.only=yearyields&iss.meta=off";
         private const string DatesPath = "https://iss.moex.com/iss/engines/stock/zcyc.xml?iss.only=yearyields.dates&iss.meta=off";
 
-        public Task<ZcycData> ReadDataForDate(DateTime date)
+        public Task<ZcycData> GetDataForDate(DateTime date)
         {
             var tcs = new TaskCompletionSource<ZcycData>();
 

@@ -14,7 +14,7 @@ namespace CurveAnalyzer.DataProviders
 {
     public class SQLiteDataProvider : ZcycDataProvider
     {
-        public Task<ZcycData> ReadDataForDate(DateTime date)
+        public Task<ZcycData> GetDataForDate(DateTime date)
         {
             var tcs = new TaskCompletionSource<ZcycData>();
 
