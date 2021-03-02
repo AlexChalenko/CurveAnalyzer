@@ -22,6 +22,7 @@ namespace CurveAnalyzer.DataProviders
             //db.Database.EnsureCreated();
 
             var dbData = db.Zcycs.Where(r => r.Tradedate.Equals(date)).ToList();
+
             var zData = new ZcycData();
             zData.Date = date;
             if (dbData.Count > 0)
@@ -41,28 +42,34 @@ namespace CurveAnalyzer.DataProviders
             return tcs.Task;
         }
 
-        public Task<DateRange> GetAvailableDates()
+        public Task<List<DateTime>> GetAvailableDates()
         {
-            DateTime startDate = DateTime.MinValue;
-            DateTime endDate = DateTime.Now.AddDays(-1);
+            //DateTime startDate = DateTime.MinValue;
+            //DateTime endDate = DateTime.Now.AddDays(-1);
 
             using var db = new MoexContext();
             //db.Database.EnsureCreated();
 
+            List<DateTime> output = new();
+
             try
             {
-                long maxNum = db.Zcycs.Max(r => r.Num);
-                long minNum = db.Zcycs.Min(r => r.Num);
-                startDate = db.Zcycs.Where(r => r.Num == minNum).Select(r => r.Tradedate).FirstOrDefault();
-                endDate = db.Zcycs.Where(r => r.Num == maxNum).Select(r => r.Tradedate).FirstOrDefault();
-                var output = new Tuple<DateTime, DateTime>(startDate, endDate);
+                var r = db.Zcycs.Select(_ => _.Tradedate).Distinct().ToArray();
+                output.AddRange(r);
+
+                //long maxNum = db.Zcycs.Max(r => r.Num);
+                //long minNum = db.Zcycs.Min(r => r.Num);
+                //startDate = db.Zcycs.Where(r => r.Num == minNum).Select(r => r.Tradedate).FirstOrDefault();
+                //endDate = db.Zcycs.Where(r => r.Num == maxNum).Select(r => r.Tradedate).FirstOrDefault();
+                //var output = new Tuple<DateTime, DateTime>(startDate, endDate);
             }
             catch (Exception ex)
             {
                 Debug.Print(ex.ToString());
             }
 
-            return Task.FromResult(new DateRange(startDate, endDate));
+            return Task.FromResult(output);
+            //return Task.FromResult(new DateRange(startDate, endDate));
         }
 
         public Task<bool> SaveData(ZcycData data) //todo add error checking

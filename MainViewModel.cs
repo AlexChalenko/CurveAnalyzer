@@ -2,8 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
-using System.Runtime.CompilerServices;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
@@ -11,7 +9,6 @@ using CurveAnalyzer.Data;
 using CurveAnalyzer.DataProviders;
 using CurveAnalyzer.Interfaces;
 using CurveAnalyzer.Tools;
-using Microsoft.EntityFrameworkCore;
 using MoexData;
 using MvvmHelpers;
 using MvvmHelpers.Commands;
@@ -41,7 +38,6 @@ namespace CurveAnalyzer
 
         private ZcycDataProvider realtimeDataProvider;
         private ZcycDataProvider historyDataProvider;
-        private DateRange histotyDateRange;
 
         private DateTime startDate;
         private DateTime endDate;
@@ -88,7 +84,7 @@ namespace CurveAnalyzer
             }
         }
 
-        public Command PlotDailyChartCommand { get; }
+        public AsyncCommand PlotDailyChartCommand { get; }
         public Command PlotWeeklyChartCommand { get; }
         public Command ClearDailyChartCommand { get; }
 
@@ -123,7 +119,7 @@ namespace CurveAnalyzer
             realtimeDataProvider = new IssMoexDataProvider();
             historyDataProvider = new SQLiteDataProvider();
 
-            PlotDailyChartCommand = new Command((o) => plotDailyChart(SelectedDate, o), o => IsNotBusy);
+            PlotDailyChartCommand = new AsyncCommand(()=>plotDailyChart(SelectedDate), o => IsNotBusy);
             ClearDailyChartCommand = new Command(clearDailyChart, o => IsNotBusy);
             //PlotWeeklyChartCommand = new Command(o => plotWeeklyChart(o), o => IsNotBusy);
 
@@ -176,79 +172,70 @@ namespace CurveAnalyzer
         {
             realtimeDataProvider.GetAvailableDates().ContinueWith(async t =>
             {
-                var startDateFromRealtime = t.Result.StartDate;
-                var endDateFromRealtime = t.Result.EndDate;
-                StartDate = startDateFromRealtime;
-                EndDate = endDateFromRealtime;
+                //var startDateFromRealtime = t.Result.StartDate;
+                //var endDateFromRealtime = t.Result.EndDate;
+                //StartDate = startDateFromRealtime;
+                //EndDate = endDateFromRealtime;
 
-                histotyDateRange = await historyDataProvider.GetAvailableDates().ConfigureAwait(false);
+                var realtimeDates = t.Result;
 
-                var startDate = histotyDateRange.EndDate.AddDays(1d);
-                var endDate = DateTime.Today.AddDays(-1d);
+                //var realtimeDates = Enumerable.Range(0, int.MaxValue)
+                //                              .Select(index => StartDate.AddDays(index))
+                //                              .TakeWhile(date => date <= EndDate);
 
-                if (histotyDateRange.StartDate == DateTime.MinValue)
-                    startDate = startDateFromRealtime;
+                var historyDates = await historyDataProvider.GetAvailableDates().ConfigureAwait(false);
 
-                if ((endDate - startDate).TotalDays >= 0)
-                {
-                    await Task.Run(() => downloadAndSaveData(new DateRange(startDate, endDate)));
-                }
+                //var historyDates = Enumerable.Range(0, int.MaxValue)
+                //                             .Select(index => histotyDateRange.StartDate.AddDays(index))
+                //                             .TakeWhile(date => date <= histotyDateRange.EndDate);
 
+                var newDates = realtimeDates.Except(historyDates).Where(date => date > historyDates.Max());
+
+
+                StartDate = historyDates.Min();
+                EndDate = realtimeDates.Max();
                 SelectedDate = EndDate;
+
+                await Task.Run(() => downloadAndSaveData(newDates));
 
                 //Task.Run(() => downloadData(startDay, endDay.AddDays(-1d)));
             }, TaskScheduler.FromCurrentSynchronizationContext());
         }
 
-        private async Task downloadAndSaveData(DateRange dateRange)
+        private async Task downloadAndSaveData(IEnumerable<DateTime> dates)
         {
-            var dates = new List<DateTime>();
-
-            while (dateRange.StartDate <= dateRange.EndDate)
+            foreach (var item in from date in dates select realtimeDataProvider.GetDataForDate(date))
             {
-                dates.Add(dateRange.StartDate);
-                dateRange.StartDate = dateRange.StartDate.AddDays(1d);
-            }
-
-            if (dates.Count > 0)
-            {
-                foreach (var item in from date in dates select realtimeDataProvider.GetDataForDate(date))
+                Task<ZcycData> firstFinishedTask = await Task.WhenAny(item);
+                var res = await firstFinishedTask;
+                if (res?.Date != null && res.DataRow.Count > 0)
                 {
-                    Task<ZcycData> firstFinishedTask = await Task.WhenAny(item);
-                    var res = await firstFinishedTask;
-                    if (res?.Date != null && res.DataRow.Count > 0)
-                    {
-                        Status = $"Загрузка данных за {res.Date}";
-                        var result = await historyDataProvider.SaveData(res);
-                        Debug.WriteLine($"******************** added {result} with date {res.Date}");
-                        if (res.Date > histotyDateRange.EndDate)
-                        {
-                            histotyDateRange.EndDate = res.Date;
-                        }
-                    }
+                    Status = $"Загрузка данных за {res.Date}";
+                    var result = await historyDataProvider.SaveData(res);
+                    Debug.WriteLine($"******************** added {result} with date {res.Date}");
                 }
-                Status = "Загрузка данных завершена";
             }
+            Status = "Загрузка данных завершена";
         }
 
-        void plotDailyChart(DateTime dateTime, object arg)
+        async Task plotDailyChart(DateTime dateTime)
         {
             if (DailyChart.Series.Any(_ => _.Title.Equals(dateTime.ToShortDateString())))
                 return;
 
-            ZcycData dataToPlot;
 
-            if (histotyDateRange.IsInRange(dateTime))
-                dataToPlot = historyDataProvider.GetDataForDate(dateTime).Result; //todo
-            else
-                dataToPlot = realtimeDataProvider.GetDataForDate(dateTime).Result;
+            //if (histotyDateRange.IsInRange(dateTime))
+            ZcycData dataToPlot = await historyDataProvider.GetDataForDate(dateTime); //todo
+
+            if (dataToPlot.DataRow.Count == 0)
+                dataToPlot = await realtimeDataProvider.GetDataForDate(dateTime);
 
             //GetDataButton.IsEnabled = true;
 
             if (dataToPlot.DataRow.Count == 0)
                 return;
 
-            var lineSeries1 = new OxyPlot.Series.LineSeries
+            var lineSeries1 = new LineSeries
             {
                 MarkerType = MarkerType.Circle,
                 MarkerStrokeThickness = 2,
@@ -276,6 +263,7 @@ namespace CurveAnalyzer
 
             DailyChart.Series.Add(lineSeries1);
             DailyChart.InvalidatePlot(true);
+            return;
         }
 
         private void setupDailyChart()
@@ -336,7 +324,7 @@ namespace CurveAnalyzer
                 YAxisKey = "Y2",
                 TextOrientation = AnnotationTextOrientation.Horizontal,
                 TextHorizontalAlignment = OxyPlot.HorizontalAlignment.Right
-                
+
             };
 
             var dateTimeAxis1 = new DateTimeAxis

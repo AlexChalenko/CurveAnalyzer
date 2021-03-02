@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using System.Xml;
 using System.Xml.Serialization;
@@ -49,9 +51,9 @@ namespace CurveAnalyzer.DataProviders
             return tcs.Task;
         }
 
-        public async Task<DateRange> GetAvailableDates()
+        public async Task<List<DateTime>> GetAvailableDates()
         {
-            var tcs = new TaskCompletionSource<DateRange>();
+            var tcs = new TaskCompletionSource<List<DateTime>>();
 
             var settings = new XmlReaderSettings
             {
@@ -67,9 +69,12 @@ namespace CurveAnalyzer.DataProviders
                     case XmlNodeType.Element:
                         if (reader.Name.Equals("row"))
                         {
-                            var date1 = DateTime.Parse(reader.GetAttribute(0));
-                            var date2 = DateTime.Parse(reader.GetAttribute(1));
-                            tcs.TrySetResult(new DateRange(date1, date2));
+                            var startDate = DateTime.Parse(reader.GetAttribute(0));
+                            var endDate = DateTime.Parse(reader.GetAttribute(1));
+                            var range = Enumerable.Range(0, int.MaxValue)
+                                                  .Select(index => startDate.AddDays(index))
+                                                  .TakeWhile(date => date <= endDate);
+                            tcs.TrySetResult(range.ToList());
                         }
                         break;
 
