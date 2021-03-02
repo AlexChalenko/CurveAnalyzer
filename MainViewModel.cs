@@ -119,7 +119,7 @@ namespace CurveAnalyzer
             realtimeDataProvider = new IssMoexDataProvider();
             historyDataProvider = new SQLiteDataProvider();
 
-            PlotDailyChartCommand = new AsyncCommand(()=>plotDailyChart(SelectedDate), o => IsNotBusy);
+            PlotDailyChartCommand = new AsyncCommand(() => plotDailyChart(SelectedDate), o => IsNotBusy);
             ClearDailyChartCommand = new Command(clearDailyChart, o => IsNotBusy);
             //PlotWeeklyChartCommand = new Command(o => plotWeeklyChart(o), o => IsNotBusy);
 
@@ -130,7 +130,7 @@ namespace CurveAnalyzer
         {
             var weeklyData = getOxyWeeklyOhlcs(period);
 
-            var lineSeries1 = new OxyPlot.Series.CandleStickSeries
+            var lineSeries1 = new CandleStickSeries
             {
                 XAxisKey = "X",
                 YAxisKey = "Y1"
@@ -138,7 +138,7 @@ namespace CurveAnalyzer
 
             lineSeries1.Items.AddRange(weeklyData);
 
-            var lineSeries2 = new OxyPlot.Series.LineSeries
+            var lineSeries2 = new LineSeries
             {
                 XAxisKey = "X",
                 YAxisKey = "Y2"
@@ -179,21 +179,14 @@ namespace CurveAnalyzer
 
                 var realtimeDates = t.Result;
 
-                //var realtimeDates = Enumerable.Range(0, int.MaxValue)
-                //                              .Select(index => StartDate.AddDays(index))
-                //                              .TakeWhile(date => date <= EndDate);
+                bool todayDeleted = realtimeDates.Remove(DateTime.Today);
 
                 var historyDates = await historyDataProvider.GetAvailableDates().ConfigureAwait(false);
 
-                //var historyDates = Enumerable.Range(0, int.MaxValue)
-                //                             .Select(index => histotyDateRange.StartDate.AddDays(index))
-                //                             .TakeWhile(date => date <= histotyDateRange.EndDate);
+                var newDates = historyDates.Count > 0 ? realtimeDates.Except(historyDates).Where(date => date > historyDates.Max()).ToList() : realtimeDates;
 
-                var newDates = realtimeDates.Except(historyDates).Where(date => date > historyDates.Max());
-
-
-                StartDate = historyDates.Min();
-                EndDate = realtimeDates.Max();
+                StartDate = historyDates.Count > 0 ? historyDates.Min() : realtimeDates.Min();
+                EndDate = todayDeleted ? DateTime.Today : realtimeDates.Max();
                 SelectedDate = EndDate;
 
                 await Task.Run(() => downloadAndSaveData(newDates));
@@ -319,12 +312,11 @@ namespace CurveAnalyzer
                 Type = LineAnnotationType.Horizontal,
                 Y = 0,
                 Color = OxyColors.Green,
-                Text = "rer",
+                Text = "rerefefefe",
                 TextLinePosition = 1,
                 YAxisKey = "Y2",
                 TextOrientation = AnnotationTextOrientation.Horizontal,
-                TextHorizontalAlignment = OxyPlot.HorizontalAlignment.Right
-
+                TextHorizontalAlignment = OxyPlot.HorizontalAlignment.Right,
             };
 
             var dateTimeAxis1 = new DateTimeAxis
@@ -340,6 +332,16 @@ namespace CurveAnalyzer
             PerformanceChart.Axes.Add(lineAxisY1);
             PerformanceChart.Axes.Add(lineAxisY2);
             performanceChart.Annotations.Add(LineAnnotation1);
+
+            performanceChart.Annotations.Add(new CustomTextAnnotation()
+            {
+                Text = "A B C",
+                X = 110,
+                Y = 10,
+                Font = "Times New Roman",
+                FontSize = 12,
+                TextColor = OxyColors.Black
+            });
         }
 
 

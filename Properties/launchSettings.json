@@ -1,8 +1,7 @@
 {
   "profiles": {
     "CurveAnalyzer": {
-      "commandName": "Project",
-      "workingDirectory": "C:\\Users\\Alexey\\source\\repos\\MoexData\\"
+      "commandName": "Project"
     }
   }
 }
