@@ -333,15 +333,15 @@ namespace CurveAnalyzer
             PerformanceChart.Axes.Add(lineAxisY2);
             performanceChart.Annotations.Add(LineAnnotation1);
 
-            performanceChart.Annotations.Add(new CustomTextAnnotation()
-            {
-                Text = "A B C",
-                X = 110,
-                Y = 10,
-                Font = "Times New Roman",
-                FontSize = 12,
-                TextColor = OxyColors.Black
-            });
+            //performanceChart.Annotations.Add(new CustomTextAnnotation()
+            //{
+            //    Text = "A B C",
+            //    X = 110,
+            //    Y = 10,
+            //    Font = "Times New Roman",
+            //    FontSize = 12,
+            //    TextColor = OxyColors.Black
+            //});
         }
 
 
