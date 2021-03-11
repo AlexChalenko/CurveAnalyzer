@@ -153,7 +153,6 @@ namespace CurveAnalyzer
 
         protected void OnPropertyChanged([CallerMemberName] string name = null!) => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
 
-
         private void CheckBox_Click(object sender, RoutedEventArgs e)
         {
             CheckBox checkBox = (CheckBox)sender;
@@ -248,6 +247,11 @@ namespace CurveAnalyzer
         private void onTimerTick(object sender, EventArgs e)
         {
             //updateChart(DateTime.Today);
+        }
+
+        private void TabControl_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+
         }
 
         //private void updateChart(DateTime dateTime)
