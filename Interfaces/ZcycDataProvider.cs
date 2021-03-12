@@ -11,5 +11,6 @@ namespace CurveAnalyzer.Interfaces
         Task<List<DateTime>> GetAvailableDates();
         Task<ZcycData> GetDataForDate(DateTime date);
         Task<bool> SaveData(ZcycData data);
+        Task<List<double>>GetPeriods();
     }
 }

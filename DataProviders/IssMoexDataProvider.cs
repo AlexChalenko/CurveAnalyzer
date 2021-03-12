@@ -13,7 +13,8 @@ namespace CurveAnalyzer.DataProviders
     public class IssMoexDataProvider : ZcycDataProvider
     {
         private const string DataUrl = "https://iss.moex.com/iss/engines/stock/zcyc.xml?date={0}&iss.only=yearyields&iss.meta=off";
-        private const string DatesPath = "https://iss.moex.com/iss/engines/stock/zcyc.xml?iss.only=yearyields.dates&iss.meta=off";
+        private const string DatesUrl = "https://iss.moex.com/iss/engines/stock/zcyc.xml?iss.only=yearyields.dates&iss.meta=off";
+        private const string PeriodsUrl = "https://iss.moex.com/iss/engines/stock/zcyc.xml?iss.only=yearyields&yearyields.columns=period&iss.meta=off";
 
         public Task<ZcycData> GetDataForDate(DateTime date)
         {
@@ -60,7 +61,7 @@ namespace CurveAnalyzer.DataProviders
                 Async = true
             };
 
-            using XmlReader reader = XmlReader.Create(DatesPath, settings);
+            using XmlReader reader = XmlReader.Create(DatesUrl, settings);
 
             while (await reader.ReadAsync().ConfigureAwait(false))
             {
@@ -77,23 +78,36 @@ namespace CurveAnalyzer.DataProviders
                             tcs.TrySetResult(range.ToList());
                         }
                         break;
-
-                    case XmlNodeType.Text:
-                        //Debug.WriteLine($"Text Node: {await reader.GetValueAsync()}");
-                        break;
-
-                    case XmlNodeType.EndElement:
-                        //Debug.WriteLine($"End Element {reader.Name}");
-                        break;
-
-                    default:
-                        //Debug.WriteLine($"Other node {reader.NodeType} with value {reader.Value}");
-                        break;
                 }
             }
             return await tcs.Task.ConfigureAwait(false);
         }
 
         public Task<bool> SaveData(ZcycData data) => Task.FromResult(true);
+
+        public async Task<List<double>> GetPeriods()
+        {
+            List<double> result = new List<double>();
+            var tcs = new TaskCompletionSource<List<double>>();
+
+            var settings = new XmlReaderSettings
+            {
+                Async = true
+            };
+
+            using XmlReader reader = XmlReader.Create(PeriodsUrl, settings);
+            while (await reader.ReadAsync().ConfigureAwait(false))
+            {
+                switch (reader.NodeType)
+                {
+                    case XmlNodeType.Element:
+                        if (reader.Name.Equals("row") && double.TryParse(reader.GetAttribute(0), out double period))
+                            result.Add(period);
+                        break;
+                }
+            }
+            tcs.TrySetResult(result);
+            return await tcs.Task.ConfigureAwait(false);
+        }
     }
 }

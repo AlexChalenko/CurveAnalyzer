@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.Linq;
 using System.Threading;
@@ -63,6 +64,32 @@ namespace CurveAnalyzer
         {
             get { return selectedDate; }
             set { SetProperty(ref selectedDate, value); }
+        }
+
+        public ObservableCollection<double> Periods { get; private set; } = new ObservableCollection<double>();
+
+        private double period1;
+        public double Period1
+        {
+            get { return period1; }
+            set
+            {
+                if (SetProperty(ref period1, value))
+                    PlotSpreadCommand.RaiseCanExecuteChanged();
+            }
+        }
+
+        private double period2;
+        public double Period2
+        {
+            get { return period2; }
+            set
+            {
+                if (SetProperty(ref period2, value))
+                {
+                    PlotSpreadCommand.RaiseCanExecuteChanged();
+                }
+            }
         }
 
         SynchronizationContext _context;
@@ -131,9 +158,22 @@ namespace CurveAnalyzer
             PlotDailyChartCommand = new AsyncCommand(() => plotDailyChart(SelectedDate), o => IsNotBusy);
             ClearDailyChartCommand = new Command(clearDailyChart, o => IsNotBusy);
             //PlotWeeklyChartCommand = new Command(o => plotWeeklyChart(o), o => IsNotBusy);
-            PlotSpreadCommand = new Command((y) => updateSpreadChart(1, 10), _ => IsNotBusy);
+            PlotSpreadCommand = new Command((y) => updateSpreadChart(Period1, Period2), _ => checkPeriods());
 
             updateHistory();
+            updatePeriods();
+        }
+
+        bool checkPeriods()
+        {
+            return Period1 > 0d && Period2 > 0d && !Period1.Equals(Period2);
+        }
+
+        private void updatePeriods()
+        {
+            var periods = realtimeDataProvider.GetPeriods();
+            foreach (var item in periods.Result)
+                Periods.Add(item);
         }
 
         private void plotWeeklyChart(double period)
@@ -381,29 +421,27 @@ namespace CurveAnalyzer
 
         private void updateSpreadChart(double period1, double period2)
         {
+            SpreadChart.Series.Clear();
+
             var startDate = new DateTime(1900, 1, 1);
 
             using var db = new MoexContext();
 
-            var data1 = db.Zcycs.Where(d => d.Period == period1).Select(d => new { Date = d.Tradedate, Period = d.Period, Value = d.Value }).ToList();
+            var data1 = db.Zcycs.Where(d => d.Period == period1).Select(d => new { Date = d.Tradedate, d.Period, Value = d.Value }).ToList();
             var data2 = db.Zcycs.Where(d => d.Period == period2).Select(d => new { Date = d.Tradedate, Period = d.Period, Value = d.Value }).ToList();
-
-            //var group = from dat1 in data1
-            //            join dat2 in data2 on dat1.Date equals dat2.Date into group1
-            //            select group1;
 
             var query = data1.Join(data2,
                                    d1 => d1.Date,
                                    d2 => d2.Date,
-                                   (d1, d2) => new { Date = d1.Date, Value = d1.Value - d2.Value });
+                                   (d1, d2) => new { Date = d1.Date, Value = d2.Value - d1.Value });
 
             var lineSeries1 = new LineSeries
             {
-                MarkerType = MarkerType.Circle,
-                MarkerStrokeThickness = 2,
-                MarkerSize = 2,
+                //MarkerType = MarkerType.Circle,
+                //MarkerStrokeThickness = 2,
+                //MarkerSize = 2,
                 LineStyle = LineStyle.Solid,
-                StrokeThickness = 2,
+                StrokeThickness = 1,
                 //InterpolationAlgorithm = InterpolationAlgorithms.CanonicalSpline
             };
 

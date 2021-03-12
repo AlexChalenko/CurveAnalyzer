@@ -103,5 +103,11 @@ namespace CurveAnalyzer.DataProviders
                 return Task.FromResult(false);
             }
         }
+
+        public Task<List<double>> GetPeriods()
+        {
+            using var db = new MoexContext();
+            return Task.FromResult(db.Zcycs.Select(_ => _.Period).Distinct().ToList());
+        }
     }
 }

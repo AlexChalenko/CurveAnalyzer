@@ -32,7 +32,8 @@
             Grid.ColumnSpan="2"
             HorizontalContentAlignment="Center"
             VerticalContentAlignment="Center"
-            TabStripPlacement="Left" SelectionChanged="TabControl_SelectionChanged">
+            SelectionChanged="TabControl_SelectionChanged"
+            TabStripPlacement="Left">
             <TabItem
                 x:Name="OxyPlot"
                 Height="50"
@@ -92,9 +93,25 @@
                                     <Setter Property="Padding" Value="5" />
                                 </Style>
                             </StackPanel.Resources>
-                            <Button
-                                Command="{Binding PlotSpreadCommand}"
-                                Content="Получить спред" />
+                            <TextBlock
+                                Margin="15,0,0,0"
+                                VerticalAlignment="Center"
+                                Text="First Period:" />
+                            <ComboBox
+                                Width="50"
+                                Height="25"
+                                ItemsSource="{Binding Periods}"
+                                SelectedValue="{Binding Period1}" />
+                            <TextBlock
+                                Margin="15,0,0,0"
+                                VerticalAlignment="Center"
+                                Text="Second Period:" />
+                            <ComboBox
+                                Width="50"
+                                Height="25"
+                                ItemsSource="{Binding Periods}"
+                                SelectedValue="{Binding Period2}" />
+                            <Button Command="{Binding PlotSpreadCommand}" Content="Получить спред" />
                         </StackPanel>
                     </GroupBox>
                     <oxy:PlotView Grid.Row="1" Model="{Binding SpreadChart}" />
