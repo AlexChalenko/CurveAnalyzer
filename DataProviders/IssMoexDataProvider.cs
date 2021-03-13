@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Xml;
@@ -95,13 +96,15 @@ namespace CurveAnalyzer.DataProviders
                 Async = true
             };
 
+            CultureInfo culture = new CultureInfo("en-US");
+
             using XmlReader reader = XmlReader.Create(PeriodsUrl, settings);
             while (await reader.ReadAsync().ConfigureAwait(false))
             {
                 switch (reader.NodeType)
                 {
                     case XmlNodeType.Element:
-                        if (reader.Name.Equals("row") && double.TryParse(reader.GetAttribute(0), out double period))
+                        if (reader.Name.Equals("row") && double.TryParse(reader.GetAttribute(0), NumberStyles.Float, culture, out double period))
                             result.Add(period);
                         break;
                 }

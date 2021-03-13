@@ -86,9 +86,7 @@ namespace CurveAnalyzer
             set
             {
                 if (SetProperty(ref period2, value))
-                {
                     PlotSpreadCommand.RaiseCanExecuteChanged();
-                }
             }
         }
 
