@@ -11,17 +11,18 @@ using CurveAnalyzer.DataProviders;
 using CurveAnalyzer.Interfaces;
 using CurveAnalyzer.Tools;
 using MoexData;
-using MvvmHelpers;
-using MvvmHelpers.Commands;
+using Microsoft.Toolkit.Mvvm;
 using OxyPlot;
 using OxyPlot.Annotations;
 using OxyPlot.Axes;
 using OxyPlot.Series;
 using TicTacTec.TA.Library;
+using Microsoft.Toolkit.Mvvm.ComponentModel;
+using Microsoft.Toolkit.Mvvm.Input;
 
 namespace CurveAnalyzer
 {
-    internal class MainViewModel : BaseViewModel
+    internal class MainViewModel : ObservableObject
     {
         private PlotModel dailyChart;
         public PlotModel DailyChart
@@ -75,7 +76,7 @@ namespace CurveAnalyzer
             set
             {
                 if (SetProperty(ref period1, value))
-                    PlotSpreadCommand.RaiseCanExecuteChanged();
+                    PlotSpreadCommand.NotifyCanExecuteChanged();
             }
         }
 
@@ -86,7 +87,7 @@ namespace CurveAnalyzer
             set
             {
                 if (SetProperty(ref period2, value))
-                    PlotSpreadCommand.RaiseCanExecuteChanged();
+                    PlotSpreadCommand.NotifyCanExecuteChanged();
             }
         }
 
@@ -112,10 +113,10 @@ namespace CurveAnalyzer
             }
         }
 
-        public AsyncCommand PlotDailyChartCommand { get; }
-        public Command PlotWeeklyChartCommand { get; }
-        public Command ClearDailyChartCommand { get; }
-        public Command PlotSpreadCommand { get; }
+        public AsyncRelayCommand PlotDailyChartCommand { get; }
+        public RelayCommand PlotWeeklyChartCommand { get; }
+        public RelayCommand ClearDailyChartCommand { get; }
+        public RelayCommand PlotSpreadCommand { get; }
 
         List<Zcyc> mainData;
 
@@ -153,13 +154,19 @@ namespace CurveAnalyzer
             realtimeDataProvider = new IssMoexDataProvider();
             historyDataProvider = new SQLiteDataProvider();
 
-            PlotDailyChartCommand = new AsyncCommand(() => plotDailyChart(SelectedDate), o => IsNotBusy);
-            ClearDailyChartCommand = new Command(clearDailyChart, o => IsNotBusy);
+            PlotDailyChartCommand = new AsyncRelayCommand(() => plotDailyChart(SelectedDate), IsNotBusy);
+            ClearDailyChartCommand = new RelayCommand(clearDailyChart,  IsNotBusy);
             //PlotWeeklyChartCommand = new Command(o => plotWeeklyChart(o), o => IsNotBusy);
-            PlotSpreadCommand = new Command((y) => updateSpreadChart(Period1, Period2), _ => checkPeriods());
+            PlotSpreadCommand = new RelayCommand(() => updateSpreadChart(Period1, Period2), checkPeriods);
 
             updateHistory();
             updatePeriods();
+        }
+
+        private bool isBusy;
+        private bool IsNotBusy()
+        {
+            return !isBusy;
         }
 
         bool checkPeriods()
@@ -210,7 +217,7 @@ namespace CurveAnalyzer
 
         }
 
-        private void clearDailyChart(object obj)
+        private void clearDailyChart()
         {
             DailyChart.Series.Clear();
             DailyChart.InvalidatePlot(true);

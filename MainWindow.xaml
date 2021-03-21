@@ -32,7 +32,6 @@
             Grid.ColumnSpan="2"
             HorizontalContentAlignment="Center"
             VerticalContentAlignment="Center"
-            SelectionChanged="TabControl_SelectionChanged"
             TabStripPlacement="Left">
             <TabItem
                 x:Name="OxyPlot"
@@ -64,7 +63,6 @@
                             <CheckBox
                                 Margin="10,0,0,0"
                                 VerticalAlignment="Center"
-                                Click="CheckBox_Click"
                                 Content="Обновление" />
                         </StackPanel>
                     </GroupBox>
