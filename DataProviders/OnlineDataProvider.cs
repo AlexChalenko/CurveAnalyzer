@@ -11,14 +11,61 @@ using MoexData;
 
 namespace CurveAnalyzer.DataProviders
 {
-    public class IssMoexDataProvider : ZcycDataProvider
+    public class OnlineDataProvider : IDataProvider
     {
         private const string DataUrl = "https://iss.moex.com/iss/engines/stock/zcyc.xml?date={0}&iss.only=yearyields&iss.meta=off";
         private const string DatesUrl = "https://iss.moex.com/iss/engines/stock/zcyc.xml?iss.only=yearyields.dates&iss.meta=off";
         private const string PeriodsUrl = "https://iss.moex.com/iss/engines/stock/zcyc.xml?iss.only=yearyields&yearyields.columns=period&iss.meta=off";
 
+        private ZcycData todayZcycData;
+
+        private TimeSpan cachePeriod = TimeSpan.FromMinutes(5);
+        private DateTime lastUpdateTime = DateTime.MinValue;
+
+        public Task<List<DateTime>> GetAvailableDates()
+        {
+            var tcs = new TaskCompletionSource<List<DateTime>>();
+
+            var settings = new XmlReaderSettings
+            {
+                Async = true
+            };
+
+            using XmlReader reader = XmlReader.Create(DatesUrl, settings);
+            try
+            {
+                while (reader.Read())
+                {
+                    switch (reader.NodeType)
+                    {
+                        case XmlNodeType.Element:
+                            if (reader.Name.Equals("row"))
+                            {
+                                var startDate = DateTime.Parse(reader.GetAttribute(0));
+                                var endDate = DateTime.Parse(reader.GetAttribute(1));
+                                var range = Enumerable.Range(0, int.MaxValue)
+                                                      .Select(index => startDate.AddDays(index))
+                                                      .TakeWhile(date => date <= endDate);
+                                tcs.TrySetResult(range.ToList());
+                            }
+                            break;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                tcs.TrySetException(ex);
+            }
+            return tcs.Task;
+        }
+
         public Task<ZcycData> GetDataForDate(DateTime date)
         {
+            if (date.Equals(DateTime.Today) && DateTime.Now.Subtract(lastUpdateTime) < cachePeriod)
+            {
+                return Task.FromResult(todayZcycData);
+            }
+
             var tcs = new TaskCompletionSource<ZcycData>();
 
             var serializer = new XmlSerializer(typeof(IssData));
@@ -43,7 +90,11 @@ namespace CurveAnalyzer.DataProviders
                         Value = item.value
                     });
                 }
-
+                if (date.Equals(DateTime.Today))
+                {
+                    todayZcycData = zData;
+                    lastUpdateTime = DateTime.Now;
+                }
                 tcs.TrySetResult(zData);
             }
             catch (Exception) // on error return empty data
@@ -53,42 +104,29 @@ namespace CurveAnalyzer.DataProviders
             return tcs.Task;
         }
 
-        public async Task<List<DateTime>> GetAvailableDates()
+        public Task<List<Zcyc>> GetDataForPeriod(double period)
         {
-            var tcs = new TaskCompletionSource<List<DateTime>>();
-
-            var settings = new XmlReaderSettings
+            var data = GetDataForDate(DateTime.Today);
+            if (data.IsCompletedSuccessfully)
             {
-                Async = true
-            };
-
-            using XmlReader reader = XmlReader.Create(DatesUrl, settings);
-
-            while (await reader.ReadAsync().ConfigureAwait(false))
-            {
-                switch (reader.NodeType)
+                var dataForPeriod = data.Result.DataRow.Where(r => r.Period == period).ToList().FirstOrDefault();
+                if (dataForPeriod != null)
                 {
-                    case XmlNodeType.Element:
-                        if (reader.Name.Equals("row"))
-                        {
-                            var startDate = DateTime.Parse(reader.GetAttribute(0));
-                            var endDate = DateTime.Parse(reader.GetAttribute(1));
-                            var range = Enumerable.Range(0, int.MaxValue)
-                                                  .Select(index => startDate.AddDays(index))
-                                                  .TakeWhile(date => date <= endDate);
-                            tcs.TrySetResult(range.ToList());
-                        }
-                        break;
+                    var zcycData = new Zcyc
+                    {
+                        Tradedate = DateTime.Today,
+                        Period = dataForPeriod.Period,
+                        Value = dataForPeriod.Value
+                    };
+                    return Task.FromResult(new List<Zcyc>() { zcycData });
                 }
             }
-            return await tcs.Task.ConfigureAwait(false);
+            return Task.FromResult(new List<Zcyc>());
         }
-
-        public Task<bool> SaveData(ZcycData data) => Task.FromResult(true);
 
         public async Task<List<double>> GetPeriods()
         {
-            List<double> result = new List<double>();
+            List<double> result = new();
             var tcs = new TaskCompletionSource<List<double>>();
 
             var settings = new XmlReaderSettings
@@ -96,7 +134,7 @@ namespace CurveAnalyzer.DataProviders
                 Async = true
             };
 
-            CultureInfo culture = new CultureInfo("en-US");
+            CultureInfo culture = new("en-US");
 
             using XmlReader reader = XmlReader.Create(PeriodsUrl, settings);
             while (await reader.ReadAsync().ConfigureAwait(false))
@@ -111,6 +149,11 @@ namespace CurveAnalyzer.DataProviders
             }
             tcs.TrySetResult(result);
             return await tcs.Task.ConfigureAwait(false);
+        }
+
+        public Task<bool> SaveData(ZcycData data)
+        {
+            throw new NotImplementedException();
         }
     }
 }

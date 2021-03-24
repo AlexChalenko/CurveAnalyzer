@@ -1,19 +1,35 @@
 using System;
 using System.Collections.Generic;
-using System.Data.Common;
 using System.Diagnostics;
 using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
-using System.Windows.Markup;
 using CurveAnalyzer.Data;
 using CurveAnalyzer.Interfaces;
 using MoexData;
 
 namespace CurveAnalyzer.DataProviders
 {
-    public class SQLiteDataProvider : ZcycDataProvider
+    public class HistoryDataProvider : IDataProvider
     {
+        public Task<List<DateTime>> GetAvailableDates()
+        {
+            using var db = new MoexContext();
+            List<DateTime> output = new();
+
+            try
+            {
+                var r = db.Zcycs.Select(_ => _.Tradedate).Distinct().ToArray();
+                output.AddRange(r);
+            }
+            catch (Exception ex)
+            {
+                Debug.Print(ex.ToString());
+            }
+
+            return Task.FromResult(output);
+            //return Task.FromResult(new DateRange(startDate, endDate));
+        }
+
         public Task<ZcycData> GetDataForDate(DateTime date)
         {
             var tcs = new TaskCompletionSource<ZcycData>();
@@ -42,34 +58,10 @@ namespace CurveAnalyzer.DataProviders
             return tcs.Task;
         }
 
-        public Task<List<DateTime>> GetAvailableDates()
+        public Task<List<double>> GetPeriods()
         {
-            //DateTime startDate = DateTime.MinValue;
-            //DateTime endDate = DateTime.Now.AddDays(-1);
-
             using var db = new MoexContext();
-            //db.Database.EnsureCreated();
-
-            List<DateTime> output = new();
-
-            try
-            {
-                var r = db.Zcycs.Select(_ => _.Tradedate).Distinct().ToArray();
-                output.AddRange(r);
-
-                //long maxNum = db.Zcycs.Max(r => r.Num);
-                //long minNum = db.Zcycs.Min(r => r.Num);
-                //startDate = db.Zcycs.Where(r => r.Num == minNum).Select(r => r.Tradedate).FirstOrDefault();
-                //endDate = db.Zcycs.Where(r => r.Num == maxNum).Select(r => r.Tradedate).FirstOrDefault();
-                //var output = new Tuple<DateTime, DateTime>(startDate, endDate);
-            }
-            catch (Exception ex)
-            {
-                Debug.Print(ex.ToString());
-            }
-
-            return Task.FromResult(output);
-            //return Task.FromResult(new DateRange(startDate, endDate));
+            return Task.FromResult(db.Zcycs.Select(_ => _.Period).Distinct().ToList());
         }
 
         public Task<bool> SaveData(ZcycData data) //todo add error checking
@@ -104,10 +96,11 @@ namespace CurveAnalyzer.DataProviders
             }
         }
 
-        public Task<List<double>> GetPeriods()
+        Task<List<Zcyc>> IDataProvider.GetDataForPeriod(double period)
         {
             using var db = new MoexContext();
-            return Task.FromResult(db.Zcycs.Select(_ => _.Period).Distinct().ToList());
+            var r = db.Zcycs.Where(p => p.Period == period).ToList();
+            return Task.FromResult(r);
         }
     }
 }

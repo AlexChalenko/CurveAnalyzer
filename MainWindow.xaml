@@ -3,7 +3,6 @@
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-    xmlns:local="clr-namespace:CurveAnalyzer"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:oxy="http://oxyplot.org/wpf"
     Title="Кривая ОФЗ по дням"
@@ -56,9 +55,9 @@
                                 Content="Получить данные" />
                             <DatePicker
                                 VerticalAlignment="Center"
-                                DisplayDateEnd="{Binding EndDate}"
-                                DisplayDateStart="{Binding StartDate}"
-                                SelectedDate="{Binding SelectedDate}" />
+                                DisplayDateEnd="{Binding DataManager.EndDate}"
+                                DisplayDateStart="{Binding DataManager.StartDate}"
+                                SelectedDate="{Binding DataManager.SelectedDate}" />
                             <Button Command="{Binding ClearDailyChartCommand}" Content="Очистить" />
                             <CheckBox
                                 Margin="10,0,0,0"
@@ -66,7 +65,7 @@
                                 Content="Обновление" />
                         </StackPanel>
                     </GroupBox>
-                    <oxy:PlotView Grid.Row="1" Model="{Binding DailyChart}" />
+                    <oxy:PlotView Grid.Row="1" Model="{Binding CurveChart.MainChart}" />
                 </Grid>
             </TabItem>
             <TabItem
@@ -74,7 +73,20 @@
                 Height="50"
                 Header="Weekly Change">
                 <Grid>
-                    <oxy:PlotView Model="{Binding PerformanceChart}" />
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+                    <StackPanel Grid.Row="0" Orientation="Horizontal">
+                        <TextBlock VerticalAlignment="Center" Text="Period: " />
+                        <ComboBox
+                            Width="50"
+                            Height="25"
+                            ItemsSource="{Binding DataManager.Periods}"
+                            SelectedValue="{Binding PeriodForWeekChart}" />
+                        <Button Command="{Binding PlotWeeklyChartCommand}" Content="Построить график" />
+                    </StackPanel>
+                    <oxy:PlotView Grid.Row="1" Model="{Binding WeeklyChangesChart.MainChart}" />
                 </Grid>
             </TabItem>
             <TabItem Height="50" Header="Speads">
@@ -83,7 +95,7 @@
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="*" />
                     </Grid.RowDefinitions>
-                    <GroupBox Grid.Row="0">
+                    <GroupBox Grid.Row="0" Header="Настройки">
                         <StackPanel Orientation="Horizontal">
                             <StackPanel.Resources>
                                 <Style TargetType="{x:Type Button}">
@@ -98,7 +110,7 @@
                             <ComboBox
                                 Width="50"
                                 Height="25"
-                                ItemsSource="{Binding Periods}"
+                                ItemsSource="{Binding DataManager.Periods}"
                                 SelectedValue="{Binding Period1}" />
                             <TextBlock
                                 Margin="15,0,0,0"
@@ -107,12 +119,12 @@
                             <ComboBox
                                 Width="50"
                                 Height="25"
-                                ItemsSource="{Binding Periods}"
+                                ItemsSource="{Binding DataManager.Periods}"
                                 SelectedValue="{Binding Period2}" />
                             <Button Command="{Binding PlotSpreadCommand}" Content="Получить спред" />
                         </StackPanel>
                     </GroupBox>
-                    <oxy:PlotView Grid.Row="1" Model="{Binding SpreadChart}" />
+                    <oxy:PlotView Grid.Row="1" Model="{Binding SpreadChart.MainChart}" />
                 </Grid>
             </TabItem>
         </TabControl>
