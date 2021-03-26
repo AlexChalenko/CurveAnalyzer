@@ -21,6 +21,7 @@ namespace CurveAnalyzer.Data
         private DateTime endDate;
         private DateTime selectedDate;
         private string status;
+        private bool isBusy;
 
         public async Task<List<Zcyc>> GetAllDataForPeriod(double period)
         {
@@ -67,6 +68,15 @@ namespace CurveAnalyzer.Data
             }
         }
 
+        public bool IsBusy
+        {
+            get => isBusy;
+            set
+            {
+                SetProperty(ref isBusy, value);
+            }
+        }
+
         internal async Task<ZcycData> GetData(DateTime value)
         {
             ZcycData dataToPlot = await historyDataProvider.GetDataForDate(value);
@@ -86,25 +96,32 @@ namespace CurveAnalyzer.Data
         {
             historyDataProvider = new HistoryDataProvider();
             onlineDataProvider = new OnlineDataProvider();
-
             Periods = new ObservableCollection<double>();
+        }
+
+        public void Initialize()
+        {
             updateHistory();
             Task.Run(() => updatePeriods());
-            //Task.Run(async () =>todayZcycData = await onlineDataProvider.GetDataForDate(DateTime.Today));
         }
 
         private void updateHistory()
         {
+            IsBusy = true;
             onlineDataProvider.GetAvailableDates().ContinueWith(async t =>
             {
-                var realtimeDates = t.Result;
-                bool todayDeleted = realtimeDates.Remove(DateTime.Today);
-                var historyDates = await historyDataProvider.GetAvailableDates().ConfigureAwait(false);
-                var newDates = historyDates.Count > 0 ? realtimeDates.Except(historyDates).Where(date => date > historyDates.Max()).ToList() : realtimeDates;
-                StartDate = historyDates.Count > 0 ? historyDates.Min() : realtimeDates.Min();
-                EndDate = todayDeleted ? DateTime.Today : realtimeDates.Max();
-                SelectedDate = EndDate;
-                await downloadAndSaveData(newDates);
+                if (t.IsCompletedSuccessfully)
+                {
+                    var realtimeDates = t.Result;
+                    bool todayDeleted = realtimeDates.Remove(DateTime.Today);
+                    var historyDates = await historyDataProvider.GetAvailableDates().ConfigureAwait(false);
+                    var newDates = historyDates.Count > 0 ? realtimeDates.Except(historyDates).Where(date => date > historyDates.Max()).ToList() : realtimeDates;
+                    StartDate = historyDates.Count > 0 ? historyDates.Min() : realtimeDates.Min();
+                    EndDate = todayDeleted ? DateTime.Today : realtimeDates.Max();
+                    SelectedDate = EndDate;
+                    await downloadAndSaveData(newDates);
+                }
+                IsBusy = false;
             });
         }
 

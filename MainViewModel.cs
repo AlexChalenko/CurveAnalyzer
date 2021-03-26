@@ -90,11 +90,21 @@ namespace CurveAnalyzer
             PlotSpreadCommand = new RelayCommand(() => updateSpreadChart(Period1, Period2), () => SpreadChart.Validate((Period1, Period2)) && !SpreadChart.IsBusy);
 
             CurveChart.Setup(new IRelayCommand[] { PlotDailyChartCommand, ClearDailyChartCommand });
-
             WeeklyChangesChart.Setup(new IRelayCommand[] { PlotWeeklyChartCommand });
-
             SpreadChart.Setup(new IRelayCommand[] { PlotSpreadCommand });
 
+            DataManager.PropertyChanged += DataManager_PropertyChanged;
+            DataManager.Initialize();
+        }
+
+        private void DataManager_PropertyChanged(object sender, System.ComponentModel.PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName.Equals(nameof(DataManager.IsBusy)))
+            {
+                CurveChart.IsBusy = DataManager.IsBusy;
+                WeeklyChangesChart.IsBusy = DataManager.IsBusy;
+                SpreadChart.IsBusy = DataManager.IsBusy;
+            }
         }
 
         private void plotWeeklyChart(double period)

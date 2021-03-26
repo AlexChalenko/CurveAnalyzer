@@ -58,12 +58,11 @@ namespace CurveAnalyzer.Charts
 
         public override void Plot(DataManager dataManager, DateTime value)
         {
-            IsBusy = true;
             if (MainChart.Series.Any(_ => (DateTime)_.Tag == value))
             {
-                IsBusy = false;
                 return;
             }
+            IsBusy = true;
 
             Task.Run(async () =>
             {
