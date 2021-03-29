@@ -144,11 +144,9 @@ namespace CurveAnalyzer.Charts
                 Type = LineAnnotationType.Horizontal,
                 Y = 0,
                 Color = OxyColors.Green,
-                Text = "rerefefefe",
-                TextLinePosition = 1,
                 YAxisKey = "Y2",
                 TextOrientation = AnnotationTextOrientation.Horizontal,
-                TextHorizontalAlignment = OxyPlot.HorizontalAlignment.Right,
+                TextHorizontalAlignment = HorizontalAlignment.Right,
             };
 
             var dateTimeAxis1 = new DateTimeAxis

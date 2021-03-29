@@ -16,16 +16,6 @@
             <RowDefinition />
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
-        <Menu
-            Grid.Row="0"
-            Grid.ColumnSpan="2"
-            Margin="0,0,0,5">
-            <MenuItem Header="Test">
-                <MenuItem Header="Test1.1" />
-            </MenuItem>
-            <MenuItem Header="Test2" />
-            <MenuItem Header="Test3" />
-        </Menu>
         <TabControl
             Grid.Row="1"
             Grid.ColumnSpan="2"
@@ -54,6 +44,7 @@
                                 Command="{Binding PlotDailyChartCommand}"
                                 Content="Получить данные" />
                             <DatePicker
+                                x:Name="MainDatePicker"
                                 VerticalAlignment="Center"
                                 DisplayDateEnd="{Binding DataManager.EndDate}"
                                 DisplayDateStart="{Binding DataManager.StartDate}"
@@ -128,18 +119,8 @@
                 </Grid>
             </TabItem>
         </TabControl>
-        <!--<StackPanel
-            Grid.Row="2"
-            Grid.ColumnSpan="2"
-            Height="20" />-->
         <StatusBar Grid.Row="2" VerticalAlignment="Bottom">
-            <StatusBarItem>
-                <Label x:Name="StatusText" />
-            </StatusBarItem>
+            <Label Content="{Binding DataManager.Status}" />
         </StatusBar>
-
     </Grid>
-
-
-
 </Window>

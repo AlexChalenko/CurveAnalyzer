@@ -35,7 +35,6 @@ namespace CurveAnalyzer.DataProviders
             var tcs = new TaskCompletionSource<ZcycData>();
 
             using var db = new MoexContext();
-            //db.Database.EnsureCreated();
 
             var dbData = db.Zcycs.Where(r => r.Tradedate.Equals(date)).ToList();
 
@@ -72,7 +71,6 @@ namespace CurveAnalyzer.DataProviders
             }
 
             using var db = new MoexContext();
-            //db.Database.EnsureCreated();
             for (int i = 0; i < data.DataRow.Count; i++)
             {
                 var row = data.DataRow[i];

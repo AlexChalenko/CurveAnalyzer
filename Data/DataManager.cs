@@ -36,7 +36,9 @@ namespace CurveAnalyzer.Data
             return await Task.FromResult<List<Zcyc>>(null);
         }
 
-        public ObservableCollection<double> Periods { get; private set; }
+        public ObservableCollection<double> Periods { get; }
+
+        public ObservableCollection<DateTime> BlackoutDates { get; }
 
         public DateTime StartDate
         {
@@ -97,6 +99,7 @@ namespace CurveAnalyzer.Data
             historyDataProvider = new HistoryDataProvider();
             onlineDataProvider = new OnlineDataProvider();
             Periods = new ObservableCollection<double>();
+            BlackoutDates = new();
         }
 
         public void Initialize()
@@ -120,9 +123,22 @@ namespace CurveAnalyzer.Data
                     EndDate = todayDeleted ? DateTime.Today : realtimeDates.Max();
                     SelectedDate = EndDate;
                     await downloadAndSaveData(newDates);
+                    BlackoutDates.Clear();
+                    foreach (var date in await getBlackoutDates(realtimeDates))
+                        BlackoutDates.Add(date);
                 }
                 IsBusy = false;
             });
+        }
+
+        async Task<List<DateTime>> getBlackoutDates(List<DateTime> realtimeDates)
+        {
+            var historyDates = await historyDataProvider.GetAvailableDates();
+            var today = DateTime.Today;
+            if (realtimeDates.Contains(today) && !historyDates.Contains(today))
+                historyDates.Add(today);
+
+            return await Task.FromResult(realtimeDates.Except(historyDates).ToList());
         }
 
         private async Task downloadAndSaveData(IEnumerable<DateTime> dates)

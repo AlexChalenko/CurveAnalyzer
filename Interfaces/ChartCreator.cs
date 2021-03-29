@@ -26,7 +26,7 @@ namespace CurveAnalyzer.Interfaces
 
         public virtual void Setup(IRelayCommand[] commandsToUpdate)
         {
-            this.updateCommands = commandsToUpdate;
+            updateCommands = commandsToUpdate;
             IsBusy = false;
         }
 
