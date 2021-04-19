@@ -105,7 +105,7 @@ namespace CurveAnalyzer.Data
         public void Initialize()
         {
             updateHistory();
-            Task.Run(() => updatePeriods());
+            updatePeriods();
         }
 
         private void updateHistory()
@@ -131,14 +131,40 @@ namespace CurveAnalyzer.Data
             });
         }
 
-        async Task<List<DateTime>> getBlackoutDates(List<DateTime> realtimeDates)
+        Task<List<DateTime>> getBlackoutDates(List<DateTime> realtimeDates)
         {
-            var historyDates = await historyDataProvider.GetAvailableDates();
-            var today = DateTime.Today;
-            if (realtimeDates.Contains(today) && !historyDates.Contains(today))
-                historyDates.Add(today);
+            var tcs = new TaskCompletionSource<List<DateTime>>();
 
-            return await Task.FromResult(realtimeDates.Except(historyDates).ToList());
+            historyDataProvider.GetAvailableDates().ContinueWith(task =>
+            {
+                if (task.IsCompletedSuccessfully)
+                {
+                    var historyDates = task.Result;
+
+                    var today = DateTime.Today;
+                    if (realtimeDates.Contains(today) && !historyDates.Contains(today))
+                        historyDates.Add(today);
+
+                    tcs.TrySetResult(realtimeDates.Except(historyDates).ToList());
+                }
+                else if (task.IsCanceled)
+                {
+                    tcs.TrySetCanceled();
+                }
+                else if (task.IsFaulted)
+                {
+                    tcs.TrySetException(task.Exception);
+                }
+
+            }).ConfigureAwait(false);
+
+            return tcs.Task;
+
+            //var historyDates = await historyDataProvider.GetAvailableDates();
+            //var today = DateTime.Today;
+            //if (realtimeDates.Contains(today) && !historyDates.Contains(today))
+            //    historyDates.Add(today);
+            //return await Task.FromResult(realtimeDates.Except(historyDates).ToList());
         }
 
         private async Task downloadAndSaveData(IEnumerable<DateTime> dates)
@@ -157,16 +183,16 @@ namespace CurveAnalyzer.Data
             Status = "Загрузка данных завершена";
         }
 
-        private Task updatePeriods()
+        private void updatePeriods()
         {
-            return onlineDataProvider.GetPeriods().ContinueWith(t =>
+            onlineDataProvider.GetPeriods().ContinueWith(t =>
             {
                 if (t.IsCompletedSuccessfully)
                 {
                     foreach (var item in t.Result)
                         Periods.Add(item);
                 }
-            });
+            }).ConfigureAwait(false);
         }
     }
 }

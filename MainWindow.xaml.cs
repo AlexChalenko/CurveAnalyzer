@@ -5,14 +5,13 @@ namespace CurveAnalyzer
 {
     public partial class MainWindow : Window
     {
-        private MainViewModel mainViewModel;
-
         public MainWindow()
         {
-            DataContext = mainViewModel = new MainViewModel();
+            //DataContext = mainViewModel = new MainViewModel();
             InitializeComponent();
 
-            mainViewModel.DataManager.BlackoutDates.CollectionChanged += BlackoutDates_CollectionChanged;
+            //var mainViewModel = (MainViewModel)DataContext;
+            //mainViewModel.DataManager.BlackoutDates.CollectionChanged += BlackoutDates_CollectionChanged;
 
         }
 

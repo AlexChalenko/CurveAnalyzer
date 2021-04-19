@@ -1,5 +1,6 @@
 using System;
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.Threading.Tasks;
 using System.Windows;
@@ -9,15 +10,16 @@ using Microsoft.Toolkit.Mvvm.ComponentModel;
 using Microsoft.Toolkit.Mvvm.Input;
 using OxyPlot;
 
-namespace CurveAnalyzer
+namespace CurveAnalyzer.ViewModel
 {
-    internal class MainViewModel : ObservableObject
+    internal class MainViewModel : ObservableObject, IDataErrorInfo
     {
         private PlotModel performanceChart;
         private double period1;
         private double period2;
         private double periodForWeekChart;
         private string status;
+        private string error;
         public DailyCurveChart CurveChart { get; set; }
         public WeeklyRateDynamicChart WeeklyChangesChart { get; set; }
         public DailySpreadChart SpreadChart { get; set; }
@@ -77,6 +79,28 @@ namespace CurveAnalyzer
         public RelayCommand ClearDailyChartCommand { get; }
         public RelayCommand PlotSpreadCommand { get; }
 
+        public string Error => error;
+
+        public string this[string columnName]
+        {
+            get
+            {
+                switch (columnName)
+                {
+                    case nameof(Period1):
+                    case nameof(Period2):
+                        if (Period1.Equals(Period2))
+                        {
+                            return "Period should be defferent";
+                        }
+                        break;
+                    default:
+                        break;
+                }
+                return string.Empty;
+            }
+        }
+
         public MainViewModel()
         {
             DataManager = new DataManager();
@@ -97,7 +121,7 @@ namespace CurveAnalyzer
             DataManager.Initialize();
         }
 
-        private void DataManager_PropertyChanged(object sender, System.ComponentModel.PropertyChangedEventArgs e)
+        private void DataManager_PropertyChanged(object sender, PropertyChangedEventArgs e)
         {
             if (e.PropertyName.Equals(nameof(DataManager.IsBusy)))
             {
@@ -129,5 +153,9 @@ namespace CurveAnalyzer
             SpreadChart.Clear();
             SpreadChart.Plot(DataManager, (period1, period2));
         }
+
+        private string buttonName = "Получить данные";
+
+        public string ButtonName { get => buttonName; set => SetProperty(ref buttonName, value); }
     }
 }

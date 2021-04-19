@@ -124,7 +124,7 @@ namespace CurveAnalyzer.DataProviders
             return Task.FromResult(new List<Zcyc>());
         }
 
-        public async Task<List<double>> GetPeriods()
+        public Task<List<double>> GetPeriods()
         {
             List<double> result = new();
             var tcs = new TaskCompletionSource<List<double>>();
@@ -137,7 +137,7 @@ namespace CurveAnalyzer.DataProviders
             CultureInfo culture = new("en-US");
 
             using XmlReader reader = XmlReader.Create(PeriodsUrl, settings);
-            while (await reader.ReadAsync().ConfigureAwait(false))
+            while (reader.ReadAsync().Result)
             {
                 switch (reader.NodeType)
                 {
@@ -148,7 +148,7 @@ namespace CurveAnalyzer.DataProviders
                 }
             }
             tcs.TrySetResult(result);
-            return await tcs.Task.ConfigureAwait(false);
+            return tcs.Task;
         }
 
         public Task<bool> SaveData(ZcycData data)
