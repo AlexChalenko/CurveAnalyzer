@@ -24,37 +24,21 @@ namespace CurveAnalyzer.View
         public DailyChart()
         {
             InitializeComponent();
-            DataContextChanged += DailyChart_DataContextChanged;
-            Dispatcher.ShutdownStarted += Dispatcher_ShutdownStarted;
         }
 
-        private void Dispatcher_ShutdownStarted(object sender, EventArgs e)
+        private void MainDatePicker_SelectedDateChanged(object sender, SelectionChangedEventArgs e)
         {
-            DataContextChanged -= DailyChart_DataContextChanged;
-            Dispatcher.ShutdownStarted -= Dispatcher_ShutdownStarted;
-        }
-
-        private void DailyChart_DataContextChanged(object sender, DependencyPropertyChangedEventArgs e)
-        {
-            if (e.NewValue is DailyChartViewModel dailyChartViewModel)
+            if (MainDatePicker.BlackoutDates != null && MainDatePicker.BlackoutDates.Count == 0 && e.AddedItems.Count > 0 && (DateTime)e.AddedItems[0] > DateTime.MinValue)
             {
-                dailyChartViewModel.DataManager.BlackoutDates.CollectionChanged += BlackoutDates_CollectionChanged;
+                var dailyChartViewModel = DataContext as DailyChartViewModel;
+                if (dailyChartViewModel != null)
+                {
+                    foreach (var newDate in dailyChartViewModel.DataManager.BlackoutDates)
+                    {
+                        MainDatePicker.BlackoutDates.Add(new CalendarDateRange(newDate));
+                    }
+                }
             }
-        }
-
-        private void BlackoutDates_CollectionChanged(object sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e)
-        {
-            if (e.NewItems is null)
-                return;
-
-            Dispatcher.Invoke(() =>
-             {
-                 foreach (var newItem in e.NewItems)
-                 {
-                     if (newItem is DateTime newDate)
-                         MainDatePicker.BlackoutDates.Add(new System.Windows.Controls.CalendarDateRange(newDate));
-                 }
-             });
         }
     }
 }

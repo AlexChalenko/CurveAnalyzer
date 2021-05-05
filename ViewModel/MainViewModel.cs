@@ -1,6 +1,8 @@
 using System.Windows.Input;
 using System.Windows.Threading;
 using CurveAnalyzer.Data;
+using CurveAnalyzer.Interfaces;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Toolkit.Mvvm.ComponentModel;
 using Microsoft.Toolkit.Mvvm.Input;
 
@@ -8,16 +10,21 @@ namespace CurveAnalyzer.ViewModel
 {
     internal class MainViewModel : ObservableObject
     {
+        private ObservableObject currentView;
+        private ICommand dailyChartSelect;
+        private ICommand spreadChartSelect;
         private string status;
 
-        public DataManager DataManager { get; set; }
-        public DailyChartViewModel DailyChartViewModel { get; }
+        private ICommand weeklyChartSelect;
+        public MainViewModel()
+        {
+            DataManager = (DataManager)App.Current.Services.GetService<IDataManager>();
+            DailyChartViewModel = new DailyChartViewModel();
+            WeeklyChartViewModel = new WeeklyChartViewModel();
+            SpreadChartViewModel = new SpreadChartViewModel();
 
-        public WeeklyChartViewModel WeeklyChartViewModel { get; }
-
-        public SpreadChartViewModel SpreadChartViewModel { get; }
-
-        private ObservableObject currentView;
+            CurrentView = DailyChartViewModel;
+        }
 
         public ObservableObject CurrentView
         {
@@ -25,6 +32,11 @@ namespace CurveAnalyzer.ViewModel
             set => SetProperty(ref currentView, value);
         }
 
+        public ICommand DailyChartSelect => dailyChartSelect ??= new RelayCommand(PerformDailyChartSelect);
+        public DailyChartViewModel DailyChartViewModel { get; }
+        public DataManager DataManager { get; set; }
+        public ICommand SpreadChartSelect => spreadChartSelect ??= new RelayCommand(PerformSpreadChartSelect);
+        public SpreadChartViewModel SpreadChartViewModel { get; }
         public string Status
         {
             get => status;
@@ -37,40 +49,21 @@ namespace CurveAnalyzer.ViewModel
             }
         }
 
-        public MainViewModel()
-        {
-            DataManager = new DataManager();
-            DailyChartViewModel = new DailyChartViewModel(DataManager);
-            WeeklyChartViewModel = new WeeklyChartViewModel(DataManager);
-            SpreadChartViewModel = new SpreadChartViewModel(DataManager);
-
-            CurrentView = DailyChartViewModel;
-
-            DataManager.Initialize();
-        }
-
-        private ICommand weeklyChartSelect;
         public ICommand WeeklyChartSelect => weeklyChartSelect ??= new RelayCommand(PerformWeeklyChartSelect);
-
-        private void PerformWeeklyChartSelect()
+        public WeeklyChartViewModel WeeklyChartViewModel { get; }
+        private void PerformDailyChartSelect()
         {
-            CurrentView = WeeklyChartViewModel;
+            CurrentView = DailyChartViewModel;
         }
-
-        private ICommand spreadChartSelect;
-        public ICommand SpreadChartSelect => spreadChartSelect ??= new RelayCommand(PerformSpreadChartSelect);
 
         private void PerformSpreadChartSelect()
         {
             CurrentView = SpreadChartViewModel;
         }
 
-        private ICommand dailyChartSelect;
-        public ICommand DailyChartSelect => dailyChartSelect ??= new RelayCommand(PerformDailyChartSelect);
-
-        private void PerformDailyChartSelect()
+        private void PerformWeeklyChartSelect()
         {
-            CurrentView = DailyChartViewModel;
+            CurrentView = WeeklyChartViewModel;
         }
     }
 }

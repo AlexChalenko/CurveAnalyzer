@@ -1,6 +1,8 @@
 using System.ComponentModel;
 using CurveAnalyzer.Charts;
 using CurveAnalyzer.Data;
+using CurveAnalyzer.Interfaces;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Toolkit.Mvvm.ComponentModel;
 using Microsoft.Toolkit.Mvvm.Input;
 using OxyPlot;
@@ -9,14 +11,11 @@ namespace CurveAnalyzer.ViewModel
 {
     public class WeeklyChartViewModel : ObservableObject
     {
-
         private double periodForWeekChart;
         private PlotModel performanceChart;
 
         public WeeklyRateDynamicChart WeeklyChangesChart { get; set; }
-
         public DataManager DataManager { get; set; }
-
         public RelayCommand PlotWeeklyChartCommand { get; }
 
         public PlotModel PerformanceChart
@@ -35,18 +34,16 @@ namespace CurveAnalyzer.ViewModel
             }
         }
 
-
-        public WeeklyChartViewModel(DataManager dataManager)
+        public WeeklyChartViewModel()
         {
-            DataManager = dataManager;
+            DataManager = (DataManager)App.Current.Services.GetService<IDataManager>();
+            DataManager.PropertyChanged += DataManager_PropertyChanged;
 
             WeeklyChangesChart = new WeeklyRateDynamicChart();
             PlotWeeklyChartCommand = new RelayCommand(() => plotWeeklyChart(PeriodForWeekChart), () => !WeeklyChangesChart.IsBusy && DataManager.Periods.Count > 0 && PeriodForWeekChart > 0);
             WeeklyChangesChart.Setup(new IRelayCommand[] { PlotWeeklyChartCommand });
-
-            DataManager.PropertyChanged += DataManager_PropertyChanged;
-
         }
+
         private void DataManager_PropertyChanged(object sender, PropertyChangedEventArgs e)
         {
             if (e.PropertyName.Equals(nameof(DataManager.IsBusy)))

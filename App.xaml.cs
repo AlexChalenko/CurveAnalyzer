@@ -7,13 +7,29 @@ using System.Data;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Windows;
+using Microsoft.Extensions.DependencyInjection;
+using CurveAnalyzer.Data;
+using CurveAnalyzer.Interfaces;
 
 namespace CurveAnalyzer
 {
-    /// <summary>
-    /// Interaction logic for App.xaml
-    /// </summary>
     public partial class App : Application
     {
+
+        public new static App Current => (App)Application.Current;
+        public IServiceProvider Services { get; }
+
+        public App()
+        {
+            Services = ConfigureServices();
+            InitializeComponent();
+        }
+
+        private static IServiceProvider ConfigureServices()
+        {
+            var services = new ServiceCollection();
+            services.AddSingleton<IDataManager, DataManager>();
+            return services.BuildServiceProvider();
+        }
     }
 }

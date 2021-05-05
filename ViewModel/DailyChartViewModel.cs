@@ -3,6 +3,8 @@ using System.ComponentModel;
 using System.Threading.Tasks;
 using CurveAnalyzer.Charts;
 using CurveAnalyzer.Data;
+using CurveAnalyzer.Interfaces;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Toolkit.Mvvm.ComponentModel;
 using Microsoft.Toolkit.Mvvm.Input;
 
@@ -13,22 +15,17 @@ namespace CurveAnalyzer.ViewModel
         public DailyCurveChart CurveChart { get; set; }
         public AsyncRelayCommand PlotDailyChartCommand { get; }
         public RelayCommand ClearDailyChartCommand { get; }
-
         public DataManager DataManager { get; set; }
 
-        public DailyChartViewModel(DataManager dataManager)
+        public DailyChartViewModel()
         {
-            DataManager = dataManager;
-
+            DataManager = (DataManager)App.Current.Services.GetService<IDataManager>();
             DataManager.PropertyChanged += DataManager_PropertyChanged;
-
-            CurveChart = new DailyCurveChart();
 
             PlotDailyChartCommand = new AsyncRelayCommand(() => plotDailyChart(DataManager.SelectedDate), () => !CurveChart.IsBusy);
             ClearDailyChartCommand = new RelayCommand(clearDailyChart, () => !CurveChart.IsBusy);
 
-
-
+            CurveChart = new DailyCurveChart();
             CurveChart.Setup(new IRelayCommand[] { PlotDailyChartCommand, ClearDailyChartCommand });
         }
 
@@ -42,6 +39,7 @@ namespace CurveAnalyzer.ViewModel
             CurveChart.Plot(DataManager, dateTime);
             return Task.CompletedTask;
         }
+
         private void DataManager_PropertyChanged(object sender, PropertyChangedEventArgs e)
         {
             if (e.PropertyName.Equals(nameof(DataManager.IsBusy)))

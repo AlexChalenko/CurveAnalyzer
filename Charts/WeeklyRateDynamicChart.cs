@@ -61,10 +61,10 @@ namespace CurveAnalyzer.Charts
 
             for (int i = 0; i < weeklyData.Count; i++)
             {
-                double item = 0d;
                 if (i >= begIdx)
-                    item = outData[i - begIdx];
-                lineSeries2.Points.Add(new DataPoint(weeklyData[i].X, item));
+                {
+                    lineSeries2.Points.Add(new DataPoint(weeklyData[i].X, outData[i - begIdx]));
+                }
             }
 
             MainChart.Series.Add(lineSeries2);

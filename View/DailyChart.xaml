@@ -35,7 +35,9 @@
                     DisplayDateEnd="{Binding DataManager.EndDate}"
                     DisplayDateStart="{Binding DataManager.StartDate}"
                     FontFamily="/Fonts/#Roboto"
-                    SelectedDate="{Binding DataManager.SelectedDate}" />
+                    SelectedDate="{Binding DataManager.SelectedDate}"
+                  SelectedDateChanged="MainDatePicker_SelectedDateChanged"
+                  />
                 <Button
                     Command="{Binding ClearDailyChartCommand}"
                     Content="Очистить"

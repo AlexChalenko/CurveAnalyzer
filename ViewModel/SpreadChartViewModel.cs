@@ -3,6 +3,8 @@ using CurveAnalyzer.Charts;
 using CurveAnalyzer.Data;
 using Microsoft.Toolkit.Mvvm.ComponentModel;
 using Microsoft.Toolkit.Mvvm.Input;
+using Microsoft.Extensions.DependencyInjection;
+using CurveAnalyzer.Interfaces;
 
 namespace CurveAnalyzer.ViewModel
 {
@@ -36,14 +38,15 @@ namespace CurveAnalyzer.ViewModel
             }
         }
 
-        public SpreadChartViewModel(DataManager dataManager)
+        public SpreadChartViewModel()
         {
-            DataManager = dataManager;
+            DataManager = (DataManager)App.Current.Services.GetService<IDataManager>();
+            DataManager.PropertyChanged += DataManager_PropertyChanged;
+
             SpreadChart = new DailySpreadChart();
             PlotSpreadCommand = new RelayCommand(() => updateSpreadChart(Period1, Period2), () => SpreadChart.Validate((Period1, Period2)) && !SpreadChart.IsBusy);
             SpreadChart.Setup(new IRelayCommand[] { PlotSpreadCommand });
 
-            DataManager.PropertyChanged += DataManager_PropertyChanged;
         }
 
         private void DataManager_PropertyChanged(object sender, PropertyChangedEventArgs e)

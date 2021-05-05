@@ -12,7 +12,7 @@ using MoexData;
 
 namespace CurveAnalyzer.Data
 {
-    public class DataManager : ObservableObject
+    public class DataManager : ObservableObject, IDataManager
     {
         private IDataProvider historyDataProvider;
         private IDataProvider onlineDataProvider;
@@ -125,17 +125,14 @@ namespace CurveAnalyzer.Data
             loadingProgress = new Progress<int>();
             loadingProgress.ProgressChanged += LoadingProgressChanged;
             LoadingTimeLeft = new TimeSpan();
+
+            updateHistory();
+            updatePeriods();
         }
 
         private void LoadingProgressChanged(object sender, int e)
         {
             Progress = e;
-        }
-
-        public void Initialize()
-        {
-            updateHistory();
-            updatePeriods();
         }
 
         private void updateHistory()
@@ -169,13 +166,20 @@ namespace CurveAnalyzer.Data
                             {
                                 Status = $"Error loading Blackout dates...";
                             }
+
+                            Application.Current.Dispatcher.Invoke(() =>
+                            {
+                              //it will update BlackoutDays in DailyChart.xaml
+                              SelectedDate = DateTime.MinValue;
+                                SelectedDate = DateTime.Today;
+                            });
                         });
                   }
                   else if (t.Exception != null)
                   {
                       Status = $"Error loading available dates {t.Exception}";
                   }
-                  else 
+                  else
                   {
                       Status = $"Error loading available dates ...";
                   }
