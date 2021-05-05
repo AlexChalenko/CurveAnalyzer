@@ -1,65 +1,28 @@
-using System;
-using System.Collections.ObjectModel;
-using System.ComponentModel;
-using System.Diagnostics;
-using System.Threading.Tasks;
-using System.Windows;
-using CurveAnalyzer.Charts;
+using System.Windows.Input;
+using System.Windows.Threading;
 using CurveAnalyzer.Data;
 using Microsoft.Toolkit.Mvvm.ComponentModel;
 using Microsoft.Toolkit.Mvvm.Input;
-using OxyPlot;
 
 namespace CurveAnalyzer.ViewModel
 {
-    internal class MainViewModel : ObservableObject, IDataErrorInfo
+    internal class MainViewModel : ObservableObject
     {
-        private PlotModel performanceChart;
-        private double period1;
-        private double period2;
-        private double periodForWeekChart;
         private string status;
-        private string error;
-        public DailyCurveChart CurveChart { get; set; }
-        public WeeklyRateDynamicChart WeeklyChangesChart { get; set; }
-        public DailySpreadChart SpreadChart { get; set; }
 
         public DataManager DataManager { get; set; }
+        public DailyChartViewModel DailyChartViewModel { get; }
 
-        public PlotModel PerformanceChart
-        {
-            get { return performanceChart; }
-            set { SetProperty(ref performanceChart, value); }
-        }
+        public WeeklyChartViewModel WeeklyChartViewModel { get; }
 
-        public double Period1
-        {
-            get { return period1; }
-            set
-            {
-                if (SetProperty(ref period1, value))
-                    PlotSpreadCommand.NotifyCanExecuteChanged();
-            }
-        }
+        public SpreadChartViewModel SpreadChartViewModel { get; }
 
-        public double Period2
-        {
-            get { return period2; }
-            set
-            {
-                if (SetProperty(ref period2, value))
-                    PlotSpreadCommand.NotifyCanExecuteChanged();
-            }
-        }
+        private ObservableObject currentView;
 
-        public double PeriodForWeekChart
+        public ObservableObject CurrentView
         {
-            get { return periodForWeekChart; }
-            set
-            {
-                if (SetProperty(ref periodForWeekChart, value))
-                    PlotWeeklyChartCommand.NotifyCanExecuteChanged();
-            }
+            get => currentView;
+            set => SetProperty(ref currentView, value);
         }
 
         public string Status
@@ -67,95 +30,47 @@ namespace CurveAnalyzer.ViewModel
             get => status;
             set
             {
-                Application.Current.Dispatcher.Invoke(() =>
+                Dispatcher.CurrentDispatcher.Invoke(() =>
                 {
                     SetProperty(ref status, value);
                 });
             }
         }
 
-        public AsyncRelayCommand PlotDailyChartCommand { get; }
-        public RelayCommand PlotWeeklyChartCommand { get; }
-        public RelayCommand ClearDailyChartCommand { get; }
-        public RelayCommand PlotSpreadCommand { get; }
-
-        public string Error => error;
-
-        public string this[string columnName]
-        {
-            get
-            {
-                switch (columnName)
-                {
-                    case nameof(Period1):
-                    case nameof(Period2):
-                        if (Period1.Equals(Period2))
-                        {
-                            return "Period should be defferent";
-                        }
-                        break;
-                    default:
-                        break;
-                }
-                return string.Empty;
-            }
-        }
-
         public MainViewModel()
         {
             DataManager = new DataManager();
-            CurveChart = new DailyCurveChart();
-            WeeklyChangesChart = new WeeklyRateDynamicChart();
-            SpreadChart = new DailySpreadChart();
+            DailyChartViewModel = new DailyChartViewModel(DataManager);
+            WeeklyChartViewModel = new WeeklyChartViewModel(DataManager);
+            SpreadChartViewModel = new SpreadChartViewModel(DataManager);
 
-            PlotDailyChartCommand = new AsyncRelayCommand(() => plotDailyChart(DataManager.SelectedDate), () => !CurveChart.IsBusy);
-            ClearDailyChartCommand = new RelayCommand(clearDailyChart, () => !CurveChart.IsBusy);
-            PlotWeeklyChartCommand = new RelayCommand(() => plotWeeklyChart(PeriodForWeekChart), () => !WeeklyChangesChart.IsBusy && DataManager.Periods.Count > 0 && PeriodForWeekChart > 0);
-            PlotSpreadCommand = new RelayCommand(() => updateSpreadChart(Period1, Period2), () => SpreadChart.Validate((Period1, Period2)) && !SpreadChart.IsBusy);
+            CurrentView = DailyChartViewModel;
 
-            CurveChart.Setup(new IRelayCommand[] { PlotDailyChartCommand, ClearDailyChartCommand });
-            WeeklyChangesChart.Setup(new IRelayCommand[] { PlotWeeklyChartCommand });
-            SpreadChart.Setup(new IRelayCommand[] { PlotSpreadCommand });
-
-            DataManager.PropertyChanged += DataManager_PropertyChanged;
             DataManager.Initialize();
         }
 
-        private void DataManager_PropertyChanged(object sender, PropertyChangedEventArgs e)
+        private ICommand weeklyChartSelect;
+        public ICommand WeeklyChartSelect => weeklyChartSelect ??= new RelayCommand(PerformWeeklyChartSelect);
+
+        private void PerformWeeklyChartSelect()
         {
-            if (e.PropertyName.Equals(nameof(DataManager.IsBusy)))
-            {
-                CurveChart.IsBusy = DataManager.IsBusy;
-                WeeklyChangesChart.IsBusy = DataManager.IsBusy;
-                SpreadChart.IsBusy = DataManager.IsBusy;
-            }
+            CurrentView = WeeklyChartViewModel;
         }
 
-        private void plotWeeklyChart(double period)
+        private ICommand spreadChartSelect;
+        public ICommand SpreadChartSelect => spreadChartSelect ??= new RelayCommand(PerformSpreadChartSelect);
+
+        private void PerformSpreadChartSelect()
         {
-            WeeklyChangesChart.Clear();
-            WeeklyChangesChart.Plot(DataManager, period);
+            CurrentView = SpreadChartViewModel;
         }
 
-        private void clearDailyChart()
+        private ICommand dailyChartSelect;
+        public ICommand DailyChartSelect => dailyChartSelect ??= new RelayCommand(PerformDailyChartSelect);
+
+        private void PerformDailyChartSelect()
         {
-            CurveChart.Clear();
+            CurrentView = DailyChartViewModel;
         }
-
-        private Task plotDailyChart(DateTime dateTime)
-        {
-            CurveChart.Plot(DataManager, dateTime);
-            return Task.CompletedTask;
-        }
-
-        private void updateSpreadChart(double period1, double period2)
-        {
-            SpreadChart.Clear();
-            SpreadChart.Plot(DataManager, (period1, period2));
-        }
-
-        private string buttonName = "Получить данные";
-
-        public string ButtonName { get => buttonName; set => SetProperty(ref buttonName, value); }
     }
 }

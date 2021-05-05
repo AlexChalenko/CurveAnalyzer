@@ -35,7 +35,7 @@ namespace CurveAnalyzer.Charts
             {
                 MajorGridlineStyle = LineStyle.Solid,
                 MinorGridlineStyle = LineStyle.Dot,
-                TitleFont = "Segoe UI",
+                TitleFont = "/Fonts/#Roboto",
                 Title = "Доходность",
                 TitleFontWeight = OxyPlot.FontWeights.Bold,
                 MaximumPadding = 0.1,
@@ -50,7 +50,7 @@ namespace CurveAnalyzer.Charts
                 Position = AxisPosition.Bottom,
                 IsZoomEnabled = false,
                 Title = "Дюрация",
-                TitleFont = "Segoe UI",
+                TitleFont = "/Fonts/#Roboto",
                 TitleFontWeight = OxyPlot.FontWeights.Bold,
             };
             MainChart.Axes.Add(linearAxis2);

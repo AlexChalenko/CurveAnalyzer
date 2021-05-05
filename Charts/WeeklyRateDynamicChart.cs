@@ -9,7 +9,7 @@ using OxyPlot;
 using OxyPlot.Annotations;
 using OxyPlot.Axes;
 using OxyPlot.Series;
-using TicTacTec.TA.Library;
+using TALib;
 
 namespace CurveAnalyzer.Charts
 {
@@ -57,7 +57,7 @@ namespace CurveAnalyzer.Charts
             MainChart.Series.Add(lineSeries1);
 
             double[] outData = new double[weeklyData.Count];
-            var res = Core.Roc(0, weeklyData.Count - 1, weeklyData.Select(d => d.Close).ToArray(), 13, out int begIdx, out int element, outData);
+            var res = Core.Roc(weeklyData.Select(d => d.Close).ToArray(), 0, weeklyData.Count - 1, outData, out int begIdx, out int element, 13);
 
             for (int i = 0; i < weeklyData.Count; i++)
             {

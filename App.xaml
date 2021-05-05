@@ -1,8 +1,26 @@
-﻿<Application
+<Application
     x:Class="CurveAnalyzer.App"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:local="clr-namespace:CurveAnalyzer"
+    xmlns:view="clr-namespace:CurveAnalyzer.View"
+    xmlns:viewmodel="clr-namespace:CurveAnalyzer.ViewModel"
     StartupUri="MainWindow.xaml">
-    <Application.Resources />
+    <Application.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="Theme/TextStyle.xaml" />
+                <ResourceDictionary Source="Theme/MenuButtomTheme.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+            <DataTemplate DataType="{x:Type viewmodel:DailyChartViewModel}">
+                <view:DailyChart />
+            </DataTemplate>
+            <DataTemplate DataType="{x:Type viewmodel:WeeklyChartViewModel}">
+                <view:WeeklyChart />
+            </DataTemplate>
+            <DataTemplate DataType="{x:Type viewmodel:SpreadChartViewModel}">
+                <view:SpreadChart />
+            </DataTemplate>
+        </ResourceDictionary>
+    </Application.Resources>
 </Application>
