@@ -10,7 +10,7 @@ namespace CurveAnalyzer.ViewModel
 {
     public class SpreadChartViewModel : ObservableObject, IDataErrorInfo
     {
-        public DataManager DataManager { get; }
+        public IDataManager DataManager { get; }
 
         private double period1;
         private double period2;
@@ -40,7 +40,7 @@ namespace CurveAnalyzer.ViewModel
 
         public SpreadChartViewModel()
         {
-            DataManager = (DataManager)App.Current.Services.GetService<IDataManager>();
+            DataManager = App.Current.Services.GetService<IDataManager>();
             DataManager.PropertyChanged += DataManager_PropertyChanged;
 
             SpreadChart = new DailySpreadChart();
@@ -62,7 +62,7 @@ namespace CurveAnalyzer.ViewModel
         private void updateSpreadChart(double period1, double period2)
         {
             SpreadChart.Clear();
-            SpreadChart.Plot(DataManager, (period1, period2));
+            SpreadChart.Plot((period1, period2));
         }
 
         public string Error => string.Empty;

@@ -15,7 +15,7 @@ namespace CurveAnalyzer.ViewModel
         private PlotModel performanceChart;
 
         public WeeklyRateDynamicChart WeeklyChangesChart { get; set; }
-        public DataManager DataManager { get; set; }
+        public IDataManager DataManager { get; set; }
         public RelayCommand PlotWeeklyChartCommand { get; }
 
         public PlotModel PerformanceChart
@@ -36,7 +36,7 @@ namespace CurveAnalyzer.ViewModel
 
         public WeeklyChartViewModel()
         {
-            DataManager = (DataManager)App.Current.Services.GetService<IDataManager>();
+            DataManager = App.Current.Services.GetService<IDataManager>();
             DataManager.PropertyChanged += DataManager_PropertyChanged;
 
             WeeklyChangesChart = new WeeklyRateDynamicChart();
@@ -55,7 +55,7 @@ namespace CurveAnalyzer.ViewModel
         private void plotWeeklyChart(double period)
         {
             WeeklyChangesChart.Clear();
-            WeeklyChangesChart.Plot(DataManager, period);
+            WeeklyChangesChart.Plot(period);
         }
     }
 }

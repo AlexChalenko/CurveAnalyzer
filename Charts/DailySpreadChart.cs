@@ -1,18 +1,22 @@
 using System;
 using System.Linq;
-using CurveAnalyzer.Data;
 using CurveAnalyzer.Interfaces;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Toolkit.Mvvm.Input;
 using OxyPlot;
 using OxyPlot.Axes;
 using OxyPlot.Series;
 
+
 namespace CurveAnalyzer.Charts
 {
     public class DailySpreadChart : ChartCreator<(double period1, double period2)>
     {
-        public override void Plot(DataManager dataManager, (double period1, double period2) value)
+        public override void Plot((double period1, double period2) value)
         {
+
+            IDataManager dataManager = App.Current.Services.GetService<IDataManager>();
+
             IsBusy = true;
             var startDate = new DateTime(1900, 1, 1);
 

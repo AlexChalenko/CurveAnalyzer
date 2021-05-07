@@ -10,11 +10,14 @@ using OxyPlot.Annotations;
 using OxyPlot.Axes;
 using OxyPlot.Series;
 using TALib;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace CurveAnalyzer.Charts
 {
     public class WeeklyRateDynamicChart : ChartCreator<double>
     {
+        IDataManager dataManager => App.Current.Services.GetService<IDataManager>();
+
         public WeeklyRateDynamicChart()
         {
             MainChart = new PlotModel
@@ -28,11 +31,11 @@ namespace CurveAnalyzer.Charts
             };
         }
 
-        public override void Plot(DataManager dataManager, double value)
+        public override void Plot(double value)
         {
             IsBusy = true;
 
-            var weeklyData = getOxyWeeklyOhlcs(dataManager, value);
+            var weeklyData = getOxyWeeklyOhlcs( value);
 
             if (weeklyData == null)
             {
@@ -72,7 +75,7 @@ namespace CurveAnalyzer.Charts
             IsBusy = false;
         }
 
-        private List<HighLowItem> getOxyWeeklyOhlcs(DataManager dataManager, double period)
+        private List<HighLowItem> getOxyWeeklyOhlcs(double period)
         {
             var output = new List<HighLowItem>();
             var startDate = new DateTime(1900, 1, 1);

@@ -9,13 +9,15 @@ using CurveAnalyzer.DataProviders;
 using CurveAnalyzer.Interfaces;
 using Microsoft.Toolkit.Mvvm.ComponentModel;
 using MoexData;
+using Microsoft.Extensions.DependencyInjection;
+
 
 namespace CurveAnalyzer.Data
 {
     public class DataManager : ObservableObject, IDataManager
     {
-        private IDataProvider historyDataProvider;
-        private IDataProvider onlineDataProvider;
+        private readonly IDataProvider historyDataProvider;
+        private readonly IDataProvider onlineDataProvider;
         private DateTime startDate;
         private DateTime endDate;
         private DateTime selectedDate;
@@ -41,7 +43,7 @@ namespace CurveAnalyzer.Data
 
         public TimeSpan LoadingTimeLeft { get; set; }
 
-        Progress<int> loadingProgress;
+        private readonly Progress<int> loadingProgress;
 
         public Visibility ProgressBarVisibility { get; set; } = Visibility.Hidden;
 
@@ -99,16 +101,6 @@ namespace CurveAnalyzer.Data
             {
                 SetProperty(ref isBusy, value);
             }
-        }
-
-        internal async Task<ZcycData> GetData(DateTime value)
-        {
-            ZcycData dataToPlot = await historyDataProvider.GetDataForDate(value);
-
-            if (dataToPlot.DataRow.Count == 0)
-                dataToPlot = await onlineDataProvider.GetDataForDate(value);
-
-            return dataToPlot;
         }
 
         public (DateTime startDate, DateTime endDate) GetAvailableDates()
@@ -169,9 +161,9 @@ namespace CurveAnalyzer.Data
 
                             Application.Current.Dispatcher.Invoke(() =>
                             {
-                              //it will update BlackoutDays in DailyChart.xaml
-                              SelectedDate = DateTime.MinValue;
-                                SelectedDate = DateTime.Today;
+                                //it will update BlackoutDays in DailyChart.xaml
+                                SelectedDate = StartDate;
+                                SelectedDate = EndDate;
                             });
                         });
                   }
@@ -258,6 +250,31 @@ namespace CurveAnalyzer.Data
                         Periods.Add(item);
                 }
             }).ConfigureAwait(false);
+        }
+
+        public Task<ZcycData> GetData(DateTime value)
+        {
+            var tcs = new TaskCompletionSource<ZcycData>();
+
+            historyDataProvider.GetDataForDate(value).ContinueWith(async data => {
+                if (data.IsCompletedSuccessfully)
+                {
+                    ZcycData dataToPlot = data.Result;
+
+                    if (dataToPlot.DataRow.Count == 0)
+                        dataToPlot = await onlineDataProvider.GetDataForDate(value);
+
+                    tcs.SetResult(dataToPlot);
+
+                }
+                else if (data.Exception != null)
+                {
+                    tcs.SetException(data.Exception);
+                }
+                else
+                    tcs.SetException(new Exception("Task was canceled"));
+            });
+            return tcs.Task;
         }
     }
 }

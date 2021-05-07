@@ -1,14 +1,17 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Threading.Tasks;
 using System.Windows;
+using CurveAnalyzer.Data;
 using MoexData;
 
 namespace CurveAnalyzer.Interfaces
 {
     public interface IDataManager
     {
+        event PropertyChangedEventHandler PropertyChanged;
         ObservableCollection<DateTime> BlackoutDates { get; }
         DateTime EndDate { get; set; }
         bool IsBusy { get; set; }
@@ -21,5 +24,6 @@ namespace CurveAnalyzer.Interfaces
         string Status { get; set; }
         Task<List<Zcyc>> GetAllDataForPeriod(double period);
         (DateTime startDate, DateTime endDate) GetAvailableDates();
+        Task<ZcycData> GetData(DateTime value);
     }
 }

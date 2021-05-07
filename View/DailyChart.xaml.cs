@@ -30,8 +30,7 @@ namespace CurveAnalyzer.View
         {
             if (MainDatePicker.BlackoutDates != null && MainDatePicker.BlackoutDates.Count == 0 && e.AddedItems.Count > 0 && (DateTime)e.AddedItems[0] > DateTime.MinValue)
             {
-                var dailyChartViewModel = DataContext as DailyChartViewModel;
-                if (dailyChartViewModel != null)
+                if (DataContext is DailyChartViewModel dailyChartViewModel)
                 {
                     foreach (var newDate in dailyChartViewModel.DataManager.BlackoutDates)
                     {

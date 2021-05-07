@@ -38,8 +38,10 @@ namespace CurveAnalyzer.DataProviders
 
             var dbData = db.Zcycs.Where(r => r.Tradedate.Equals(date)).ToList();
 
-            var zData = new ZcycData();
-            zData.Date = date;
+            var zData = new ZcycData
+            {
+                Date = date
+            };
             if (dbData.Count > 0)
             {
                 for (int i = 0; i < dbData.Count; i++)

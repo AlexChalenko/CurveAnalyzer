@@ -1,10 +1,9 @@
 using System;
-using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using System.Windows;
 using CurveAnalyzer.Data;
 using CurveAnalyzer.Interfaces;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Toolkit.Mvvm.Input;
 using OxyPlot;
 using OxyPlot.Axes;
@@ -15,6 +14,8 @@ namespace CurveAnalyzer.Charts
     public class DailyCurveChart : ChartCreator<DateTime>
     {
         private ZcycData data;
+        private readonly IDataManager dataManager = App.Current.Services.GetService<IDataManager>();
+
         public DailyCurveChart()
         {
             MainChart = new PlotModel
@@ -27,6 +28,7 @@ namespace CurveAnalyzer.Charts
                 LegendItemAlignment = OxyPlot.HorizontalAlignment.Left,
             };
         }
+
         public override void Setup(IRelayCommand[] updateCommands)
         {
             base.Setup(updateCommands);
@@ -56,8 +58,9 @@ namespace CurveAnalyzer.Charts
             MainChart.Axes.Add(linearAxis2);
         }
 
-        public override void Plot(DataManager dataManager, DateTime value)
+        public override void Plot(DateTime value)
         {
+
             if (MainChart.Series.Any(_ => (DateTime)_.Tag == value))
             {
                 return;
@@ -68,29 +71,31 @@ namespace CurveAnalyzer.Charts
             {
                 data = await dataManager.GetData(value);
 
-                if (data.DataRow.Count == 0)
-                    return;
-
-                var lineSeries1 = new LineSeries
+                if (data.DataRow.Count > 0)
                 {
-                    MarkerType = MarkerType.Circle,
-                    MarkerStrokeThickness = 2,
-                    MarkerSize = 2,
-                    LineStyle = LineStyle.Solid,
-                    StrokeThickness = 2,
-                    Title = value.ToShortDateString(),
-                    InterpolationAlgorithm = InterpolationAlgorithms.CanonicalSpline,
-                    Tag = value
-                };
-                lineSeries1.MarkerStroke = lineSeries1.Color;
+                    var lineSeries1 = new LineSeries
+                    {
+                        MarkerType = MarkerType.Circle,
+                        MarkerStrokeThickness = 2,
+                        MarkerSize = 2,
+                        LineStyle = LineStyle.Solid,
+                        StrokeThickness = 2,
+                        Title = value.ToShortDateString(),
+                        InterpolationAlgorithm = InterpolationAlgorithms.CanonicalSpline,
+                        Tag = value
+                    };
+                    lineSeries1.MarkerStroke = lineSeries1.Color;
 
-                foreach (var item in data.DataRow)
-                {
-                    lineSeries1.Points.Add(new DataPoint(item.Period, item.Value));
+                    data.DataRow.ForEach(item => { lineSeries1.Points.Add(new DataPoint(item.Period, item.Value)); });
+
+                    MainChart.Series.Add(lineSeries1);
+                    MainChart.InvalidatePlot(true);
+                    dataManager.Status = string.Empty;
                 }
-
-                MainChart.Series.Add(lineSeries1);
-                MainChart.InvalidatePlot(true);
+                else
+                {
+                    dataManager.Status = $"No data for {value}";
+                }
                 IsBusy = false;
             });
         }

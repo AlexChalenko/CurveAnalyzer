@@ -30,7 +30,7 @@ namespace CurveAnalyzer.Interfaces
             IsBusy = false;
         }
 
-        public abstract void Plot(DataManager dataManager, T value);
+        public abstract void Plot(T value);
 
         public virtual bool Validate(T value)
         {

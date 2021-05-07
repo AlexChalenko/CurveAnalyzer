@@ -15,11 +15,11 @@ namespace CurveAnalyzer.ViewModel
         public DailyCurveChart CurveChart { get; set; }
         public AsyncRelayCommand PlotDailyChartCommand { get; }
         public RelayCommand ClearDailyChartCommand { get; }
-        public DataManager DataManager { get; set; }
+        public IDataManager DataManager { get; set; }
 
         public DailyChartViewModel()
         {
-            DataManager = (DataManager)App.Current.Services.GetService<IDataManager>();
+            DataManager = App.Current.Services.GetService<IDataManager>();
             DataManager.PropertyChanged += DataManager_PropertyChanged;
 
             PlotDailyChartCommand = new AsyncRelayCommand(() => plotDailyChart(DataManager.SelectedDate), () => !CurveChart.IsBusy);
@@ -36,7 +36,7 @@ namespace CurveAnalyzer.ViewModel
 
         private Task plotDailyChart(DateTime dateTime)
         {
-            CurveChart.Plot(DataManager, dateTime);
+            CurveChart.Plot(dateTime);
             return Task.CompletedTask;
         }
 

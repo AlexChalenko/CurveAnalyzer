@@ -19,7 +19,7 @@ namespace CurveAnalyzer.DataProviders
 
         private ZcycData todayZcycData;
 
-        private TimeSpan cachePeriod = TimeSpan.FromMinutes(5);
+        private readonly TimeSpan cachePeriod = TimeSpan.FromMinutes(5);
         private DateTime lastUpdateTime = DateTime.MinValue;
 
         public Task<List<DateTime>> GetAvailableDates()
@@ -72,8 +72,10 @@ namespace CurveAnalyzer.DataProviders
             string downloadingDate = date.ToString("yyyy-MM-dd");
             string url = string.Format(DataUrl, downloadingDate);
 
-            var zData = new ZcycData();
-            zData.Date = date;
+            var zData = new ZcycData
+            {
+                Date = date
+            };
 
             try
             {

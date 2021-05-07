@@ -18,7 +18,7 @@ namespace CurveAnalyzer.ViewModel
         private ICommand weeklyChartSelect;
         public MainViewModel()
         {
-            DataManager = (DataManager)App.Current.Services.GetService<IDataManager>();
+            DataManager = App.Current.Services.GetService<IDataManager>();
             DailyChartViewModel = new DailyChartViewModel();
             WeeklyChartViewModel = new WeeklyChartViewModel();
             SpreadChartViewModel = new SpreadChartViewModel();
@@ -34,7 +34,7 @@ namespace CurveAnalyzer.ViewModel
 
         public ICommand DailyChartSelect => dailyChartSelect ??= new RelayCommand(PerformDailyChartSelect);
         public DailyChartViewModel DailyChartViewModel { get; }
-        public DataManager DataManager { get; set; }
+        public IDataManager DataManager { get; set; }
         public ICommand SpreadChartSelect => spreadChartSelect ??= new RelayCommand(PerformSpreadChartSelect);
         public SpreadChartViewModel SpreadChartViewModel { get; }
         public string Status
