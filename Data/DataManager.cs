@@ -228,7 +228,7 @@ namespace CurveAnalyzer.Data
                 {
                     Status = $"Загрузка данных за {res.Date}";
                     var result = await historyDataProvider.SaveData(res);
-                    var loadedQty = allDates.IndexOf(res.Date);
+                    var loadedQty = allDates.IndexOf(res.Date) + 1;
                     var tempQty = (DateTime.Now - startLoading) / loadedQty;
                     LoadingTimeLeft = (allDates.Count - loadedQty) * tempQty;
                     OnPropertyChanged(nameof(LoadingTimeLeft));
@@ -256,7 +256,8 @@ namespace CurveAnalyzer.Data
         {
             var tcs = new TaskCompletionSource<ZcycData>();
 
-            historyDataProvider.GetDataForDate(value).ContinueWith(async data => {
+            historyDataProvider.GetDataForDate(value).ContinueWith(async data =>
+            {
                 if (data.IsCompletedSuccessfully)
                 {
                     ZcycData dataToPlot = data.Result;
