@@ -12,11 +12,11 @@ namespace CurveAnalyzer.Interfaces
     public interface IDataManager
     {
         event PropertyChangedEventHandler PropertyChanged;
-        ObservableCollection<DateTime> BlackoutDates { get; }
+        Collection<DateTime> BlackoutDates { get; }
         DateTime EndDate { get; set; }
         bool IsBusy { get; set; }
         TimeSpan LoadingTimeLeft { get; set; }
-        ObservableCollection<double> Periods { get; }
+        Collection<double> Periods { get; }
         int Progress { get; set; }
         Visibility ProgressBarVisibility { get; set; }
         DateTime SelectedDate { get; set; }

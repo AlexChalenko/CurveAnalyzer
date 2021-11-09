@@ -1,21 +1,22 @@
 using System.ComponentModel;
 using CurveAnalyzer.Charts;
 using CurveAnalyzer.Data;
+using CurveAnalyzer.Interfaces;
+using CurveAnalyzer.View;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Toolkit.Mvvm.ComponentModel;
 using Microsoft.Toolkit.Mvvm.Input;
-using Microsoft.Extensions.DependencyInjection;
-using CurveAnalyzer.Interfaces;
 
 namespace CurveAnalyzer.ViewModel
 {
     public class SpreadChartViewModel : ObservableObject, IDataErrorInfo
     {
-        public IDataManager DataManager { get; }
-
         private double period1;
         private double period2;
 
-        public DailySpreadChart SpreadChart { get; set; }
+        private Periods periods;
+
+        public DailySpreadChart Chart { get; set; }
         public RelayCommand PlotSpreadCommand { get; }
 
         public double Period1
@@ -40,29 +41,15 @@ namespace CurveAnalyzer.ViewModel
 
         public SpreadChartViewModel()
         {
-            DataManager = App.Current.Services.GetService<IDataManager>();
-            DataManager.PropertyChanged += DataManager_PropertyChanged;
-
-            SpreadChart = new DailySpreadChart();
-            PlotSpreadCommand = new RelayCommand(() => updateSpreadChart(Period1, Period2), () => SpreadChart.Validate((Period1, Period2)) && !SpreadChart.IsBusy);
-            SpreadChart.Setup(new IRelayCommand[] { PlotSpreadCommand });
-
+            Chart = new DailySpreadChart();
+            PlotSpreadCommand = new RelayCommand(() => plotSpreadChart(new Periods { Period1 = Period1, Period2 = Period2 }) , () => Chart.Validate(new Periods { Period1= Period1, Period2= Period2 }) && !Chart.IsBusy);
+            Chart.Setup(new IRelayCommand[] { PlotSpreadCommand });
         }
 
-        private void DataManager_PropertyChanged(object sender, PropertyChangedEventArgs e)
+        private void plotSpreadChart(Periods periods)
         {
-            if (e.PropertyName.Equals(nameof(DataManager.IsBusy)))
-            {
-                //CurveChart.IsBusy = DataManager.IsBusy;
-                ////WeeklyChangesChart.IsBusy = DataManager.IsBusy;
-                SpreadChart.IsBusy = DataManager.IsBusy;
-            }
-        }
-
-        private void updateSpreadChart(double period1, double period2)
-        {
-            SpreadChart.Clear();
-            SpreadChart.Plot((period1, period2));
+            Chart.Clear();
+            Chart.Plot(periods);
         }
 
         public string Error => string.Empty;

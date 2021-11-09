@@ -1,6 +1,5 @@
 using System.Windows.Input;
 using System.Windows.Threading;
-using CurveAnalyzer.Data;
 using CurveAnalyzer.Interfaces;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Toolkit.Mvvm.ComponentModel;
@@ -40,13 +39,7 @@ namespace CurveAnalyzer.ViewModel
         public string Status
         {
             get => status;
-            set
-            {
-                Dispatcher.CurrentDispatcher.Invoke(() =>
-                {
-                    SetProperty(ref status, value);
-                });
-            }
+            set => Dispatcher.CurrentDispatcher.Invoke(() => SetProperty(ref status, value));
         }
 
         public ICommand WeeklyChartSelect => weeklyChartSelect ??= new RelayCommand(PerformWeeklyChartSelect);

@@ -9,9 +9,9 @@
     Width="800"
     Height="450"
     mc:Ignorable="d">
-    <Window.DataContext>
-        <viewmodel:MainViewModel />
-    </Window.DataContext>
+    <!--<Window.DataContext>
+    <viewmodel:MainViewModel/>
+  </Window.DataContext>-->
 
     <Grid>
         <Grid.RowDefinitions>

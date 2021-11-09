@@ -1,37 +1,34 @@
 using System;
 using System.Linq;
 using System.Threading.Tasks;
-using CurveAnalyzer.Data;
 using CurveAnalyzer.Interfaces;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Toolkit.Mvvm.Input;
 using OxyPlot;
 using OxyPlot.Axes;
+using OxyPlot.Legends;
 using OxyPlot.Series;
 
 namespace CurveAnalyzer.Charts
 {
     public class DailyCurveChart : ChartCreator<DateTime>
     {
-        private ZcycData data;
-        private readonly IDataManager dataManager = App.Current.Services.GetService<IDataManager>();
-
         public DailyCurveChart()
         {
-            MainChart = new PlotModel
+            var l = new Legend()
             {
                 LegendBorder = OxyColors.Black,
                 LegendBackground = OxyColor.FromAColor(200, OxyColors.White),
                 LegendPosition = LegendPosition.BottomCenter,
                 LegendPlacement = LegendPlacement.Inside,
                 LegendOrientation = LegendOrientation.Horizontal,
-                LegendItemAlignment = OxyPlot.HorizontalAlignment.Left,
+                LegendItemAlignment = HorizontalAlignment.Left,
             };
+            MainChart.Legends.Add(l);
         }
 
-        public override void Setup(IRelayCommand[] updateCommands)
+        public override void Setup(IRelayCommand[] commandsToUpdate)
         {
-            base.Setup(updateCommands);
+            base.Setup(commandsToUpdate);
 
             var linearAxis1 = new LinearAxis
             {
@@ -58,46 +55,42 @@ namespace CurveAnalyzer.Charts
             MainChart.Axes.Add(linearAxis2);
         }
 
-        public override void Plot(DateTime value)
+        public override async Task Plot(DateTime value)
         {
-
             if (MainChart.Series.Any(_ => (DateTime)_.Tag == value))
             {
                 return;
             }
             IsBusy = true;
 
-            Task.Run(async () =>
+            var data = await DataManager.GetData(value).ConfigureAwait(false);
+
+            if (data.DataRow.Count > 0)
             {
-                data = await dataManager.GetData(value);
-
-                if (data.DataRow.Count > 0)
+                var lineSeries1 = new LineSeries
                 {
-                    var lineSeries1 = new LineSeries
-                    {
-                        MarkerType = MarkerType.Circle,
-                        MarkerStrokeThickness = 2,
-                        MarkerSize = 2,
-                        LineStyle = LineStyle.Solid,
-                        StrokeThickness = 2,
-                        Title = value.ToShortDateString(),
-                        InterpolationAlgorithm = InterpolationAlgorithms.CanonicalSpline,
-                        Tag = value
-                    };
-                    lineSeries1.MarkerStroke = lineSeries1.Color;
+                    MarkerType = MarkerType.Circle,
+                    MarkerStrokeThickness = 2,
+                    MarkerSize = 2,
+                    LineStyle = LineStyle.Solid,
+                    StrokeThickness = 2,
+                    Title = value.ToShortDateString(),
+                    InterpolationAlgorithm = InterpolationAlgorithms.CanonicalSpline,
+                    Tag = value
+                };
+                lineSeries1.MarkerStroke = lineSeries1.Color;
 
-                    data.DataRow.ForEach(item => { lineSeries1.Points.Add(new DataPoint(item.Period, item.Value)); });
+                data.DataRow.ForEach(item => lineSeries1.Points.Add(new DataPoint(item.Period, item.Value)));
 
-                    MainChart.Series.Add(lineSeries1);
-                    MainChart.InvalidatePlot(true);
-                    dataManager.Status = string.Empty;
-                }
-                else
-                {
-                    dataManager.Status = $"No data for {value}";
-                }
-                IsBusy = false;
-            });
+                MainChart.Series.Add(lineSeries1);
+                MainChart.InvalidatePlot(true);
+                DataManager.Status = string.Empty;
+            }
+            else
+            {
+                DataManager.Status = $"No data for {value}";
+            }
+            IsBusy = false;
         }
     }
 }

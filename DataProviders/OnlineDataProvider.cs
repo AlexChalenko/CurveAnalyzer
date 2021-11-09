@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Xml;
 using System.Xml.Serialization;
@@ -17,60 +18,74 @@ namespace CurveAnalyzer.DataProviders
         private const string DatesUrl = "https://iss.moex.com/iss/engines/stock/zcyc.xml?iss.only=yearyields.dates&iss.meta=off";
         private const string PeriodsUrl = "https://iss.moex.com/iss/engines/stock/zcyc.xml?iss.only=yearyields&yearyields.columns=period&iss.meta=off";
 
+        private readonly CultureInfo culture = CultureInfo.CreateSpecificCulture("en-US");
+
         private ZcycData todayZcycData;
 
         private readonly TimeSpan cachePeriod = TimeSpan.FromMinutes(5);
         private DateTime lastUpdateTime = DateTime.MinValue;
 
-        public Task<List<DateTime>> GetAvailableDates()
+        public Task<List<DateTime>> GetAvailableDates(CancellationToken token)
         {
-            var tcs = new TaskCompletionSource<List<DateTime>>();
+            TaskCompletionSource<List<DateTime>> tcs = new();
 
             var settings = new XmlReaderSettings
             {
                 Async = true
             };
 
-            using XmlReader reader = XmlReader.Create(DatesUrl, settings);
-            try
+            if (token.IsCancellationRequested)
             {
-                while (reader.Read())
+                tcs.SetResult(new List<DateTime>());
+            }
+            else
+            {
+                using XmlReader reader = XmlReader.Create(DatesUrl, settings);
+                try
                 {
-                    switch (reader.NodeType)
+                    while (reader.Read())
                     {
-                        case XmlNodeType.Element:
-                            if (reader.Name.Equals("row"))
-                            {
-                                var startDate = DateTime.Parse(reader.GetAttribute(0));
-                                var endDate = DateTime.Parse(reader.GetAttribute(1));
-                                var range = Enumerable.Range(0, int.MaxValue)
-                                                      .Select(index => startDate.AddDays(index))
-                                                      .TakeWhile(date => date <= endDate);
-                                tcs.TrySetResult(range.ToList());
-                            }
-                            break;
+                        switch (reader.NodeType)
+                        {
+                            case XmlNodeType.Element:
+                                if (reader.Name.Equals("row", StringComparison.Ordinal))
+                                {
+                                    if (DateTime.TryParse(reader.GetAttribute(0), culture, DateTimeStyles.None, out var startDate)
+                                        && DateTime.TryParse(reader.GetAttribute(1), culture, DateTimeStyles.None, out var endDate))
+                                    {
+                                        var range = Enumerable.Range(0, int.MaxValue)
+                                            .Select(index => startDate.AddDays(index))
+                                            .TakeWhile(date => date <= endDate);
+                                        tcs.SetResult(range.ToList());
+                                    }
+                                    else
+                                    {
+                                        tcs.SetException(new Exception("Invalid dates"));
+                                    }
+                                }
+                                break;
+                        }
                     }
                 }
-            }
-            catch (Exception ex)
-            {
-                tcs.TrySetException(ex);
+                catch (Exception ex)
+                {
+                    tcs.SetException(ex);
+                }
             }
             return tcs.Task;
         }
 
         public Task<ZcycData> GetDataForDate(DateTime date)
         {
-            if (date.Equals(DateTime.Today) && DateTime.Now.Subtract(lastUpdateTime) < cachePeriod)
+            if (date.Equals(DateTime.Today) && DateTime.Now.Subtract(lastUpdateTime) < cachePeriod && todayZcycData != null)
             {
                 return Task.FromResult(todayZcycData);
             }
 
             var tcs = new TaskCompletionSource<ZcycData>();
-
             var serializer = new XmlSerializer(typeof(IssData));
             string downloadingDate = date.ToString("yyyy-MM-dd");
-            string url = string.Format(DataUrl, downloadingDate);
+            string url = string.Format(culture, DataUrl, downloadingDate);
 
             var zData = new ZcycData
             {
@@ -82,26 +97,30 @@ namespace CurveAnalyzer.DataProviders
                 using XmlReader xmlReader = XmlReader.Create(url); //gets only 500 lines
                 var issData = (IssData)serializer.Deserialize(xmlReader);
                 if (issData == null || issData.data == null || issData.data.rows.Length == 0)
-                    tcs.TrySetResult(zData);
-
-                foreach (var item in issData.data.rows)
                 {
-                    zData.DataRow.Add(new ZcycDataRow
+                    tcs.SetResult(zData);
+                }
+                else
+                {
+                    foreach (var item in issData.data.rows)
                     {
-                        Period = item.period,
-                        Value = item.value
-                    });
+                        zData.DataRow.Add(new ZcycDataRow
+                        {
+                            Period = item.period,
+                            Value = item.value
+                        });
+                    }
+                    if (date.Equals(DateTime.Today))
+                    {
+                        todayZcycData = zData;
+                        lastUpdateTime = DateTime.Now;
+                    }
+                    tcs.SetResult(zData);
                 }
-                if (date.Equals(DateTime.Today))
-                {
-                    todayZcycData = zData;
-                    lastUpdateTime = DateTime.Now;
-                }
-                tcs.TrySetResult(zData);
             }
             catch (Exception) // on error return empty data
             {
-                tcs.TrySetResult(zData);
+                tcs.SetResult(zData);
             }
             return tcs.Task;
         }
@@ -114,7 +133,7 @@ namespace CurveAnalyzer.DataProviders
                 var dataForPeriod = data.Result.DataRow.Where(r => r.Period == period).ToList().FirstOrDefault();
                 if (dataForPeriod != null)
                 {
-                    var zcycData = new Zcyc
+                    Zcyc zcycData = new()
                     {
                         Tradedate = DateTime.Today,
                         Period = dataForPeriod.Period,
@@ -126,12 +145,11 @@ namespace CurveAnalyzer.DataProviders
             return Task.FromResult(new List<Zcyc>());
         }
 
-        public Task<List<double>> GetPeriods()
+        public async Task<List<double>> GetPeriods()
         {
             List<double> result = new();
-            var tcs = new TaskCompletionSource<List<double>>();
 
-            var settings = new XmlReaderSettings
+            XmlReaderSettings settings = new()
             {
                 Async = true
             };
@@ -139,7 +157,7 @@ namespace CurveAnalyzer.DataProviders
             CultureInfo culture = new("en-US");
 
             using XmlReader reader = XmlReader.Create(PeriodsUrl, settings);
-            while (reader.ReadAsync().Result)
+            while (await reader.ReadAsync().ConfigureAwait(false))
             {
                 switch (reader.NodeType)
                 {
@@ -149,13 +167,7 @@ namespace CurveAnalyzer.DataProviders
                         break;
                 }
             }
-            tcs.TrySetResult(result);
-            return tcs.Task;
-        }
-
-        public Task<bool> SaveData(ZcycData data)
-        {
-            throw new NotImplementedException();
+            return result;
         }
     }
 }

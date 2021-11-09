@@ -34,7 +34,7 @@
                 <ComboBox
                     Width="50"
                     Height="25"
-                    ItemsSource="{Binding DataManager.Periods}"
+                    ItemsSource="{Binding Chart.DataManager.Periods}"
                     SelectedValue="{Binding Period1, UpdateSourceTrigger=PropertyChanged, ValidatesOnDataErrors=True}" />
                 <TextBlock
                     Margin="15,0,0,0"
@@ -43,11 +43,11 @@
                 <ComboBox
                     Width="50"
                     Height="25"
-                    ItemsSource="{Binding DataManager.Periods}"
+                    ItemsSource="{Binding Chart.DataManager.Periods}"
                     SelectedValue="{Binding Period2, ValidatesOnDataErrors=True}" />
                 <Button Command="{Binding PlotSpreadCommand}" Content="Получить спред" />
             </StackPanel>
         </GroupBox>
-        <oxy:PlotView Grid.Row="1" Model="{Binding SpreadChart.MainChart}" />
+        <oxy:PlotView Grid.Row="1" Model="{Binding Chart.MainChart}" />
     </Grid>
 </UserControl>

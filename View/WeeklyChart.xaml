@@ -22,11 +22,11 @@
                 <ComboBox
                     Width="50"
                     Margin="0,0,5,0"
-                    ItemsSource="{Binding DataManager.Periods}"
-                    SelectedValue="{Binding PeriodForWeekChart}" />
+                    ItemsSource="{Binding Chart.DataManager.Periods}"
+                    SelectedValue="{Binding Period}" />
                 <Button Command="{Binding PlotWeeklyChartCommand}" Content="Построить график" />
             </StackPanel>
         </GroupBox>
-        <oxy:PlotView Grid.Row="1" Model="{Binding WeeklyChangesChart.MainChart}" />
+        <oxy:PlotView Grid.Row="1" Model="{Binding Chart.MainChart}" />
     </Grid>
 </UserControl>

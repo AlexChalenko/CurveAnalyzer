@@ -1,0 +1,75 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<ClassDiagram MajorVersion="1" MinorVersion="1" MembersFormat="NameAndType">
+  <Class Name="CurveAnalyzer.ViewModel.MainViewModel">
+    <Position X="6" Y="12.25" Width="3.75" />
+    <TypeIdentifier>
+      <HashCode>AAQACAAGEAAAAgAAIBAAACAiQAAAAAAAAASAAAAAEgA=</HashCode>
+      <FileName>ViewModel\MainViewModel.cs</FileName>
+    </TypeIdentifier>
+    <ShowAsAssociation>
+      <Property Name="DailyChartViewModel" />
+      <Property Name="SpreadChartViewModel" />
+      <Property Name="WeeklyChartViewModel" />
+    </ShowAsAssociation>
+  </Class>
+  <Class Name="CurveAnalyzer.ViewModel.WeeklyChartViewModel">
+    <Position X="3" Y="8" Width="2.25" />
+    <TypeIdentifier>
+      <HashCode>AAAAAAAAAAAAgAAAAAAAAAABAQAAAAAAAAAAAgAAAAI=</HashCode>
+      <FileName>ViewModel\WeeklyChartViewModel.cs</FileName>
+    </TypeIdentifier>
+    <ShowAsAssociation>
+      <Property Name="Chart" />
+    </ShowAsAssociation>
+  </Class>
+  <Class Name="CurveAnalyzer.ViewModel.SpreadChartViewModel">
+    <Position X="6.25" Y="8" Width="2.25" />
+    <TypeIdentifier>
+      <HashCode>AAAAIAAAAAAAgQADCAAAAAAAAAAAAAADAAAAABAAAAQ=</HashCode>
+      <FileName>ViewModel\SpreadChartViewModel.cs</FileName>
+    </TypeIdentifier>
+    <ShowAsAssociation>
+      <Property Name="Chart" />
+    </ShowAsAssociation>
+    <Lollipop Position="0.2" />
+  </Class>
+  <Class Name="CurveAnalyzer.ViewModel.DailyChartViewModel">
+    <Position X="9.75" Y="8.25" Width="2" />
+    <TypeIdentifier>
+      <HashCode>AAAgAAAABAAAgAAAAAAIAAAAAAAAAAAAAABAAAAgAAA=</HashCode>
+      <FileName>ViewModel\DailyChartViewModel.cs</FileName>
+    </TypeIdentifier>
+    <ShowAsAssociation>
+      <Property Name="Chart" />
+    </ShowAsAssociation>
+  </Class>
+  <Class Name="CurveAnalyzer.Charts.WeeklyRateDynamicChart">
+    <Position X="2.75" Y="5.25" Width="3" />
+    <TypeIdentifier>
+      <HashCode>AAAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAIAEAAAAAAA=</HashCode>
+      <FileName>Charts\WeeklyRateDynamicChart.cs</FileName>
+    </TypeIdentifier>
+  </Class>
+  <Class Name="CurveAnalyzer.Interfaces.ChartCreator&lt;T&gt;">
+    <Position X="6" Y="1" Width="2.5" />
+    <TypeIdentifier>
+      <HashCode>AAAAAAAACACAAAAAAEAAAABgAAAAAAAAAAAFAABAASA=</HashCode>
+      <FileName>Interfaces\ChartCreator.cs</FileName>
+    </TypeIdentifier>
+  </Class>
+  <Class Name="CurveAnalyzer.Charts.DailyCurveChart">
+    <Position X="8.75" Y="5.25" Width="2.75" />
+    <TypeIdentifier>
+      <HashCode>AAAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAEAAAAAAA=</HashCode>
+      <FileName>Charts\DailyCurveChart.cs</FileName>
+    </TypeIdentifier>
+  </Class>
+  <Class Name="CurveAnalyzer.Charts.DailySpreadChart">
+    <Position X="6.5" Y="5.25" Width="1.5" />
+    <TypeIdentifier>
+      <HashCode>AAAAAAAACACAAAAAAAAAAAAAAAAAAAAAAAAEAAAAAAA=</HashCode>
+      <FileName>Charts\DailySpreadChart.cs</FileName>
+    </TypeIdentifier>
+  </Class>
+  <Font Name="Segoe UI" Size="9" />
+</ClassDiagram>

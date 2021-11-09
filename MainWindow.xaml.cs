@@ -1,4 +1,3 @@
-using System;
 using System.Windows;
 using CurveAnalyzer.ViewModel;
 
@@ -9,6 +8,7 @@ namespace CurveAnalyzer
         public MainWindow()
         {
             InitializeComponent();
+            DataContext = new MainViewModel();
         }
     }
 }

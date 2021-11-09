@@ -1,26 +1,24 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using CurveAnalyzer.Data;
+using System.Threading.Tasks;
 using CurveAnalyzer.Interfaces;
 using CurveAnalyzer.Tools;
 using Microsoft.Toolkit.Mvvm.Input;
 using OxyPlot;
 using OxyPlot.Annotations;
 using OxyPlot.Axes;
+using OxyPlot.Legends;
 using OxyPlot.Series;
 using TALib;
-using Microsoft.Extensions.DependencyInjection;
 
 namespace CurveAnalyzer.Charts
 {
     public class WeeklyRateDynamicChart : ChartCreator<double>
     {
-        IDataManager dataManager => App.Current.Services.GetService<IDataManager>();
-
         public WeeklyRateDynamicChart()
         {
-            MainChart = new PlotModel
+            Legend legend = new()
             {
                 LegendBorder = OxyColors.Black,
                 LegendBackground = OxyColor.FromAColor(200, OxyColors.White),
@@ -29,18 +27,19 @@ namespace CurveAnalyzer.Charts
                 LegendOrientation = LegendOrientation.Horizontal,
                 LegendItemAlignment = HorizontalAlignment.Left,
             };
+            MainChart.Legends.Add(legend);
         }
 
-        public override void Plot(double value)
+        public override Task Plot(double value)
         {
             IsBusy = true;
 
-            var weeklyData = getOxyWeeklyOhlcs( value);
+            var weeklyData = getOxyWeeklyOhlcs(value);
 
             if (weeklyData == null)
             {
                 IsBusy = false;
-                return;
+                return Task.CompletedTask;
             }
 
             var lineSeries1 = new CandleStickSeries
@@ -62,17 +61,23 @@ namespace CurveAnalyzer.Charts
             double[] outData = new double[weeklyData.Count];
             var res = Core.Roc(weeklyData.Select(d => d.Close).ToArray(), 0, weeklyData.Count - 1, outData, out int begIdx, out int element, 13);
 
-            for (int i = 0; i < weeklyData.Count; i++)
+            if (res == Core.RetCode.Success)
             {
-                if (i >= begIdx)
+                for (int i = 0; i < weeklyData.Count; i++)
                 {
-                    lineSeries2.Points.Add(new DataPoint(weeklyData[i].X, outData[i - begIdx]));
+                    if (i >= begIdx)
+                    {
+                        lineSeries2.Points.Add(new DataPoint(weeklyData[i].X, outData[i - begIdx]));
+                    }
                 }
-            }
 
-            MainChart.Series.Add(lineSeries2);
-            MainChart.InvalidatePlot(true);
-            IsBusy = false;
+                MainChart.Series.Add(lineSeries2);
+                MainChart.InvalidatePlot(true);
+                IsBusy = false;
+                return Task.CompletedTask;
+            }
+            else
+                return Task.FromException(new Exception($"Error in roc calc {res}"));
         }
 
         private List<HighLowItem> getOxyWeeklyOhlcs(double period)
@@ -80,10 +85,10 @@ namespace CurveAnalyzer.Charts
             var output = new List<HighLowItem>();
             var startDate = new DateTime(1900, 1, 1);
 
-            var dailydata = dataManager.GetAllDataForPeriod(period).Result;
+            var dailydata = DataManager.GetAllDataForPeriod(period).Result;
 
             if (dailydata == null)
-                return null;
+                return new List<HighLowItem>();
 
             var weeklyData = dailydata.GroupBy(g => g.Tradedate.YearAndWeekToNumber()).ToList();
 
@@ -117,9 +122,9 @@ namespace CurveAnalyzer.Charts
             return output;
         }
 
-        public override void Setup(IRelayCommand[] updateCommands)
+        public override void Setup(IRelayCommand[] commandsToUpdate)
         {
-            base.Setup(updateCommands);
+            base.Setup(commandsToUpdate);
 
             var lineAxisY1 = new LinearAxis
             {

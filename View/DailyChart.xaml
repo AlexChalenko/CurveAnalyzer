@@ -32,12 +32,11 @@
                 <DatePicker
                     x:Name="MainDatePicker"
                     VerticalAlignment="Center"
-                    DisplayDateEnd="{Binding DataManager.EndDate}"
-                    DisplayDateStart="{Binding DataManager.StartDate}"
+                    DisplayDateEnd="{Binding Chart.DataManager.EndDate}"
+                    DisplayDateStart="{Binding Chart.DataManager.StartDate}"
                     FontFamily="/Fonts/#Roboto"
-                    SelectedDate="{Binding DataManager.SelectedDate}"
-                  SelectedDateChanged="MainDatePicker_SelectedDateChanged"
-                  />
+                    SelectedDate="{Binding Chart.DataManager.SelectedDate}"
+                    SelectedDateChanged="MainDatePicker_SelectedDateChanged" />
                 <Button
                     Command="{Binding ClearDailyChartCommand}"
                     Content="Очистить"
@@ -49,6 +48,6 @@
                     FontFamily="/Fonts/#Roboto" />
             </StackPanel>
         </GroupBox>
-        <oxy:PlotView Grid.Row="1" Model="{Binding CurveChart.MainChart}" />
+        <oxy:PlotView Grid.Row="1" Model="{Binding Chart.MainChart}" />
     </Grid>
 </UserControl>

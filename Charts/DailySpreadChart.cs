@@ -1,27 +1,23 @@
 using System;
 using System.Linq;
+using System.Threading.Tasks;
 using CurveAnalyzer.Interfaces;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Toolkit.Mvvm.Input;
 using OxyPlot;
 using OxyPlot.Axes;
 using OxyPlot.Series;
 
-
 namespace CurveAnalyzer.Charts
 {
-    public class DailySpreadChart : ChartCreator<(double period1, double period2)>
+    public class DailySpreadChart : ChartCreator<Periods>
     {
-        public override void Plot((double period1, double period2) value)
+        public override Task Plot(Periods periods)
         {
-
-            IDataManager dataManager = App.Current.Services.GetService<IDataManager>();
-
             IsBusy = true;
             var startDate = new DateTime(1900, 1, 1);
 
-            var data1 = dataManager.GetAllDataForPeriod(value.period1).Result;
-            var data2 = dataManager.GetAllDataForPeriod(value.period2).Result;
+            var data1 = DataManager.GetAllDataForPeriod(periods.Period1).Result;
+            var data2 = DataManager.GetAllDataForPeriod(periods.Period2).Result;
 
             var query = data1.Join(data2,
                                   d1 => d1.Tradedate,
@@ -48,11 +44,13 @@ namespace CurveAnalyzer.Charts
             MainChart.Series.Add(lineSeries1);
             MainChart.InvalidatePlot(true);
             IsBusy = false;
+
+            return Task.CompletedTask;
         }
 
-        public override void Setup(IRelayCommand[] updateCommands)
+        public override void Setup(IRelayCommand[] commandsToUpdate)
         {
-            base.Setup(updateCommands);
+            base.Setup(commandsToUpdate);
 
             var lineAxisY1 = new LinearAxis
             {
@@ -75,9 +73,16 @@ namespace CurveAnalyzer.Charts
             MainChart.Axes.Add(lineAxisY1);
         }
 
-        public override bool Validate((double period1, double period2) value)
+        public override bool Validate(Periods periods)
         {
-            return value.period1 > 0d && value.period2 > 0d && !value.period1.Equals(value.period2);
+            return periods.Period1 > 0d && periods.Period2 > 0d && !periods.Period1.Equals(periods.Period2);
         }
+    }
+
+    public struct Periods
+    {
+        public double Period1 { get; set; }
+        public double Period2 { get; set; }
+
     }
 }

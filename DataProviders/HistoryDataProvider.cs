@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using CurveAnalyzer.Data;
 using CurveAnalyzer.Interfaces;
@@ -9,11 +10,11 @@ using MoexData;
 
 namespace CurveAnalyzer.DataProviders
 {
-    public class HistoryDataProvider : IDataProvider
+    public class HistoryDataProvider : IHistoryDataProvider
     {
-        public Task<List<DateTime>> GetAvailableDates()
+        public Task<List<DateTime>> GetAvailableDates(CancellationToken token)
         {
-            using var db = new MoexContext();
+            using MoexContext db = new();
             List<DateTime> output = new();
 
             try
@@ -32,13 +33,13 @@ namespace CurveAnalyzer.DataProviders
 
         public Task<ZcycData> GetDataForDate(DateTime date)
         {
-            var tcs = new TaskCompletionSource<ZcycData>();
+            TaskCompletionSource<ZcycData> tcs = new();
 
-            using var db = new MoexContext();
+            using MoexContext db = new();
 
-            var dbData = db.Zcycs.Where(r => r.Tradedate.Equals(date)).ToList();
+            List<Zcyc> dbData = db.Zcycs.Where(r => r.Tradedate.Equals(date)).ToList();
 
-            var zData = new ZcycData
+            ZcycData zData = new()
             {
                 Date = date
             };
@@ -61,7 +62,7 @@ namespace CurveAnalyzer.DataProviders
 
         public Task<List<double>> GetPeriods()
         {
-            using var db = new MoexContext();
+            using MoexContext db = new();
             return Task.FromResult(db.Zcycs.Select(_ => _.Period).Distinct().ToList());
         }
 
@@ -72,7 +73,7 @@ namespace CurveAnalyzer.DataProviders
                 return Task.FromResult(false);
             }
 
-            using var db = new MoexContext();
+            using MoexContext db = new();
             for (int i = 0; i < data.DataRow.Count; i++)
             {
                 var row = data.DataRow[i];
@@ -98,7 +99,7 @@ namespace CurveAnalyzer.DataProviders
 
         Task<List<Zcyc>> IDataProvider.GetDataForPeriod(double period)
         {
-            using var db = new MoexContext();
+            using MoexContext db = new();
             var r = db.Zcycs.Where(p => p.Period == period).ToList();
             return Task.FromResult(r);
         }

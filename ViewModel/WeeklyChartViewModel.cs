@@ -1,8 +1,4 @@
-using System.ComponentModel;
 using CurveAnalyzer.Charts;
-using CurveAnalyzer.Data;
-using CurveAnalyzer.Interfaces;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Toolkit.Mvvm.ComponentModel;
 using Microsoft.Toolkit.Mvvm.Input;
 using OxyPlot;
@@ -11,51 +7,31 @@ namespace CurveAnalyzer.ViewModel
 {
     public class WeeklyChartViewModel : ObservableObject
     {
-        private double periodForWeekChart;
-        private PlotModel performanceChart;
-
-        public WeeklyRateDynamicChart WeeklyChangesChart { get; set; }
-        public IDataManager DataManager { get; set; }
+        private double period;
+        public WeeklyRateDynamicChart Chart { get; set; }
         public RelayCommand PlotWeeklyChartCommand { get; }
 
-        public PlotModel PerformanceChart
+        public double Period
         {
-            get { return performanceChart; }
-            set { SetProperty(ref performanceChart, value); }
-        }
-
-        public double PeriodForWeekChart
-        {
-            get { return periodForWeekChart; }
+            get { return period; }
             set
             {
-                if (SetProperty(ref periodForWeekChart, value))
+                if (SetProperty(ref period, value))
                     PlotWeeklyChartCommand.NotifyCanExecuteChanged();
             }
         }
 
         public WeeklyChartViewModel()
         {
-            DataManager = App.Current.Services.GetService<IDataManager>();
-            DataManager.PropertyChanged += DataManager_PropertyChanged;
-
-            WeeklyChangesChart = new WeeklyRateDynamicChart();
-            PlotWeeklyChartCommand = new RelayCommand(() => plotWeeklyChart(PeriodForWeekChart), () => !WeeklyChangesChart.IsBusy && DataManager.Periods.Count > 0 && PeriodForWeekChart > 0);
-            WeeklyChangesChart.Setup(new IRelayCommand[] { PlotWeeklyChartCommand });
-        }
-
-        private void DataManager_PropertyChanged(object sender, PropertyChangedEventArgs e)
-        {
-            if (e.PropertyName.Equals(nameof(DataManager.IsBusy)))
-            {
-                WeeklyChangesChart.IsBusy = DataManager.IsBusy;
-            }
+            Chart = new WeeklyRateDynamicChart();
+            PlotWeeklyChartCommand = new RelayCommand(() => plotWeeklyChart(Period), () => !Chart.IsBusy && Chart.DataManager.Periods.Count > 0 && Period > 0);
+            Chart.Setup(new IRelayCommand[] { PlotWeeklyChartCommand });
         }
 
         private void plotWeeklyChart(double period)
         {
-            WeeklyChangesChart.Clear();
-            WeeklyChangesChart.Plot(period);
+            Chart.Clear();
+            Chart.Plot(period);
         }
     }
 }
