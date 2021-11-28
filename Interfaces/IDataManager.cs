@@ -12,6 +12,7 @@ namespace CurveAnalyzer.Interfaces
     public interface IDataManager
     {
         event PropertyChangedEventHandler PropertyChanged;
+        event EventHandler OnDataLoaded;
         Collection<DateTime> BlackoutDates { get; }
         DateTime EndDate { get; set; }
         bool IsBusy { get; set; }

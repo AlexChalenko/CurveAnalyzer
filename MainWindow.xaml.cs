@@ -8,7 +8,6 @@ namespace CurveAnalyzer
         public MainWindow()
         {
             InitializeComponent();
-            DataContext = new MainViewModel();
         }
     }
 }

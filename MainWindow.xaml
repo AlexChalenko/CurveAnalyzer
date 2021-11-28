@@ -8,10 +8,11 @@
     Title="Кривая ОФЗ по дням"
     Width="800"
     Height="450"
+    d:DataContext="{d:DesignInstance Type=viewmodel:MainViewModel}"
     mc:Ignorable="d">
-    <!--<Window.DataContext>
-    <viewmodel:MainViewModel/>
-  </Window.DataContext>-->
+    <Window.DataContext>
+        <viewmodel:MainViewModel />
+    </Window.DataContext>
 
     <Grid>
         <Grid.RowDefinitions>

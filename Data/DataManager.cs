@@ -27,6 +27,7 @@ namespace CurveAnalyzer.Data
         private int progress;
         private TimeSpan loadingTimeLeft;
 
+
         public int Progress
         {
             get { return progress; }
@@ -45,6 +46,8 @@ namespace CurveAnalyzer.Data
         public TimeSpan LoadingTimeLeft { get => loadingTimeLeft; set => SetProperty(ref loadingTimeLeft, value); }
 
         private readonly Progress<int> loadingProgress = new();
+
+        public event EventHandler OnDataLoaded;
 
         public Visibility ProgressBarVisibility { get; set; } = Visibility.Hidden;
 
@@ -129,7 +132,7 @@ namespace CurveAnalyzer.Data
                       var newDates = historyDates?.Count > 0 ? realtimeDates.Except(historyDates).Where(date => date > historyDates.Max()).ToList() : realtimeDates;
                       StartDate = historyDates?.Count > 0 ? historyDates.Min() : realtimeDates.Min();
                       EndDate = todayDeleted ? DateTime.Today : realtimeDates.Max();
-                      SelectedDate = EndDate;
+                     // SelectedDate = EndDate;
                       await downloadAndSaveData(newDates, loadingProgress).ConfigureAwait(false);
                       BlackoutDates.Clear();
                       _ = getBlackoutDates(realtimeDates).ContinueWith(dates =>
@@ -149,6 +152,7 @@ namespace CurveAnalyzer.Data
                                 //it will update BlackoutDays in DailyChart.xaml
                                 SelectedDate = StartDate;
                                 SelectedDate = EndDate;
+                                OnDataLoaded?.Invoke(this, EventArgs.Empty);
                             });
                         });
                   }

@@ -45,18 +45,13 @@ namespace CurveAnalyzer.Interfaces
         {
             set
             {
-                if (value != isBusy)
+                if (SetProperty(ref isBusy, value))
                 {
-                    isBusy = value;
                     Application.Current.Dispatcher.Invoke(() =>
                     {
                         if (commandsToUpdate.Length > 0)
-                        {
                             foreach (var item in commandsToUpdate)
-                            {
                                 item.NotifyCanExecuteChanged();
-                            }
-                        }
                     });
                 }
             }

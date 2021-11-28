@@ -1,36 +1,55 @@
 using System;
-using System.Threading.Tasks;
+using System.Windows.Input;
 using CurveAnalyzer.Charts;
-using Microsoft.Toolkit.Mvvm.ComponentModel;
 using Microsoft.Toolkit.Mvvm.Input;
 
 namespace CurveAnalyzer.ViewModel
 {
-    public class DailyChartViewModel : ObservableObject
+    public class DailyChartViewModel : ChartViewModelBase<DateTime>
     {
-        public DailyCurveChart Chart { get; set; }
-        public AsyncRelayCommand PlotDailyChartCommand { get; }
-        public RelayCommand ClearDailyChartCommand { get; }
-
-        public DailyChartViewModel() : base()
+        public DailyChartViewModel() : base(new DailyCurveChart())
         {
-            Chart = new DailyCurveChart();
-            PlotDailyChartCommand = new AsyncRelayCommand(() => plotDailyChart(Chart.DataManager.SelectedDate), () => !Chart.IsBusy);
-            ClearDailyChartCommand = new RelayCommand(clearDailyChart, () => !Chart.IsBusy);
-
-            Chart.Setup(new IRelayCommand[] { PlotDailyChartCommand, ClearDailyChartCommand });
+            Chart.DataManager.OnDataLoaded += (s, e) =>
+            {
+                Parameter = Chart.DataManager.EndDate;
+            };
         }
 
-        private void clearDailyChart()
+        public override DateTime Parameter
         {
-            Chart.Clear();
+            get => base.Parameter;
+            set
+            {
+                if (base.Parameter != value)
+                {
+                    Chart.DataManager.SelectedDate = Parameter;
+                }
+                base.Parameter = value;
+            }
         }
 
-        private Task plotDailyChart(DateTime dateTime)
+        public override void PlotChart(DateTime parameter)
         {
-            return Chart.Plot(dateTime);
+            Chart.Plot(parameter);
         }
 
         public string ButtonName { get; } = "Получить данные";
+
+        private RelayCommand plotPreviosDayCommand;
+        public ICommand PlotPreviosDayCommand => plotPreviosDayCommand ??= new RelayCommand(PlotPreviosDay);
+
+        private void PlotPreviosDay()
+        {
+            var date = Parameter;
+
+            do
+            {
+                date = date.AddDays(-1);
+            } while (Chart.DataManager.BlackoutDates.Contains(date));
+
+            Parameter = date;
+            Chart.Clear();
+            PlotChart(date);
+        }
     }
 }

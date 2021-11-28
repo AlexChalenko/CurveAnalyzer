@@ -78,11 +78,4 @@ namespace CurveAnalyzer.Charts
             return periods.Period1 > 0d && periods.Period2 > 0d && !periods.Period1.Equals(periods.Period2);
         }
     }
-
-    public struct Periods
-    {
-        public double Period1 { get; set; }
-        public double Period2 { get; set; }
-
-    }
 }

@@ -26,7 +26,7 @@
                 </StackPanel.Resources>
                 <Button
                     x:Name="GetDataButton"
-                    Command="{Binding PlotDailyChartCommand}"
+                    Command="{Binding PlotChartCommand}"
                     Content="{Binding ButtonName}"
                     FontFamily="/Fonts/#Roboto" />
                 <DatePicker
@@ -35,16 +35,20 @@
                     DisplayDateEnd="{Binding Chart.DataManager.EndDate}"
                     DisplayDateStart="{Binding Chart.DataManager.StartDate}"
                     FontFamily="/Fonts/#Roboto"
-                    SelectedDate="{Binding Chart.DataManager.SelectedDate}"
+                    SelectedDate="{Binding Parameter}"
                     SelectedDateChanged="MainDatePicker_SelectedDateChanged" />
                 <Button
-                    Command="{Binding ClearDailyChartCommand}"
+                    Command="{Binding ClearChartCommand}"
                     Content="Очистить"
                     FontFamily="/Fonts/#Roboto" />
                 <CheckBox
                     Margin="10,0,0,0"
                     VerticalAlignment="Center"
                     Content="Обновление"
+                    FontFamily="/Fonts/#Roboto" />
+                <Button
+                    Command="{Binding PlotPreviosDayCommand}"
+                    Content="Играть"
                     FontFamily="/Fonts/#Roboto" />
             </StackPanel>
         </GroupBox>

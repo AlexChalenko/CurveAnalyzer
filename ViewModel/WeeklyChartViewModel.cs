@@ -1,37 +1,11 @@
 using CurveAnalyzer.Charts;
-using Microsoft.Toolkit.Mvvm.ComponentModel;
-using Microsoft.Toolkit.Mvvm.Input;
-using OxyPlot;
 
 namespace CurveAnalyzer.ViewModel
 {
-    public class WeeklyChartViewModel : ObservableObject
+    public class WeeklyChartViewModel : ChartViewModelBase<double>
     {
-        private double period;
-        public WeeklyRateDynamicChart Chart { get; set; }
-        public RelayCommand PlotWeeklyChartCommand { get; }
+        public WeeklyChartViewModel() : base(new WeeklyRateDynamicChart()) { }
 
-        public double Period
-        {
-            get { return period; }
-            set
-            {
-                if (SetProperty(ref period, value))
-                    PlotWeeklyChartCommand.NotifyCanExecuteChanged();
-            }
-        }
-
-        public WeeklyChartViewModel()
-        {
-            Chart = new WeeklyRateDynamicChart();
-            PlotWeeklyChartCommand = new RelayCommand(() => plotWeeklyChart(Period), () => !Chart.IsBusy && Chart.DataManager.Periods.Count > 0 && Period > 0);
-            Chart.Setup(new IRelayCommand[] { PlotWeeklyChartCommand });
-        }
-
-        private void plotWeeklyChart(double period)
-        {
-            Chart.Clear();
-            Chart.Plot(period);
-        }
+        public override bool CanExecute() => base.CanExecute() && Chart.DataManager.Periods.Count > 0 && Parameter > 0;
     }
 }

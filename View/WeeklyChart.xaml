@@ -23,8 +23,8 @@
                     Width="50"
                     Margin="0,0,5,0"
                     ItemsSource="{Binding Chart.DataManager.Periods}"
-                    SelectedValue="{Binding Period}" />
-                <Button Command="{Binding PlotWeeklyChartCommand}" Content="Построить график" />
+                    SelectedValue="{Binding Parameter}" />
+                <Button Command="{Binding PlotChartCommand}" Content="Построить график" />
             </StackPanel>
         </GroupBox>
         <oxy:PlotView Grid.Row="1" Model="{Binding Chart.MainChart}" />

@@ -35,7 +35,7 @@
                     Width="50"
                     Height="25"
                     ItemsSource="{Binding Chart.DataManager.Periods}"
-                    SelectedValue="{Binding Period1, UpdateSourceTrigger=PropertyChanged, ValidatesOnDataErrors=True}" />
+                    SelectedValue="{Binding Parameter.Period1, ValidatesOnDataErrors=True, Mode=TwoWay}" />
                 <TextBlock
                     Margin="15,0,0,0"
                     VerticalAlignment="Center"
@@ -44,8 +44,8 @@
                     Width="50"
                     Height="25"
                     ItemsSource="{Binding Chart.DataManager.Periods}"
-                    SelectedValue="{Binding Period2, ValidatesOnDataErrors=True}" />
-                <Button Command="{Binding PlotSpreadCommand}" Content="Получить спред" />
+                    SelectedValue="{Binding Parameter.Period2, UpdateSourceTrigger=PropertyChanged, ValidatesOnDataErrors=True}" />
+                <Button Command="{Binding PlotChartCommand}" Content="Получить спред" />
             </StackPanel>
         </GroupBox>
         <oxy:PlotView Grid.Row="1" Model="{Binding Chart.MainChart}" />
