@@ -1,23 +1,11 @@
 using System.ComponentModel;
-using Microsoft.Toolkit.Mvvm.ComponentModel;
 
 namespace CurveAnalyzer.Charts
 {
-    public class Periods : ObservableObject, IDataErrorInfo
+    public struct Periods : IDataErrorInfo
     {
-        private double period1;
-        private double period2;
-
-        public double Period1
-        {
-            get => period1;
-            set => SetProperty(ref period1, value);
-        }
-        public double Period2
-        {
-            get => period2;
-            set => SetProperty(ref period2, value);
-        }
+        public double Period1 { get; set; }
+        public double Period2 { get; set; }
 
         public string Error => throw new System.NotImplementedException();
         public string this[string columnName]
