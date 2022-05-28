@@ -7,7 +7,7 @@ using OxyPlot;
 
 namespace CurveAnalyzer.Interfaces
 {
-    public abstract class ChartCreator<T> : ObservableObject
+    public abstract class ChartBase<T> : ObservableObject
     {
         private bool isBusy;
         private IRelayCommand[] commandsToUpdate;
@@ -18,8 +18,8 @@ namespace CurveAnalyzer.Interfaces
 
         public PlotModel MainChart
         {
-            get { return mainChart ??= new PlotModel(); }
-            set { SetProperty(ref mainChart, value); }
+            get => mainChart ??= new PlotModel();
+            set => SetProperty(ref mainChart, value);
         }
 
         public virtual void Setup(IRelayCommand[] commandsToUpdate)

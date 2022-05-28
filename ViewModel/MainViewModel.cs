@@ -1,5 +1,7 @@
+using System;
 using System.Windows.Input;
 using System.Windows.Threading;
+using CurveAnalyzer.Charts;
 using CurveAnalyzer.Interfaces;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Toolkit.Mvvm.ComponentModel;
@@ -32,18 +34,19 @@ namespace CurveAnalyzer.ViewModel
         }
 
         public ICommand DailyChartSelect => dailyChartSelect ??= new RelayCommand(PerformDailyChartSelect);
-        public DailyChartViewModel DailyChartViewModel { get; }
-        public IDataManager DataManager { get; set; }
         public ICommand SpreadChartSelect => spreadChartSelect ??= new RelayCommand(PerformSpreadChartSelect);
-        public SpreadChartViewModel SpreadChartViewModel { get; }
+        public ICommand WeeklyChartSelect => weeklyChartSelect ??= new RelayCommand(PerformWeeklyChartSelect);
+        public ChartViewModelBase<Periods> SpreadChartViewModel { get; }
+        public ChartViewModelBase<DateTime> DailyChartViewModel { get; }
+        public ChartViewModelBase<double> WeeklyChartViewModel { get; }
+        public IDataManager DataManager { get; set; }
+
         public string Status
         {
             get => status;
             set => Dispatcher.CurrentDispatcher.Invoke(() => SetProperty(ref status, value));
         }
 
-        public ICommand WeeklyChartSelect => weeklyChartSelect ??= new RelayCommand(PerformWeeklyChartSelect);
-        public WeeklyChartViewModel WeeklyChartViewModel { get; }
         private void PerformDailyChartSelect()
         {
             CurrentView = DailyChartViewModel;

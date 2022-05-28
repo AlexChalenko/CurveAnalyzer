@@ -10,20 +10,24 @@ using OxyPlot.Series;
 
 namespace CurveAnalyzer.Charts
 {
-    public class DailyCurveChart : ChartCreator<DateTime>
+    public class DailyCurveChart : ChartBase<DateTime>
     {
         public DailyCurveChart()
         {
             var l = new Legend()
             {
                 LegendBorder = OxyColors.Black,
-                LegendBackground = OxyColor.FromAColor(200, OxyColors.White),
+                LegendBorderThickness=0,
+                LegendTextColor = OxyColors.DarkOliveGreen,
+                LegendBackground = OxyColor.FromAColor(10, OxyColors.White),
                 LegendPosition = LegendPosition.BottomCenter,
                 LegendPlacement = LegendPlacement.Inside,
                 LegendOrientation = LegendOrientation.Horizontal,
                 LegendItemAlignment = HorizontalAlignment.Left,
             };
             MainChart.Legends.Add(l);
+            //MainChart.Background = OxyColor.FromRgb(22, 26, 37);
+            MainChart.Background = OxyColors.White;
         }
 
         public override void Setup(IRelayCommand[] commandsToUpdate)
@@ -32,25 +36,30 @@ namespace CurveAnalyzer.Charts
 
             var linearAxis1 = new LinearAxis
             {
-                MajorGridlineStyle = LineStyle.Solid,
+                MajorGridlineStyle = LineStyle.Dot,
                 MinorGridlineStyle = LineStyle.Dot,
                 TitleFont = "/Fonts/#Roboto",
                 Title = "Доходность",
-                TitleFontWeight = OxyPlot.FontWeights.Bold,
+                IsZoomEnabled = false,
+                TitleFontWeight = FontWeights.Bold,
                 MaximumPadding = 0.1,
-                MinimumPadding = 0.1
+                MinimumPadding = 0.1,
+                MajorGridlineColor = OxyColor.FromRgb(37, 41, 52),
+
             };
             MainChart.Axes.Add(linearAxis1);
 
             var linearAxis2 = new LinearAxis
             {
-                MajorGridlineStyle = LineStyle.Solid,
-                MinorGridlineStyle = LineStyle.Dot,
+                MajorGridlineStyle = LineStyle.Dot,
+                MinorGridlineStyle = LineStyle.None,
                 Position = AxisPosition.Bottom,
                 IsZoomEnabled = false,
                 Title = "Дюрация",
                 TitleFont = "/Fonts/#Roboto",
-                TitleFontWeight = OxyPlot.FontWeights.Bold,
+                MajorGridlineColor = OxyColor.FromRgb(37, 41, 52),
+                MinorGridlineColor = OxyColor.FromRgb(37-5, 41-5, 52-5),
+                TitleFontWeight = FontWeights.Bold,
             };
             MainChart.Axes.Add(linearAxis2);
         }

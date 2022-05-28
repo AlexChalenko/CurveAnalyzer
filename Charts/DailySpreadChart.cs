@@ -9,7 +9,7 @@ using OxyPlot.Series;
 
 namespace CurveAnalyzer.Charts
 {
-    public class DailySpreadChart : ChartCreator<Periods>
+    public class DailySpreadChart : ChartBase<Periods>
     {
         public override Task Plot(Periods periods)
         {

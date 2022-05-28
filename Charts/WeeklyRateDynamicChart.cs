@@ -14,7 +14,7 @@ using TALib;
 
 namespace CurveAnalyzer.Charts
 {
-    public class WeeklyRateDynamicChart : ChartCreator<double>
+    public class WeeklyRateDynamicChart : ChartBase<double>
     {
         public WeeklyRateDynamicChart()
         {

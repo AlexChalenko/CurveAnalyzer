@@ -8,7 +8,7 @@ namespace CurveAnalyzer.ViewModel
     {
         private T parameter = default;
 
-        public ChartCreator<T> Chart { get; set; }
+        public ChartBase<T> Chart { get; set; }
         public IRelayCommand PlotChartCommand { get; }
         public IRelayCommand ClearChartCommand { get; }
 
@@ -23,7 +23,7 @@ namespace CurveAnalyzer.ViewModel
                 }
             }
         }
-        protected ChartViewModelBase(ChartCreator<T> Chart)
+        protected ChartViewModelBase(ChartBase<T> Chart)
         {
             PlotChartCommand = new RelayCommand(() => PlotChart(Parameter), CanExecute);
             ClearChartCommand = new RelayCommand(Chart.Clear);
