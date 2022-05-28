@@ -97,9 +97,9 @@
                 </ProgressBar>
             </StatusBarItem>
             <StatusBarItem Grid.Column="2" HorizontalContentAlignment="Stretch">
-                <Label
+                <TextBlock
                     Padding="0"
-                    Content="{Binding DataManager.LoadingTimeLeft, StringFormat={}{0:hh}:{0:mm}:{0:ss}}"
+                    Text="{Binding DataManager.LoadingTimeLeft, StringFormat={}{0:hh}:{0:mm}:{0:ss}}"
                     Visibility="{Binding DataManager.ProgressBarVisibility}" />
             </StatusBarItem>
         </StatusBar>
