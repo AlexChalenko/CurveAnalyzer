@@ -40,9 +40,9 @@ namespace CurveAnalyzer.DataProviders
             }
             else
             {
-                using XmlReader reader = XmlReader.Create(DatesUrl, settings);
                 try
                 {
+                    using XmlReader reader = XmlReader.Create(DatesUrl, settings);
                     while (reader.Read())
                     {
                         switch (reader.NodeType)

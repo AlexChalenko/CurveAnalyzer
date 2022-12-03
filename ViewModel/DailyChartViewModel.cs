@@ -33,7 +33,7 @@ namespace CurveAnalyzer.ViewModel
             Chart.Plot(parameter);
         }
 
-        public string ButtonName { get; } = "Получить данные";
+        public string ButtonName { get; } = "Получить график";
 
         private RelayCommand plotPreviosDayCommand;
         public ICommand PlotPreviosDayCommand => plotPreviosDayCommand ??= new RelayCommand(PlotPreviosDay);
