@@ -1,65 +1,85 @@
 using System;
-using System.Windows.Input;
-using System.Windows.Threading;
+using System.Threading.Tasks;
+using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 using CurveAnalyzer.Charts;
 using CurveAnalyzer.Interfaces;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Toolkit.Mvvm.ComponentModel;
-using Microsoft.Toolkit.Mvvm.Input;
 
 namespace CurveAnalyzer.ViewModel
 {
-    internal class MainViewModel : ObservableObject
+    public partial class MainViewModel : ObservableObject
     {
-        private ObservableObject currentView;
-        private ICommand dailyChartSelect;
-        private ICommand spreadChartSelect;
-        private string status;
 
-        private ICommand weeklyChartSelect;
-        public MainViewModel()
+        [ObservableProperty]
+        private ObservableObject _currentView;
+
+        private IDataManager _dataManager;
+
+        [ObservableProperty]
+        private double _loadingHistoryProgress;
+
+        [ObservableProperty]
+        private string _status;
+
+        private ChartViewModelBase<Periods> _spreadChartViewModel;
+        private ChartViewModelBase<DateTime> _dailyChartViewModel;
+        private ChartViewModelBase<double> _weeklyChartViewModel;
+
+        public MainViewModel(IDataManager dataManager, DailyChartViewModel dailyChartViewModel, WeeklyChartViewModel weeklyChartViewModel, SpreadChartViewModel spreadChartViewModel)
         {
-            DataManager = App.Current.Services.GetService<IDataManager>();
-            DailyChartViewModel = new DailyChartViewModel();
-            WeeklyChartViewModel = new WeeklyChartViewModel();
-            SpreadChartViewModel = new SpreadChartViewModel();
+            _dataManager = dataManager;
+            _dailyChartViewModel = dailyChartViewModel;
+            _weeklyChartViewModel = weeklyChartViewModel;
+            _spreadChartViewModel = spreadChartViewModel;
 
-            CurrentView = DailyChartViewModel;
+            CurrentView = _dailyChartViewModel;
         }
 
-        public ObservableObject CurrentView
+        public void Initialize()
         {
-            get => currentView;
-            set => SetProperty(ref currentView, value);
+            var progress = new Progress<double>();
+
+            progress.ProgressChanged += (s, e) =>
+            {
+                e *= 100;
+                Status = $"Загрузка данных: {e:0.00}%";
+                LoadingHistoryProgress = e;
+
+                if (e == 100)
+                {
+                    Status = "Данные загружены";
+                    //CurrentView.Plot(CurrentView.Parameter);
+                    LoadingHistoryProgress = 0.0;
+                }
+            };
+
+            Task.Run(async () =>
+            {
+                await _dataManager.UpdateDataASync(progress);
+
+                await _dailyChartViewModel.Setup();
+                await _weeklyChartViewModel.Setup();
+                await _spreadChartViewModel.Setup();
+            });
         }
 
-        public ICommand DailyChartSelect => dailyChartSelect ??= new RelayCommand(PerformDailyChartSelect);
-        public ICommand SpreadChartSelect => spreadChartSelect ??= new RelayCommand(PerformSpreadChartSelect);
-        public ICommand WeeklyChartSelect => weeklyChartSelect ??= new RelayCommand(PerformWeeklyChartSelect);
-        public ChartViewModelBase<Periods> SpreadChartViewModel { get; }
-        public ChartViewModelBase<DateTime> DailyChartViewModel { get; }
-        public ChartViewModelBase<double> WeeklyChartViewModel { get; }
-        public IDataManager DataManager { get; set; }
 
-        public string Status
+        [RelayCommand]
+        private void DailyChartSelect()
         {
-            get => status;
-            set => Dispatcher.CurrentDispatcher.Invoke(() => SetProperty(ref status, value));
+            CurrentView = _dailyChartViewModel;
         }
 
-        private void PerformDailyChartSelect()
+        [RelayCommand]
+        private void SpreadChartSelect()
         {
-            CurrentView = DailyChartViewModel;
+            CurrentView = _spreadChartViewModel;
         }
 
-        private void PerformSpreadChartSelect()
+        [RelayCommand]
+        private void WeeklyChartSelect()
         {
-            CurrentView = SpreadChartViewModel;
-        }
-
-        private void PerformWeeklyChartSelect()
-        {
-            CurrentView = WeeklyChartViewModel;
+            CurrentView = _weeklyChartViewModel;
         }
     }
 }

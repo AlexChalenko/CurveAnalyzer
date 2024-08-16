@@ -1,46 +1,89 @@
+using System.Collections.ObjectModel;
+using System.Threading.Tasks;
+using CommunityToolkit.Mvvm.ComponentModel;
 using CurveAnalyzer.Charts;
+using CurveAnalyzer.Interfaces;
 
 namespace CurveAnalyzer.ViewModel
 {
-    public class SpreadChartViewModel : ChartViewModelBase<Periods>
+    public partial class SpreadChartViewModel : ChartViewModelBase<Periods>
     {
-        public SpreadChartViewModel() : base(new DailySpreadChart()) { }
-
-        public override bool CanExecute()
+        public SpreadChartViewModel(DailySpreadChart dailySpreadChart, IDataManager dataManager) : base(dailySpreadChart, true)
         {
-            return Chart.Validate(Parameter) && base.CanExecute();
+            _dataManager = dataManager;
         }
 
-        public double PeriodFirst
+        [ObservableProperty]
+        private ObservableCollection<double> _periods = [];
+
+        [ObservableProperty]
+        private double _periodFirst;
+
+        [ObservableProperty]
+        private double _periodSecond;
+
+        private readonly IDataManager _dataManager;
+
+        private new bool CanExecuteInternal => Chart.Validate(Parameter);
+
+        public override async Task Setup()
         {
-            get
+            var rrr = await _dataManager.GetPeriodsAsync();
+
+            App.Current.Dispatcher.Invoke(() =>
             {
-                return Parameter.Period1;
-            }
-            set
-            {
-                Parameter = new Periods()
-                {
-                    Period1 = value,
-                    Period2 = PeriodSecond
-                };
-                //OnPropertyChanged();
-            }
+                Periods = new(rrr);
+            });
         }
 
-        public double PeriodSecond
+        partial void OnPeriodFirstChanged(double value)
         {
-            get { return Parameter.Period2; }
-            set
+            Parameter = new Periods()
             {
-                Parameter = new Periods()
-                {
-                    Period1 = PeriodFirst,
-                    Period2 = value
-                };
-                //OnPropertyChanged();
-            }
+                Period1 = value,
+                Period2 = PeriodSecond
+            };
         }
+
+        partial void OnPeriodSecondChanged(double value)
+        {
+            Parameter = new Periods()
+            {
+                Period1 = PeriodFirst,
+                Period2 = value
+            };
+        }
+
+        //public double PeriodFirst
+        //{
+        //    get
+        //    {
+        //        return Parameter.Period1;
+        //    }
+        //    set
+        //    {
+        //        Parameter = new Periods()
+        //        {
+        //            Period1 = value,
+        //            Period2 = PeriodSecond
+        //        };
+        //        //OnPropertyChanged();
+        //    }
+        //}
+
+        //public double PeriodSecond
+        //{
+        //    get { return Parameter.Period2; }
+        //    set
+        //    {
+        //        Parameter = new Periods()
+        //        {
+        //            Period1 = PeriodFirst,
+        //            Period2 = value
+        //        };
+        //        //OnPropertyChanged();
+        //    }
+        //}
 
 
     }

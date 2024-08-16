@@ -2,9 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using CommunityToolkit.Mvvm.Input;
 using CurveAnalyzer.Interfaces;
 using CurveAnalyzer.Tools;
-using Microsoft.Toolkit.Mvvm.Input;
 using OxyPlot;
 using OxyPlot.Annotations;
 using OxyPlot.Axes;
@@ -16,7 +16,7 @@ namespace CurveAnalyzer.Charts
 {
     public class WeeklyRateDynamicChart : ChartBase<double>
     {
-        public WeeklyRateDynamicChart()
+        public WeeklyRateDynamicChart(IDataManager dataManager):base(dataManager)
         {
             Legend legend = new()
             {
@@ -85,7 +85,7 @@ namespace CurveAnalyzer.Charts
             var output = new List<HighLowItem>();
             var startDate = new DateTime(1900, 1, 1);
 
-            var dailydata = DataManager.GetAllDataForPeriod(period).Result;
+            var dailydata = _dataManager.GetZcycForPeriodAsync(period).Result;
 
             if (dailydata == null)
                 return new List<HighLowItem>();

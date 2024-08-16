@@ -34,8 +34,8 @@
                 <ComboBox
                     Width="50"
                     Height="25"
-                    ItemsSource="{Binding Chart.DataManager.Periods}"
-                    SelectedValue="{Binding PeriodFirst, ValidatesOnDataErrors=True, Mode=TwoWay}" />
+                    ItemsSource="{Binding Periods}"
+                    SelectedValue="{Binding PeriodFirst, ValidatesOnDataErrors=True, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                 <TextBlock
                     Margin="15,0,0,0"
                     VerticalAlignment="Center"
@@ -43,8 +43,8 @@
                 <ComboBox
                     Width="50"
                     Height="25"
-                    ItemsSource="{Binding Chart.DataManager.Periods}"
-                    SelectedValue="{Binding PeriodSecond, UpdateSourceTrigger=PropertyChanged, ValidatesOnDataErrors=True}" />
+                    ItemsSource="{Binding Periods}"
+                    SelectedValue="{Binding PeriodSecond, UpdateSourceTrigger=PropertyChanged, ValidatesOnDataErrors=True, Mode=TwoWay}" />
                 <Button Command="{Binding PlotChartCommand}" Content="Получить спред" />
             </StackPanel>
         </GroupBox>

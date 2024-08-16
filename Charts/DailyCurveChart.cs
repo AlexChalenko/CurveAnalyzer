@@ -1,8 +1,8 @@
 using System;
 using System.Linq;
 using System.Threading.Tasks;
+using CommunityToolkit.Mvvm.Input;
 using CurveAnalyzer.Interfaces;
-using Microsoft.Toolkit.Mvvm.Input;
 using OxyPlot;
 using OxyPlot.Axes;
 using OxyPlot.Legends;
@@ -12,12 +12,12 @@ namespace CurveAnalyzer.Charts
 {
     public class DailyCurveChart : ChartBase<DateTime>
     {
-        public DailyCurveChart()
+        public DailyCurveChart(IDataManager dataManager) : base(dataManager)
         {
             var l = new Legend()
             {
                 LegendBorder = OxyColors.Black,
-                LegendBorderThickness=0,
+                LegendBorderThickness = 0,
                 LegendTextColor = OxyColors.DarkOliveGreen,
                 LegendBackground = OxyColor.FromAColor(10, OxyColors.White),
                 LegendPosition = LegendPosition.BottomCenter,
@@ -58,7 +58,7 @@ namespace CurveAnalyzer.Charts
                 Title = "Дюрация",
                 TitleFont = "/Fonts/#Roboto",
                 MajorGridlineColor = OxyColor.FromRgb(37, 41, 52),
-                MinorGridlineColor = OxyColor.FromRgb(37-5, 41-5, 52-5),
+                MinorGridlineColor = OxyColor.FromRgb(37 - 5, 41 - 5, 52 - 5),
                 TitleFontWeight = FontWeights.Bold,
             };
             MainChart.Axes.Add(linearAxis2);
@@ -72,7 +72,7 @@ namespace CurveAnalyzer.Charts
             }
             IsBusy = true;
 
-            var data = await DataManager.GetData(value).ConfigureAwait(false);
+            var data = await _dataManager.GetDataAsync(value);
 
             if (data.DataRow.Count > 0)
             {
@@ -93,11 +93,10 @@ namespace CurveAnalyzer.Charts
 
                 MainChart.Series.Add(lineSeries1);
                 MainChart.InvalidatePlot(true);
-                DataManager.Status = string.Empty;
             }
             else
             {
-                DataManager.Status = $"No data for {value}";
+                //_dataManager.Status = $"No data for {value}";
             }
             IsBusy = false;
         }

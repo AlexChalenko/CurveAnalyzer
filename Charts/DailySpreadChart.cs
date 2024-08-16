@@ -1,8 +1,8 @@
 using System;
 using System.Linq;
 using System.Threading.Tasks;
+using CommunityToolkit.Mvvm.Input;
 using CurveAnalyzer.Interfaces;
-using Microsoft.Toolkit.Mvvm.Input;
 using OxyPlot;
 using OxyPlot.Axes;
 using OxyPlot.Series;
@@ -11,13 +11,17 @@ namespace CurveAnalyzer.Charts
 {
     public class DailySpreadChart : ChartBase<Periods>
     {
-        public override Task Plot(Periods periods)
+        public DailySpreadChart(IDataManager DataManager) : base(DataManager)
+        {
+
+        }
+        public override async Task Plot(Periods periods)
         {
             IsBusy = true;
             var startDate = new DateTime(1900, 1, 1);
 
-            var data1 = DataManager.GetAllDataForPeriod(periods.Period1).Result;
-            var data2 = DataManager.GetAllDataForPeriod(periods.Period2).Result;
+            var data1 = await _dataManager.GetZcycForPeriodAsync(periods.Period1);
+            var data2 = await _dataManager.GetZcycForPeriodAsync(periods.Period2);
 
             var query = data1.Join(data2,
                                   d1 => d1.Tradedate,
@@ -45,7 +49,7 @@ namespace CurveAnalyzer.Charts
             MainChart.InvalidatePlot(true);
             IsBusy = false;
 
-            return Task.CompletedTask;
+            //return Task.CompletedTask;
         }
 
         public override void Setup(IRelayCommand[] commandsToUpdate)

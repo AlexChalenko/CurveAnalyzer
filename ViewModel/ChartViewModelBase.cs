@@ -1,42 +1,62 @@
+using System.Threading.Tasks;
+using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 using CurveAnalyzer.Interfaces;
-using Microsoft.Toolkit.Mvvm.ComponentModel;
-using Microsoft.Toolkit.Mvvm.Input;
 
 namespace CurveAnalyzer.ViewModel
 {
-    public abstract class ChartViewModelBase<T> : ObservableObject
+    public abstract partial class ChartViewModelBase<T> : ObservableObject
     {
+
+        [ObservableProperty]
+        [NotifyCanExecuteChangedFor(nameof(PlotChartCommand))]
+        [NotifyCanExecuteChangedFor(nameof(ClearChartCommand))]
         private T parameter = default;
 
-        public ChartBase<T> Chart { get; set; }
-        public IRelayCommand PlotChartCommand { get; }
-        public IRelayCommand ClearChartCommand { get; }
+        [ObservableProperty]
+        private ChartBase<T> _chart;
+        private readonly bool _clearChart;
 
-        public virtual T Parameter
+        protected ChartViewModelBase(ChartBase<T> Chart, bool clearChart)
         {
-            get { return parameter; }
-            set
+            _chart = Chart;
+            _clearChart = clearChart;
+            Chart.Setup([PlotChartCommand, ClearChartCommand]);
+        }
+
+        [RelayCommand(CanExecute = nameof(CheckCanExecute))]
+        private void PlotChart(T parameter)
+        {
+            if (_clearChart)
             {
-                if (SetProperty(ref parameter, value))
-                {
-                    PlotChartCommand.NotifyCanExecuteChanged();
-                }
+                ClearChart();
             }
-        }
-        protected ChartViewModelBase(ChartBase<T> Chart)
-        {
-            PlotChartCommand = new RelayCommand(() => PlotChart(Parameter), CanExecute);
-            ClearChartCommand = new RelayCommand(Chart.Clear);
-            this.Chart = Chart;
-            Chart.Setup(new IRelayCommand[] { PlotChartCommand, ClearChartCommand });
-        }
 
-        public virtual void PlotChart(T parameter)
-        {
-            Chart.Clear();
             Chart.Plot(parameter);
         }
 
-        public virtual bool CanExecute() => !Chart.IsBusy;
+        [RelayCommand(CanExecute = nameof(CheckCanExecute))]
+        private void ClearChart()
+        {
+            Chart.Clear();
+        }
+
+        private bool CheckCanExecute()
+        {
+            return CanExecuteInternal;
+        }
+        private protected bool CanExecuteInternal => true;
+
+        partial void OnParameterChanged(T value)
+        {
+            OnParameterChange(value);
+        }
+
+        public virtual void OnParameterChange(T value)
+        {
+            PlotChart(value);
+        }
+
+        public abstract Task Setup();
     }
 }

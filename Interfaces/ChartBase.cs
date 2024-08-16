@@ -1,26 +1,25 @@
 using System.Threading.Tasks;
 using System.Windows;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Toolkit.Mvvm.ComponentModel;
-using Microsoft.Toolkit.Mvvm.Input;
+using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 using OxyPlot;
 
 namespace CurveAnalyzer.Interfaces
 {
-    public abstract class ChartBase<T> : ObservableObject
+    public abstract partial class ChartBase<T> : ObservableObject
     {
         private bool isBusy;
         private IRelayCommand[] commandsToUpdate;
 
-        public IDataManager DataManager => App.Current.Services.GetService<IDataManager>();
+        protected IDataManager _dataManager;
 
-        private PlotModel mainChart;
-
-        public PlotModel MainChart
+        protected ChartBase(IDataManager DataManager)
         {
-            get => mainChart ??= new PlotModel();
-            set => SetProperty(ref mainChart, value);
+            _dataManager = DataManager;
         }
+
+        [ObservableProperty]
+        private PlotModel mainChart = new();
 
         public virtual void Setup(IRelayCommand[] commandsToUpdate)
         {

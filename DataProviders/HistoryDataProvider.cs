@@ -6,29 +6,28 @@ using System.Threading;
 using System.Threading.Tasks;
 using CurveAnalyzer.Data;
 using CurveAnalyzer.Interfaces;
+using Microsoft.EntityFrameworkCore;
 using MoexData;
+using MoexData.Data;
 
 namespace CurveAnalyzer.DataProviders
 {
     public class HistoryDataProvider : IHistoryDataProvider
     {
-        public Task<List<DateTime>> GetAvailableDates(CancellationToken token)
+        public async Task<IEnumerable<DateTime>> GetAvailableDates(CancellationToken token)
         {
-            using MoexContext db = new();
-            List<DateTime> output = new();
 
             try
             {
-                var r = db.Zcycs.Select(_ => _.Tradedate).Distinct().ToArray();
-                output.AddRange(r);
+                using MoexContext db = new();
+                return await db.Zcycs.Select(_ => _.Tradedate).Distinct().ToListAsync(token);
             }
             catch (Exception ex)
             {
                 Debug.Print(ex.ToString());
             }
 
-            return Task.FromResult(output);
-            //return Task.FromResult(new DateRange(startDate, endDate));
+            return [];
         }
 
         public Task<ZcycData> GetDataForDate(DateTime date)
@@ -37,12 +36,13 @@ namespace CurveAnalyzer.DataProviders
 
             using MoexContext db = new();
 
-            List<Zcyc> dbData = db.Zcycs.Where(r => r.Tradedate.Equals(date)).ToList();
+            List<Zcyc> dbData = [.. db.Zcycs.Where(r => r.Tradedate.Equals(date))];
 
             ZcycData zData = new()
             {
                 Date = date
             };
+
             if (dbData.Count > 0)
             {
                 for (int i = 0; i < dbData.Count; i++)
@@ -60,48 +60,37 @@ namespace CurveAnalyzer.DataProviders
             return tcs.Task;
         }
 
-        public Task<List<double>> GetPeriods()
+        public async Task<IEnumerable<double>> GetPeriods()
         {
             using MoexContext db = new();
-            return Task.FromResult(db.Zcycs.Select(_ => _.Period).Distinct().ToList());
+            return await db.Zcycs.Select(_ => _.Period).Distinct().ToListAsync();
         }
 
-        public Task<bool> SaveData(ZcycData data) //todo add error checking
+        public async Task<bool> SaveData(ZcycData data) //todo add error checking
         {
             if (data.DataRow == null || data.DataRow.Count == 0)
             {
-                return Task.FromResult(false);
+                return false;
             }
 
             using MoexContext db = new();
-            for (int i = 0; i < data.DataRow.Count; i++)
-            {
-                var row = data.DataRow[i];
-                db.Zcycs.Add(new Zcyc
-                {
-                    Tradedate = data.Date,
-                    Period = row.Period,
-                    Value = row.Value
-                });
-            }
 
-            try
+            var newData = data.DataRow.Select(r => new Zcyc
             {
-                var res = db.SaveChanges();
-                return Task.FromResult(res > 0);
-            }
-            catch (Exception ex)
-            {
-                Debug.Print($"Saving data to database error: {ex.InnerException}");
-                return Task.FromResult(false);
-            }
+                Tradedate = data.Date,
+                Period = r.Period,
+                Value = r.Value
+            });
+
+            await db.Zcycs.AddRangeAsync(newData);
+            var res = await db.SaveChangesAsync();
+            return res > 0;
         }
 
-        Task<List<Zcyc>> IDataProvider.GetDataForPeriod(double period)
+        public async Task<IEnumerable<Zcyc>> GetDataForPeriod(double period)
         {
             using MoexContext db = new();
-            var r = db.Zcycs.Where(p => p.Period == period).ToList();
-            return Task.FromResult(r);
+            return await db.Zcycs.Where(p => p.Period == period).ToListAsync();
         }
     }
 }

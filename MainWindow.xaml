@@ -10,98 +10,104 @@
     Height="450"
     d:DataContext="{d:DesignInstance Type=viewmodel:MainViewModel}"
     mc:Ignorable="d">
-    <Window.DataContext>
+  <!--<Window.DataContext>
         <viewmodel:MainViewModel />
-    </Window.DataContext>
+    </Window.DataContext>-->
 
-    <Grid>
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="*" />
-            <RowDefinition Height="Auto" />
-        </Grid.RowDefinitions>
-        <Grid Grid.Row="0" Height="50">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="*" />
-            </Grid.ColumnDefinitions>
-            <RadioButton
+  <Grid>
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="*" />
+      <RowDefinition Height="Auto" />
+    </Grid.RowDefinitions>
+    <Grid Grid.Row="0" Height="50">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="*" />
+        <ColumnDefinition Width="*" />
+        <ColumnDefinition Width="*" />
+      </Grid.ColumnDefinitions>
+      <RadioButton
                 Grid.Column="0"
                 Width="Auto"
                 HorizontalContentAlignment="Center"
                 VerticalContentAlignment="Center"
-                Command="{Binding DailyChartSelect}"
+                Command="{Binding DailyChartSelectCommand}"
                 Content="Дневные графики"
                 IsChecked="True"
                 Style="{StaticResource MenuButtonTheme}" />
-            <RadioButton
+      <RadioButton
                 Grid.Column="1"
                 Width="Auto"
                 HorizontalContentAlignment="Center"
                 VerticalContentAlignment="Center"
-                Command="{Binding WeeklyChartSelect}"
+                Command="{Binding WeeklyChartSelectCommand}"
                 Content="Недельные графики"
                 Style="{StaticResource MenuButtonTheme}" />
-            <RadioButton
+      <RadioButton
                 Grid.Column="2"
                 Width="Auto"
                 HorizontalContentAlignment="Center"
                 VerticalContentAlignment="Center"
-                Command="{Binding SpreadChartSelect}"
+                Command="{Binding SpreadChartSelectCommand}"
                 Content="Спреды"
                 Style="{StaticResource MenuButtonTheme}" />
-        </Grid>
-        <ContentControl Grid.Row="1" Content="{Binding CurrentView}" />
+    </Grid>
+    <ContentControl Grid.Row="1" Content="{Binding CurrentView}" />
 
-        <StatusBar
+    <StatusBar
             Grid.Row="2"
             VerticalAlignment="Bottom"
             VerticalContentAlignment="Center">
-            <StatusBar.ItemsPanel>
-                <ItemsPanelTemplate>
-                    <Grid>
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="*" />
-                        </Grid.RowDefinitions>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="4*" />
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="*" />
-                        </Grid.ColumnDefinitions>
-                    </Grid>
-                </ItemsPanelTemplate>
-            </StatusBar.ItemsPanel>
-            <StatusBarItem Grid.Column="0">
-                <Label
+      <StatusBar.ItemsPanel>
+        <ItemsPanelTemplate>
+          <Grid>
+            <Grid.RowDefinitions>
+              <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="4*" />
+              <ColumnDefinition Width="*" />
+              <ColumnDefinition Width="*" />
+              <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+          </Grid>
+        </ItemsPanelTemplate>
+      </StatusBar.ItemsPanel>
+      <StatusBarItem Grid.Column="0">
+        <Label
                     Grid.Column="0"
                     Height="20"
                     Padding="0"
                     VerticalAlignment="Center"
                     d:Content="status bar message"
-                    Content="{Binding DataManager.Status}" />
-            </StatusBarItem>
-            <StatusBarItem
+                    Content="{Binding Status}" />
+      </StatusBarItem>
+      <StatusBarItem
                 Grid.Column="1"
                 HorizontalContentAlignment="Stretch"
                 VerticalContentAlignment="Stretch">
-                <ProgressBar
+        <ProgressBar
                     Grid.Column="5"
                     Height="20"
-                    Visibility="{Binding DataManager.ProgressBarVisibility}"
-                    Value="{Binding DataManager.Progress}">
-                    <ProgressBar.Style>
-                        <Style />
-                    </ProgressBar.Style>
-                </ProgressBar>
-            </StatusBarItem>
-            <StatusBarItem Grid.Column="2" HorizontalContentAlignment="Stretch">
-                <TextBlock
+                    Value="{Binding LoadingHistoryProgress}">
+          <ProgressBar.Style>
+            <Style TargetType="ProgressBar">
+              <Setter Property="Visibility" Value="Visible"/>
+              <Style.Triggers>
+                <DataTrigger Binding="{Binding LoadingHistoryProgress}" Value="0">
+                  <Setter Property="Visibility" Value="Hidden"/>
+                </DataTrigger>
+              </Style.Triggers>
+            </Style>
+          </ProgressBar.Style>
+        </ProgressBar>
+      </StatusBarItem>
+      <StatusBarItem Grid.Column="2" HorizontalContentAlignment="Stretch">
+        <TextBlock
                     Padding="0"
                     Text="{Binding DataManager.LoadingTimeLeft, StringFormat={}{0:hh}:{0:mm}:{0:ss}}"
                     Visibility="{Binding DataManager.ProgressBarVisibility}" />
-            </StatusBarItem>
-        </StatusBar>
-    </Grid>
+      </StatusBarItem>
+    </StatusBar>
+  </Grid>
 </Window>

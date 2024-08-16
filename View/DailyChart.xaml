@@ -26,17 +26,17 @@
                 </StackPanel.Resources>
                 <Button
                     x:Name="GetDataButton"
+                    d:Content="Получить график"
                     Command="{Binding PlotChartCommand}"
                     Content="{Binding ButtonName}"
                     FontFamily="/Fonts/#Roboto" />
                 <DatePicker
                     x:Name="MainDatePicker"
                     VerticalAlignment="Center"
-                    DisplayDateEnd="{Binding Chart.DataManager.EndDate}"
-                    DisplayDateStart="{Binding Chart.DataManager.StartDate}"
+                    DisplayDateEnd="{Binding EndDate}"
+                    DisplayDateStart="{Binding StartDate}"
                     FontFamily="/Fonts/#Roboto"
-                    SelectedDate="{Binding Parameter}"
-                    SelectedDateChanged="MainDatePicker_SelectedDateChanged" />
+                    SelectedDate="{Binding Parameter}"/>
                 <Button
                     Command="{Binding ClearChartCommand}"
                     Content="Очистить"

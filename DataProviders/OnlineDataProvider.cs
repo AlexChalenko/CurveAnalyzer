@@ -8,7 +8,7 @@ using System.Xml;
 using System.Xml.Serialization;
 using CurveAnalyzer.Data;
 using CurveAnalyzer.Interfaces;
-using MoexData;
+using MoexData.Data;
 
 namespace CurveAnalyzer.DataProviders
 {
@@ -18,6 +18,8 @@ namespace CurveAnalyzer.DataProviders
         private const string DatesUrl = "https://iss.moex.com/iss/engines/stock/zcyc.xml?iss.only=yearyields.dates&iss.meta=off";
         private const string PeriodsUrl = "https://iss.moex.com/iss/engines/stock/zcyc.xml?iss.only=yearyields&yearyields.columns=period&iss.meta=off";
 
+        // https://iss.moex.com/iss/history/engines/stock/zcyc
+
         private readonly CultureInfo culture = CultureInfo.CreateSpecificCulture("en-US");
 
         private ZcycData todayZcycData;
@@ -25,9 +27,9 @@ namespace CurveAnalyzer.DataProviders
         private readonly TimeSpan cachePeriod = TimeSpan.FromMinutes(5);
         private DateTime lastUpdateTime = DateTime.MinValue;
 
-        public Task<List<DateTime>> GetAvailableDates(CancellationToken token)
+        public Task<IEnumerable<DateTime>> GetAvailableDates(CancellationToken token)
         {
-            TaskCompletionSource<List<DateTime>> tcs = new();
+            TaskCompletionSource<IEnumerable<DateTime>> tcs = new();
 
             var settings = new XmlReaderSettings
             {
@@ -125,27 +127,33 @@ namespace CurveAnalyzer.DataProviders
             return tcs.Task;
         }
 
-        public Task<List<Zcyc>> GetDataForPeriod(double period)
+        public async Task<IEnumerable<Zcyc>> GetDataForPeriod(double period)
         {
             var data = GetDataForDate(DateTime.Today);
             if (data.IsCompletedSuccessfully)
             {
-                var dataForPeriod = data.Result.DataRow.Where(r => r.Period == period).ToList().FirstOrDefault();
-                if (dataForPeriod != null)
-                {
-                    Zcyc zcycData = new()
-                    {
-                        Tradedate = DateTime.Today,
-                        Period = dataForPeriod.Period,
-                        Value = dataForPeriod.Value
-                    };
-                    return Task.FromResult(new List<Zcyc>() { zcycData });
-                }
+                return data.Result.DataRow.Where(r => r.Period == period).Select(r=> new Zcyc() {
+                    Tradedate = DateTime.Today,
+                    Period = r.Period,
+                    Value = r.Value
+                });
+
+                //var dataForPeriod = data.Result.DataRow.Where(r => r.Period == period).ToList().FirstOrDefault();
+                //if (dataForPeriod != null)
+                //{
+                //    Zcyc zcycData = new()
+                //    {
+                //        Tradedate = DateTime.Today,
+                //        Period = dataForPeriod.Period,
+                //        Value = dataForPeriod.Value
+                //    };
+                //    return Task.FromResult(new List<Zcyc>() { zcycData });
+                //}
             }
-            return Task.FromResult(new List<Zcyc>());
+            return Enumerable.Empty<Zcyc>();
         }
 
-        public async Task<List<double>> GetPeriods()
+        public async Task<IEnumerable<double>> GetPeriods()
         {
             List<double> result = new();
 

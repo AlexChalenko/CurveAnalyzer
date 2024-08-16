@@ -1,43 +1,34 @@
 using System;
-using System.Windows.Input;
+using System.Collections.ObjectModel;
+using System.Threading.Tasks;
+using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 using CurveAnalyzer.Charts;
-using Microsoft.Toolkit.Mvvm.Input;
+using CurveAnalyzer.Interfaces;
 
 namespace CurveAnalyzer.ViewModel
 {
-    public class DailyChartViewModel : ChartViewModelBase<DateTime>
+    public partial class DailyChartViewModel : ChartViewModelBase<DateTime>
     {
-        public DailyChartViewModel() : base(new DailyCurveChart())
-        {
-            Chart.DataManager.OnDataLoaded += (s, e) =>
-            {
-                Parameter = Chart.DataManager.EndDate;
-            };
-        }
+        [ObservableProperty]
+        private ObservableCollection<DateTime> _blackoutDates = [];
 
-        public override DateTime Parameter
-        {
-            get => base.Parameter;
-            set
-            {
-                if (base.Parameter != value)
-                {
-                    Chart.DataManager.SelectedDate = Parameter;
-                }
-                base.Parameter = value;
-            }
-        }
+        [ObservableProperty]
+        private DateTime _startDate;
 
-        public override void PlotChart(DateTime parameter)
-        {
-            Chart.Plot(parameter);
-        }
+        [ObservableProperty]
+        private DateTime _endDate;
+
+        private IDataManager _dataManager;
 
         public string ButtonName { get; } = "Получить график";
 
-        private RelayCommand plotPreviosDayCommand;
-        public ICommand PlotPreviosDayCommand => plotPreviosDayCommand ??= new RelayCommand(PlotPreviosDay);
+        public DailyChartViewModel(DailyCurveChart dailyCurveChart, IDataManager dataManager) : base(dailyCurveChart, false)
+        {
+            _dataManager = dataManager;
+        }
 
+        [RelayCommand]
         private void PlotPreviosDay()
         {
             var date = Parameter;
@@ -45,11 +36,36 @@ namespace CurveAnalyzer.ViewModel
             do
             {
                 date = date.AddDays(-1);
-            } while (Chart.DataManager.BlackoutDates.Contains(date));
+            } while (_dataManager.BlackoutDates.Contains(date));
 
             Parameter = date;
             Chart.Clear();
-            PlotChart(date);
+            PlotChartCommand.Execute(date);
+        }
+
+        public override async Task Setup()
+        {
+            try
+            {
+                var allDates = await _dataManager.GetAvailableDatesAsync();
+                StartDate = allDates.Start;
+                EndDate = allDates.End;
+
+                BlackoutDates.Clear();
+                foreach (var date in _dataManager.BlackoutDates)
+                {
+                    BlackoutDates.Add(date);
+                }
+
+                App.Current.Dispatcher.Invoke(() =>
+                {
+                    Parameter = allDates.End;
+                });
+            }
+            catch (Exception ex)
+            {
+                throw ex;
+            }
         }
     }
 }
