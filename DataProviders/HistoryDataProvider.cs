@@ -7,8 +7,6 @@ using System.Threading.Tasks;
 using CurveAnalyzer.Data;
 using CurveAnalyzer.Interfaces;
 using Microsoft.EntityFrameworkCore;
-using MoexData;
-using MoexData.Data;
 
 namespace CurveAnalyzer.DataProviders
 {

@@ -16,10 +16,13 @@ namespace CurveAnalyzer.Interfaces
         protected ChartBase(IDataManager DataManager)
         {
             _dataManager = DataManager;
+            PlotCommand = new AsyncRelayCommand<T>(Plot);
         }
 
         [ObservableProperty]
         private PlotModel mainChart = new();
+
+        public IAsyncRelayCommand PlotCommand { get; }
 
         public virtual void Setup(IRelayCommand[] commandsToUpdate)
         {

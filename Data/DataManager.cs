@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 using System.Windows;
 using CurveAnalyzer.DataProviders;
 using CurveAnalyzer.Interfaces;
-using MoexData.Data;
+using CurveAnalyzer.Data;
 
 namespace CurveAnalyzer.Data
 {
@@ -45,9 +45,9 @@ namespace CurveAnalyzer.Data
         //public TimeSpan LoadingTimeLeft { get => loadingTimeLeft; set => SetProperty(ref loadingTimeLeft, value); }
 
 
-        public event EventHandler OnDataLoaded;
+        //public event EventHandler OnDataLoaded;
 
-        public Visibility ProgressBarVisibility { get; set; } = Visibility.Hidden;
+        //public Visibility ProgressBarVisibility { get; set; } = Visibility.Hidden;
 
         public async Task<IEnumerable<Zcyc>> GetZcycForPeriodAsync(double period)
         {

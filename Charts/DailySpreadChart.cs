@@ -2,6 +2,7 @@ using System;
 using System.Linq;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.Input;
+using CurveAnalyzer.Data;
 using CurveAnalyzer.Interfaces;
 using OxyPlot;
 using OxyPlot.Axes;
@@ -13,8 +14,27 @@ namespace CurveAnalyzer.Charts
     {
         public DailySpreadChart(IDataManager DataManager) : base(DataManager)
         {
+            var lineAxisY1 = new LinearAxis
+            {
+                Title = "Спреды",
+                Position = AxisPosition.Right,
+                MajorGridlineThickness = 1,
+                MinorGridlineThickness = 1,
+                MajorGridlineStyle = LineStyle.Dot,
+                MinorGridlineStyle = LineStyle.Dot,
+            };
+            var dateTimeAxis1 = new DateTimeAxis
+            {
+                MajorGridlineThickness = 2,
+                MinorGridlineThickness = 1,
+                MajorGridlineStyle = LineStyle.Solid,
+                MinorGridlineStyle = LineStyle.Dot
+            };
 
+            MainChart.Axes.Add(dateTimeAxis1);
+            MainChart.Axes.Add(lineAxisY1);
         }
+
         public override async Task Plot(Periods periods)
         {
             IsBusy = true;
@@ -50,31 +70,6 @@ namespace CurveAnalyzer.Charts
             IsBusy = false;
 
             //return Task.CompletedTask;
-        }
-
-        public override void Setup(IRelayCommand[] commandsToUpdate)
-        {
-            base.Setup(commandsToUpdate);
-
-            var lineAxisY1 = new LinearAxis
-            {
-                Title = "Спреды",
-                Position = AxisPosition.Right,
-                MajorGridlineThickness = 1,
-                MinorGridlineThickness = 1,
-                MajorGridlineStyle = LineStyle.Dot,
-                MinorGridlineStyle = LineStyle.Dot,
-            };
-            var dateTimeAxis1 = new DateTimeAxis
-            {
-                MajorGridlineThickness = 2,
-                MinorGridlineThickness = 1,
-                MajorGridlineStyle = LineStyle.Solid,
-                MinorGridlineStyle = LineStyle.Dot
-            };
-
-            MainChart.Axes.Add(dateTimeAxis1);
-            MainChart.Axes.Add(lineAxisY1);
         }
 
         public override bool Validate(Periods periods)

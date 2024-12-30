@@ -1,6 +1,6 @@
 using System.ComponentModel;
 
-namespace CurveAnalyzer.Data;
+namespace CurveAnalyzer.Core;
 
 public struct Periods : IDataErrorInfo
 {

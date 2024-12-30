@@ -1,11 +1,21 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio Version 16
-VisualStudioVersion = 16.0.29905.134
+# Visual Studio Version 17
+VisualStudioVersion = 17.11.35303.130
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CurveAnalyzer", "CurveAnalyzer.csproj", "{BCEAB5C3-36AB-435E-80C0-B1ED10D2684F}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "CurveAnalyzer", "CurveAnalyzer.csproj", "{BCEAB5C3-36AB-435E-80C0-B1ED10D2684F}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MoexData", "..\MoexData\MoexData.csproj", "{51750AB3-C303-42EB-AC36-3DD87B4C279B}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "MoexData", "..\MoexData\MoexData.csproj", "{51750AB3-C303-42EB-AC36-3DD87B4C279B}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CurveAnalyzer.Core", "src\CurveAnalyzer.Core\CurveAnalyzer.Core.csproj", "{6204FCEA-427B-4C6C-BD12-41F6BD4D7C4A}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CurveAnalyzer.Infrastructure", "src\CurveAnalyzer.Infrastructure\CurveAnalyzer.Infrastructure.csproj", "{E76551BA-7883-4EEC-B563-5026A910A522}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CurveAnalyzer.Application", "src\CurveAnalyzer.Application\CurveAnalyzer.Application.csproj", "{EA04FDC3-B853-4F44-9FAB-8B6CCE564884}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CurveAnalyzer.ApiServices", "src\CurveAnalyzer.ApiServices\CurveAnalyzer.ApiServices.csproj", "{553EB71E-5276-4BE6-9A3C-EA2EF6D8E0FD}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CurveAnalyzer.Presentation.WPF", "src\CurveAnalyzer.Presentation.WPF\CurveAnalyzer.Presentation.WPF.csproj", "{3F7B1C48-A617-419B-819A-38AD9E72DE21}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -21,6 +31,26 @@ Global
 		{51750AB3-C303-42EB-AC36-3DD87B4C279B}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{51750AB3-C303-42EB-AC36-3DD87B4C279B}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{51750AB3-C303-42EB-AC36-3DD87B4C279B}.Release|Any CPU.Build.0 = Release|Any CPU
+		{6204FCEA-427B-4C6C-BD12-41F6BD4D7C4A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{6204FCEA-427B-4C6C-BD12-41F6BD4D7C4A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{6204FCEA-427B-4C6C-BD12-41F6BD4D7C4A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{6204FCEA-427B-4C6C-BD12-41F6BD4D7C4A}.Release|Any CPU.Build.0 = Release|Any CPU
+		{E76551BA-7883-4EEC-B563-5026A910A522}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{E76551BA-7883-4EEC-B563-5026A910A522}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{E76551BA-7883-4EEC-B563-5026A910A522}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{E76551BA-7883-4EEC-B563-5026A910A522}.Release|Any CPU.Build.0 = Release|Any CPU
+		{EA04FDC3-B853-4F44-9FAB-8B6CCE564884}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{EA04FDC3-B853-4F44-9FAB-8B6CCE564884}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{EA04FDC3-B853-4F44-9FAB-8B6CCE564884}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{EA04FDC3-B853-4F44-9FAB-8B6CCE564884}.Release|Any CPU.Build.0 = Release|Any CPU
+		{553EB71E-5276-4BE6-9A3C-EA2EF6D8E0FD}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{553EB71E-5276-4BE6-9A3C-EA2EF6D8E0FD}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{553EB71E-5276-4BE6-9A3C-EA2EF6D8E0FD}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{553EB71E-5276-4BE6-9A3C-EA2EF6D8E0FD}.Release|Any CPU.Build.0 = Release|Any CPU
+		{3F7B1C48-A617-419B-819A-38AD9E72DE21}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{3F7B1C48-A617-419B-819A-38AD9E72DE21}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{3F7B1C48-A617-419B-819A-38AD9E72DE21}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{3F7B1C48-A617-419B-819A-38AD9E72DE21}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

@@ -8,7 +8,6 @@ using System.Xml;
 using System.Xml.Serialization;
 using CurveAnalyzer.Data;
 using CurveAnalyzer.Interfaces;
-using MoexData.Data;
 
 namespace CurveAnalyzer.DataProviders
 {

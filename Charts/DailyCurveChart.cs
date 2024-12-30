@@ -1,7 +1,6 @@
 using System;
 using System.Linq;
 using System.Threading.Tasks;
-using CommunityToolkit.Mvvm.Input;
 using CurveAnalyzer.Interfaces;
 using OxyPlot;
 using OxyPlot.Axes;
@@ -14,7 +13,7 @@ namespace CurveAnalyzer.Charts
     {
         public DailyCurveChart(IDataManager dataManager) : base(dataManager)
         {
-            var l = new Legend()
+            var legend = new Legend()
             {
                 LegendBorder = OxyColors.Black,
                 LegendBorderThickness = 0,
@@ -25,14 +24,9 @@ namespace CurveAnalyzer.Charts
                 LegendOrientation = LegendOrientation.Horizontal,
                 LegendItemAlignment = HorizontalAlignment.Left,
             };
-            MainChart.Legends.Add(l);
+            MainChart.Legends.Add(legend);
             //MainChart.Background = OxyColor.FromRgb(22, 26, 37);
             MainChart.Background = OxyColors.White;
-        }
-
-        public override void Setup(IRelayCommand[] commandsToUpdate)
-        {
-            base.Setup(commandsToUpdate);
 
             var linearAxis1 = new LinearAxis
             {
@@ -70,6 +64,7 @@ namespace CurveAnalyzer.Charts
             {
                 return;
             }
+
             IsBusy = true;
 
             var data = await _dataManager.GetDataAsync(value);

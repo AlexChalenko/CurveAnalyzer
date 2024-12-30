@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CurveAnalyzer.Charts;
+using CurveAnalyzer.Data;
 using CurveAnalyzer.Interfaces;
 
 namespace CurveAnalyzer.ViewModel

@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using CommunityToolkit.Mvvm.Input;
 using CurveAnalyzer.Interfaces;
 using CurveAnalyzer.Tools;
 using OxyPlot;
@@ -16,7 +15,7 @@ namespace CurveAnalyzer.Charts
 {
     public class WeeklyRateDynamicChart : ChartBase<double>
     {
-        public WeeklyRateDynamicChart(IDataManager dataManager):base(dataManager)
+        public WeeklyRateDynamicChart(IDataManager dataManager) : base(dataManager)
         {
             Legend legend = new()
             {
@@ -28,6 +27,51 @@ namespace CurveAnalyzer.Charts
                 LegendItemAlignment = HorizontalAlignment.Left,
             };
             MainChart.Legends.Add(legend);
+
+            var lineAxisY1 = new LinearAxis
+            {
+                Title = "График",
+                Key = "Y1",
+                StartPosition = 0.3,
+                Position = AxisPosition.Right,
+                MajorGridlineThickness = 1,
+                MinorGridlineThickness = 1,
+                MajorGridlineStyle = LineStyle.Dot,
+                MinorGridlineStyle = LineStyle.Dot,
+            };
+
+            var lineAxisY2 = new LinearAxis
+            {
+                Title = "Индикатор",
+                Position = AxisPosition.Right,
+                Key = "Y2",
+                EndPosition = 0.3
+            };
+
+            var LineAnnotation1 = new LineAnnotation
+            {
+                ClipByYAxis = false,
+                Type = LineAnnotationType.Horizontal,
+                Y = 0,
+                Color = OxyColors.Green,
+                YAxisKey = "Y2",
+                TextOrientation = AnnotationTextOrientation.Horizontal,
+                TextHorizontalAlignment = HorizontalAlignment.Right,
+            };
+
+            var dateTimeAxis1 = new DateTimeAxis
+            {
+                Key = "X",
+                MajorGridlineThickness = 2,
+                MinorGridlineThickness = 1,
+                MajorGridlineStyle = LineStyle.Solid,
+                MinorGridlineStyle = LineStyle.Dot
+            };
+
+            MainChart.Axes.Add(dateTimeAxis1);
+            MainChart.Axes.Add(lineAxisY1);
+            MainChart.Axes.Add(lineAxisY2);
+            MainChart.Annotations.Add(LineAnnotation1);
         }
 
         public override Task Plot(double value)
@@ -120,56 +164,6 @@ namespace CurveAnalyzer.Charts
                 });
             });
             return output;
-        }
-
-        public override void Setup(IRelayCommand[] commandsToUpdate)
-        {
-            base.Setup(commandsToUpdate);
-
-            var lineAxisY1 = new LinearAxis
-            {
-                Title = "График",
-                Key = "Y1",
-                StartPosition = 0.3,
-                Position = AxisPosition.Right,
-                MajorGridlineThickness = 1,
-                MinorGridlineThickness = 1,
-                MajorGridlineStyle = LineStyle.Dot,
-                MinorGridlineStyle = LineStyle.Dot,
-            };
-
-            var lineAxisY2 = new LinearAxis
-            {
-                Title = "Индикатор",
-                Position = AxisPosition.Right,
-                Key = "Y2",
-                EndPosition = 0.3
-            };
-
-            var LineAnnotation1 = new LineAnnotation
-            {
-                ClipByYAxis = false,
-                Type = LineAnnotationType.Horizontal,
-                Y = 0,
-                Color = OxyColors.Green,
-                YAxisKey = "Y2",
-                TextOrientation = AnnotationTextOrientation.Horizontal,
-                TextHorizontalAlignment = HorizontalAlignment.Right,
-            };
-
-            var dateTimeAxis1 = new DateTimeAxis
-            {
-                Key = "X",
-                MajorGridlineThickness = 2,
-                MinorGridlineThickness = 1,
-                MajorGridlineStyle = LineStyle.Solid,
-                MinorGridlineStyle = LineStyle.Dot
-            };
-
-            MainChart.Axes.Add(dateTimeAxis1);
-            MainChart.Axes.Add(lineAxisY1);
-            MainChart.Axes.Add(lineAxisY2);
-            MainChart.Annotations.Add(LineAnnotation1);
         }
     }
 }

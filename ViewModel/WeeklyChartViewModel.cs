@@ -22,13 +22,13 @@ namespace CurveAnalyzer.ViewModel
         {
             try
             {
-            var periods = await _dataManager.GetPeriodsAsync();
+                var periods = await _dataManager.GetPeriodsAsync();
 
-            App.Current.Dispatcher.Invoke(() =>
-            {
-                Periods = new ObservableCollection<double>(periods);
-                Parameter = Periods[0];
-            });
+                App.Current.Dispatcher.Invoke(() =>
+                {
+                    Periods = new ObservableCollection<double>(periods);
+                    Parameter = Periods[0];
+                });
 
             }
             catch (System.Exception ex)

@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using CurveAnalyzer.Data;
-using MoexData.Data;
+using CurveAnalyzer.Data;
 
 namespace CurveAnalyzer.Interfaces
 {
