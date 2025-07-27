@@ -1,6 +1,6 @@
 using System.Xml.Serialization;
 
-namespace CurveAnalyzer.ApiService.Data;
+namespace CurveAnalyzer.ApiServices.Data;
 
 
 // NOTE: Generated code may require at least .NET Framework 4.5 or .NET Core/Standard 2.0.
