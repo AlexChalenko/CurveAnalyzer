@@ -4,8 +4,8 @@ namespace CurveAnalyzer.Application.Interfaces;
 
 public interface IDataService
 {
-    Task<IEnumerable<DateTime>> GetAvailableDates(CancellationToken token);
-    Task<ZcycData> GetDataForDate(DateTime date);
-    Task<IEnumerable<double>> GetPeriods();
-    Task<IEnumerable<Zcyc>> GetDataForPeriod(double period);
+    Task<IReadOnlyList<DateTime>> GetAvailableDatesAsync(CancellationToken cancellationToken = default);
+    Task<ZcycData> GetDataForDateAsync(DateTime date, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<double>> GetPeriodsAsync(CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<Zcyc>> GetDataForPeriodAsync(double period, CancellationToken cancellationToken = default);
 }

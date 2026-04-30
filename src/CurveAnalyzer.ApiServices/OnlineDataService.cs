@@ -1,13 +1,13 @@
 using System.Globalization;
 using System.Xml;
 using System.Xml.Serialization;
-using CurveAnalyzer.ApiService.Data;
+using CurveAnalyzer.ApiServices.Data;
 using CurveAnalyzer.Application.Interfaces;
 using CurveAnalyzer.Core;
 
 namespace CurveAnalyzer.ApiServices;
 
-public class OnlineDataService : IDataService
+public class OnlineDataService(HttpClient httpClient) : IDataService
 {
     private const string DataUrl = "https://iss.moex.com/iss/engines/stock/zcyc.xml?date={0}&iss.only=yearyields&iss.meta=off";
     private const string DatesUrl = "https://iss.moex.com/iss/engines/stock/zcyc.xml?iss.only=yearyields.dates&iss.meta=off";
@@ -24,69 +24,54 @@ public class OnlineDataService : IDataService
     private DateTime lastUpdateTime = DateTime.MinValue;
     private XmlReaderSettings _xmlReaderSettings => new XmlReaderSettings
     {
-        Async = true
+        Async = true,
+        CloseInput = true
     };
 
-    public Task<IEnumerable<DateTime>> GetAvailableDates(CancellationToken token)
+    public async Task<IReadOnlyList<DateTime>> GetAvailableDatesAsync(CancellationToken cancellationToken = default)
     {
-        TaskCompletionSource<IEnumerable<DateTime>> tcs = new();
+        using XmlReader reader = await CreateXmlReaderAsync(DatesUrl, cancellationToken).ConfigureAwait(false);
+        while (await reader.ReadAsync().ConfigureAwait(false))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
 
-        if (token.IsCancellationRequested)
-        {
-            tcs.SetResult([]);
-        }
-        else
-        {
-            try
+            if (reader.NodeType != XmlNodeType.Element ||
+                !reader.Name.Equals("row", StringComparison.Ordinal))
             {
-                using XmlReader reader = XmlReader.Create(DatesUrl, _xmlReaderSettings);
-                while (reader.Read())
-                {
-                    switch (reader.NodeType)
-                    {
-                        case XmlNodeType.Element:
-                            if (reader.Name.Equals("row", StringComparison.Ordinal))
-                            {
-                                if (DateTime.TryParse(reader.GetAttribute(0), culture, DateTimeStyles.None, out var startDate)
-                                    && DateTime.TryParse(reader.GetAttribute(1), culture, DateTimeStyles.None, out var endDate))
-                                {
-                                    var range = Enumerable.Range(0, int.MaxValue)
-                                        .Select(index => startDate.AddDays(index))
-                                        .TakeWhile(date => date <= endDate);
-                                    tcs.SetResult(range.ToList());
-                                }
-                                else
-                                {
-                                    tcs.SetException(new Exception("Invalid dates"));
-                                }
-                            }
-                            break;
-                    }
-                }
+                continue;
             }
-            catch (Exception ex)
+
+            if (DateTime.TryParse(reader.GetAttribute(0), culture, DateTimeStyles.None, out var startDate)
+                && DateTime.TryParse(reader.GetAttribute(1), culture, DateTimeStyles.None, out var endDate))
             {
-                tcs.SetException(ex);
+                return Enumerable.Range(0, int.MaxValue)
+                    .Select(index => startDate.AddDays(index))
+                    .TakeWhile(date => date <= endDate)
+                    .ToList();
             }
+
+            throw new InvalidOperationException("Invalid dates");
         }
-        return tcs.Task;
+
+        return [];
     }
 
-    public Task<ZcycData> GetDataForDate(DateTime date)
+    public async Task<ZcycData> GetDataForDateAsync(DateTime date, CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         if (date.Equals(DateTime.Today) && DateTime.Now.Subtract(lastUpdateTime) < cachePeriod && _todayZcycData != null)
         {
-            return Task.FromResult(_todayZcycData);
+            return _todayZcycData;
         }
 
-        var tcs = new TaskCompletionSource<ZcycData>();
         var serializer = new XmlSerializer(typeof(IssData));
         string downloadingDate = date.ToString("yyyy-MM-dd");
         string url = string.Format(culture, DataUrl, downloadingDate);
 
         try
         {
-            using XmlReader xmlReader = XmlReader.Create(url); //gets only 500 lines
+            using XmlReader xmlReader = await CreateXmlReaderAsync(url, cancellationToken).ConfigureAwait(false);
             if (serializer.Deserialize(xmlReader) is IssData { data: not null } issData)
             {
                 var zData = new ZcycData()
@@ -100,34 +85,40 @@ public class OnlineDataService : IDataService
                     _todayZcycData = zData;
                     lastUpdateTime = DateTime.Now;
                 }
-                tcs.SetResult(zData);
+                return zData;
             }
         }
-        catch (Exception ex) // on error return empty data
+        catch (OperationCanceledException)
         {
-            tcs.SetException(ex);
+            throw;
         }
-        return tcs.Task;
+
+        return new ZcycData(date, []);
     }
 
-    public async Task<IEnumerable<Zcyc>> GetDataForPeriod(double period)
+    public async Task<IReadOnlyList<Zcyc>> GetDataForPeriodAsync(double period, CancellationToken cancellationToken = default)
     {
-        var data = await GetDataForDate(DateTime.Today);
-        return data.DataRow.Where(r => r.Period == period).Select(r => new Zcyc()
-        {
-            Tradedate = DateTime.Today,
-            Period = r.Period,
-            Value = r.Value
-        });
+        var data = await GetDataForDateAsync(DateTime.Today, cancellationToken).ConfigureAwait(false);
+        return data.DataRow
+            .Where(r => r.Period == period)
+            .Select(r => new Zcyc()
+            {
+                Tradedate = DateTime.Today,
+                Period = r.Period,
+                Value = r.Value
+            })
+            .ToList();
     }
 
-    public async Task<IEnumerable<double>> GetPeriods()
+    public async Task<IReadOnlyList<double>> GetPeriodsAsync(CancellationToken cancellationToken = default)
     {
         List<double> result = [];
 
-        using XmlReader reader = XmlReader.Create(PeriodsUrl, _xmlReaderSettings);
+        using XmlReader reader = await CreateXmlReaderAsync(PeriodsUrl, cancellationToken).ConfigureAwait(false);
         while (await reader.ReadAsync().ConfigureAwait(false))
         {
+            cancellationToken.ThrowIfCancellationRequested();
+
             switch (reader.NodeType)
             {
                 case XmlNodeType.Element:
@@ -137,5 +128,11 @@ public class OnlineDataService : IDataService
             }
         }
         return result;
+    }
+
+    private async Task<XmlReader> CreateXmlReaderAsync(string url, CancellationToken cancellationToken)
+    {
+        var payload = await httpClient.GetByteArrayAsync(url, cancellationToken).ConfigureAwait(false);
+        return XmlReader.Create(new MemoryStream(payload), _xmlReaderSettings);
     }
 }

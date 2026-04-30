@@ -3,43 +3,39 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CurveAnalyzer.Application;
 using CurveAnalyzer.Core;
 
-namespace CurveAnalyzer.Presentation.WPF.ViewModels
+namespace CurveAnalyzer.Presentation.WPF.ViewModels;
+
+public partial class RateChartViewModel(DataSyncService dataService) : ObservableObject, IChartViewModel
 {
-    public partial class RateChartViewModel : ObservableObject
+    private readonly DataSyncService _dataService = dataService;
+
+    [ObservableProperty]
+    public partial double SelectedPeriod { get; set; }
+
+    [ObservableProperty]
+    public partial IReadOnlyList<Zcyc>? ZcycArray { get; set; }
+
+    [ObservableProperty]
+    public partial ObservableCollection<double> Periods { get; set; } = [];
+
+    public async Task Initialize()
     {
-        private readonly DataSyncService _dataService;
+        var periods = await _dataService.GetAvailablePeriodsAsync(CancellationToken.None);
 
-        [ObservableProperty]
-        private double _selectedPeriod;
-
-        [ObservableProperty]
-        private IEnumerable<Zcyc> _zcycArray;
-
-
-        [ObservableProperty]
-        private ObservableCollection<double> _periods = [];
-
-        public RateChartViewModel(DataSyncService dataService)
+        Periods.Clear();
+        foreach (var period in periods)
         {
-            _dataService = dataService;
+            Periods.Add(period);
         }
+    }
 
-        public async Task Initialize()
-        {
-            var periods = await _dataService.GetAvailablePeriodsAsync();
+    partial void OnSelectedPeriodChanged(double value)
+    {
+        _ = LoadPeriodAsync(value);
+    }
 
-            foreach (var period in periods)
-            {
-                Periods.Add(period);
-            }
-        }
-
-        partial void OnSelectedPeriodChanged(double value)
-        {
-            _dataService.GetZcycForPeriodAsync(value).ContinueWith(t =>
-            {
-                ZcycArray = new List<Zcyc>(t.Result);
-            }, TaskScheduler.FromCurrentSynchronizationContext());
-        }
+    private async Task LoadPeriodAsync(double value)
+    {
+        ZcycArray = await _dataService.GetZcycForPeriodAsync(value, CancellationToken.None);
     }
 }

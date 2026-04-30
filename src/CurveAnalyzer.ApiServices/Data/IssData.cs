@@ -1,11 +1,11 @@
 using System.Xml.Serialization;
 
-namespace CurveAnalyzer.ApiService.Data;
+namespace CurveAnalyzer.ApiServices.Data;
 
 
 // NOTE: Generated code may require at least .NET Framework 4.5 or .NET Core/Standard 2.0.
 /// <remarks/>
-[System.Serializable()]
+[Serializable()]
 [System.ComponentModel.DesignerCategory("code")]
 [XmlType(AnonymousType = true)]
 [XmlRoot(Namespace = "", IsNullable = false, ElementName = "document")]
@@ -23,7 +23,7 @@ public partial class IssData
 }
 
 /// <remarks/>
-[System.Serializable()]
+[Serializable()]
 [System.ComponentModel.DesignerCategory("code")]
 [XmlType(AnonymousType = true)]
 public partial class documentData
@@ -51,15 +51,15 @@ public partial class documentData
 }
 
 /// <remarks/>
-[System.Serializable()]
+[Serializable()]
 [System.ComponentModel.DesignerCategory("code")]
 [XmlType(AnonymousType = true)]
 public partial class documentDataRow
 {
 
-    private System.DateTime tradedateField;
+    private DateTime tradedateField;
 
-    private System.DateTime tradetimeField;
+    private DateTime tradetimeField;
 
     private double periodField;
 
@@ -67,7 +67,7 @@ public partial class documentDataRow
 
     /// <remarks/>
     [XmlAttribute(DataType = "date")]
-    public System.DateTime Tradedate
+    public DateTime Tradedate
     {
         get => tradedateField;
         set => tradedateField = value;
@@ -75,7 +75,7 @@ public partial class documentDataRow
 
     /// <remarks/>
     [XmlAttribute(DataType = "time")]
-    public System.DateTime tradetime
+    public DateTime tradetime
     {
         get => tradetimeField;
         set => tradetimeField = value;

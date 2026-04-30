@@ -1,9 +1,8 @@
-using CurveAnalyzer.Application.Interfaces;
 using CurveAnalyzer.Core;
 
-namespace CurveAnalyzer.Interfaces;
+namespace CurveAnalyzer.Application.Interfaces;
 
 public interface IHistoryDataService : IDataService
 {
-    Task<bool> SaveData(ZcycData data);
+    Task<bool> SaveDataAsync(ZcycData data, CancellationToken cancellationToken = default);
 }

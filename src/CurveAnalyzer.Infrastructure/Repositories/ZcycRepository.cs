@@ -13,37 +13,46 @@ public class ZcycRepository : IZcycRepository
         _context = context;
     }
 
-    public Task<ZcycData> GetByDateAsync(DateTime date)
+    public async Task<ZcycData> GetByDateAsync(DateTime date, CancellationToken cancellationToken = default)
     {
-        List<Zcyc> dbData = [.. _context.Zcycs.Where(r => r.Tradedate.Equals(date))];
+        var dbData = await _context.Zcycs
+            .Where(r => r.Tradedate.Equals(date))
+            .ToListAsync(cancellationToken);
 
-        return Task.FromResult(
-            new ZcycData
-            {
-                Date = date,
-                DataRow = new(dbData.Select(r => new ZcycDataRow(r.Period, r.Value)))
-            });
+        return new ZcycData
+        {
+            Date = date,
+            DataRow = new(dbData.Select(r => new ZcycDataRow(r.Period, r.Value)))
+        };
     }
 
-    public Task<IEnumerable<DateTime>> GetAllDatesAsync()
+    public async Task<IReadOnlyList<DateTime>> GetAllDatesAsync(CancellationToken cancellationToken = default)
     {
-        return Task.FromResult(_context.Zcycs.Select(_ => _.Tradedate).Distinct().AsEnumerable());
+        return await _context.Zcycs
+            .Select(data => data.Tradedate)
+            .Distinct()
+            .ToListAsync(cancellationToken);
     }
 
-    public Task<IEnumerable<double>> GetPeriodsAsync()
+    public async Task<IReadOnlyList<double>> GetPeriodsAsync(CancellationToken cancellationToken = default)
     {
-        return Task.FromResult(_context.Zcycs.Select(_ => _.Period).Distinct().AsEnumerable());
+        return await _context.Zcycs
+            .Select(data => data.Period)
+            .Distinct()
+            .ToListAsync(cancellationToken);
     }
 
-    public async Task<bool> AddRangeAsync(IEnumerable<Zcyc> newData)
+    public async Task<bool> AddRangeAsync(IEnumerable<Zcyc> newData, CancellationToken cancellationToken = default)
     {
-        await _context.Zcycs.AddRangeAsync(newData);
-        var res = await _context.SaveChangesAsync();
+        await _context.Zcycs.AddRangeAsync(newData, cancellationToken);
+        var res = await _context.SaveChangesAsync(cancellationToken);
         return res > 0;
     }
 
-    public Task<IEnumerable<Zcyc>> GetDataForPeriod(double period)
+    public async Task<IReadOnlyList<Zcyc>> GetDataForPeriodAsync(double period, CancellationToken cancellationToken = default)
     {
-        return Task.FromResult(_context.Zcycs.Where(p => p.Period == period).AsEnumerable());
+        return await _context.Zcycs
+            .Where(p => p.Period == period)
+            .ToListAsync(cancellationToken);
     }
 }

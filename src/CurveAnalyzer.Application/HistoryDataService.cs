@@ -1,6 +1,5 @@
 using CurveAnalyzer.Application.Interfaces;
 using CurveAnalyzer.Core;
-using CurveAnalyzer.Interfaces;
 
 namespace CurveAnalyzer.Application;
 
@@ -13,40 +12,56 @@ public class HistoryDataService : IHistoryDataService
         _repository = repository;
     }
 
-    public  Task<IEnumerable<DateTime>> GetAvailableDates(CancellationToken token)
+    public Task<IReadOnlyList<DateTime>> GetAvailableDatesAsync(CancellationToken cancellationToken = default)
     {
-        return _repository.GetAllDatesAsync();
+        return _repository.GetAllDatesAsync(cancellationToken);
     }
 
-    public Task<ZcycData> GetDataForDate(DateTime date)
+    public Task<ZcycData> GetDataForDateAsync(DateTime date, CancellationToken cancellationToken = default)
     {
-        return _repository.GetByDateAsync(date);
+        return _repository.GetByDateAsync(date, cancellationToken);
     }
 
-    public Task<IEnumerable<double>> GetPeriods()
+    public Task<IReadOnlyList<double>> GetPeriodsAsync(CancellationToken cancellationToken = default)
     {
-        return _repository.GetPeriodsAsync();
+        return _repository.GetPeriodsAsync(cancellationToken);
     }
 
-    public async Task<bool> SaveData(ZcycData data) //todo add error checking
+    public async Task<bool> SaveDataAsync(ZcycData data, CancellationToken cancellationToken = default)
     {
-        if (data.DataRow == null || data.DataRow.Count == 0)
+        if (data.DataRow.Count == 0)
         {
             return false;
         }
 
-        var newData = data.DataRow.Select(r => new Zcyc
+        var curve = new YieldCurve(
+            new TradingDate(data.Date),
+            data.DataRow.Select(row => new YieldPoint(new TradingDate(data.Date), new CurvePeriod(row.Period), row.Value)));
+
+        var newData = curve.Points.Select(point => new Zcyc
         {
-            Tradedate = data.Date,
-            Period = r.Period,
-            Value = r.Value
+            Tradedate = curve.TradingDate.Date,
+            Period = point.Period.Value,
+            Value = point.Value
         });
 
-        return await _repository.AddRangeAsync(newData);
+        return await _repository.AddRangeAsync(newData, cancellationToken);
     }
 
-    public Task<IEnumerable<Zcyc>> GetDataForPeriod(double period)
+    public async Task<IReadOnlyList<Zcyc>> GetDataForPeriodAsync(double period, CancellationToken cancellationToken = default)
     {
-        return _repository.GetDataForPeriod(period);
+        var data = await _repository.GetDataForPeriodAsync(period, cancellationToken);
+        var series = new HistoricalSeries(
+            new CurvePeriod(period),
+            data.Select(point => new HistoricalPoint(new TradingDate(point.Tradedate), point.Value)));
+
+        return series.Points
+            .Select(point => new Zcyc
+            {
+                Tradedate = point.TradingDate.Date,
+                Period = series.Period.Value,
+                Value = point.Value
+            })
+            .ToList();
     }
 }

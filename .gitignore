@@ -342,4 +342,15 @@ healthchecksdb
 #db files
 /Zcyc.db
 /Zcyc.db*
+/zcyc.db
+/zcyc.db-shm
+/zcyc.db-wal
+**/zcyc.db
+**/zcyc.db-shm
+**/zcyc.db-wal
 /Visual Studio 2022/Visualizers/*.bin
+
+# Local Spec Kit tooling
+.agents/skills/
+.specify/
+spec/

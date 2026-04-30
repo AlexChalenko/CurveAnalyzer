@@ -1,5 +1,4 @@
 using System.ComponentModel;
-using System.IO.Packaging;
 
 namespace CurveAnalyzer.Presentation.WPF.Data;
 

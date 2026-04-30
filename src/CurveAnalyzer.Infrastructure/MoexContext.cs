@@ -1,5 +1,5 @@
-using Microsoft.EntityFrameworkCore;
 using CurveAnalyzer.Core;
+using Microsoft.EntityFrameworkCore;
 
 namespace CurveAnalyzer.Infrastructure;
 
@@ -9,7 +9,6 @@ public class MoexContext : DbContext
 
     public MoexContext(DbContextOptions<MoexContext> options) : base(options)
     {
-        Database.EnsureCreated();
     }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -19,5 +18,4 @@ public class MoexContext : DbContext
     }
 
 }
-
 

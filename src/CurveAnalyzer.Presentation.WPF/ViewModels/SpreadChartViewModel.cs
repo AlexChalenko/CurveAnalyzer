@@ -1,75 +1,85 @@
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CurveAnalyzer.Application;
+using CurveAnalyzer.Core;
 using CurveAnalyzer.Presentation.WPF.Data;
+using PresentationPeriods = CurveAnalyzer.Presentation.WPF.Data.Periods;
 
-namespace CurveAnalyzer.Presentation.WPF.ViewModels
+namespace CurveAnalyzer.Presentation.WPF.ViewModels;
+
+public partial class SpreadChartViewModel : ObservableObject, IChartViewModel
 {
-    public partial class SpreadChartViewModel : ObservableObject
+    private readonly DataSyncService _dataService;
+
+    [ObservableProperty]
+    public partial ObservableCollection<double> PeriodsList { get; set; } = [];
+
+    [ObservableProperty]
+    public partial PresentationPeriods Periods { get; set; } = new();
+
+    [ObservableProperty]
+    public partial double PeriodFirst { get; set; }
+
+    [ObservableProperty]
+    public partial double PeriodSecond { get; set; }
+
+    [ObservableProperty]
+    public partial List<ZcycPoint> Values { get; set; } = [];
+
+    public SpreadChartViewModel(DataSyncService dataService)
     {
-        private readonly DataSyncService _dataService;
+        _dataService = dataService;
+    }
 
-        [ObservableProperty]
-        private ObservableCollection<double> _periodsList = [];
+    public async Task Initialize()
+    {
+        var periods = await _dataService.GetAvailablePeriodsAsync(CancellationToken.None);
 
-        [ObservableProperty]
-        private Periods _periods = new();
-
-        [ObservableProperty]
-        private double _periodFirst;
-
-        [ObservableProperty]
-        private double _periodSecond;
-
-        [ObservableProperty]
-        private List<ZcycPoint> _values = [];
-
-        public SpreadChartViewModel(DataSyncService dataService)
+        PeriodsList.Clear();
+        foreach (var period in periods)
         {
-            _dataService = dataService;
+            PeriodsList.Add(period);
         }
+    }
 
-        public async Task Initialize()
+    private async Task LoadDataAsync()
+    {
+        var data1 = await _dataService.GetZcycForPeriodAsync(PeriodFirst, CancellationToken.None);
+        var data2 = await _dataService.GetZcycForPeriodAsync(PeriodSecond, CancellationToken.None);
+
+        var firstSeries = ToHistoricalSeries(PeriodFirst, data1);
+        var secondSeries = ToHistoricalSeries(PeriodSecond, data2);
+        var spread = SpreadCalculator.Calculate(firstSeries, secondSeries);
+
+        Values = spread.Points
+            .Select(point => new ZcycPoint(point.TradingDate.Date, point.Value))
+            .ToList();
+    }
+
+    partial void OnPeriodFirstChanged(double value)
+    {
+        Periods.Period1 = value;
+        QueueDataReload();
+    }
+
+    partial void OnPeriodSecondChanged(double value)
+    {
+        Periods.Period2 = value;
+        QueueDataReload();
+    }
+
+    private void QueueDataReload()
+    {
+        if (!Periods.IsEmpty)
         {
-            var periods = await _dataService.GetAvailablePeriodsAsync();
-
-            foreach (var period in periods)
-            {
-                PeriodsList.Add(period);
-            }
+            _ = LoadDataAsync();
         }
+    }
 
-        private async Task GetData()
-        {
-            var data1 = await _dataService.GetZcycForPeriodAsync(PeriodFirst);
-            var data2 = await _dataService.GetZcycForPeriodAsync(PeriodSecond);
-
-            var query = data1.Join(data2,
-                                  d1 => d1.Tradedate,
-                                  d2 => d2.Tradedate,
-                                  (d1, d2) => new ZcycPoint(d1.Tradedate, d2.Value - d1.Value)).ToList();
-
-            Values = query;
-        }
-
-        partial void OnPeriodFirstChanged(double value)
-        {
-            Periods.Period1 = value;
-
-            if (!Periods.IsEmpty)
-            {
-                GetData().ConfigureAwait(false);
-            }
-        }
-
-        partial void OnPeriodSecondChanged(double value)
-        {
-            Periods.Period2 = value;
-
-            if (!Periods.IsEmpty)
-            {
-                GetData().ConfigureAwait(false);
-            }
-        }
+    private static HistoricalSeries ToHistoricalSeries(double period, IEnumerable<Zcyc> points)
+    {
+        return new HistoricalSeries(
+            new CurvePeriod(period),
+            points.Select(point => new HistoricalPoint(new TradingDate(point.Tradedate), point.Value)));
     }
 }

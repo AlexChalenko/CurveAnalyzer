@@ -1,7 +1,5 @@
-using CommunityToolkit.Mvvm.Messaging;
 using CurveAnalyzer.Application.Interfaces;
 using CurveAnalyzer.Core;
-using CurveAnalyzer.Interfaces;
 
 namespace CurveAnalyzer.Application;
 
@@ -9,28 +7,36 @@ public class DataSyncService
 {
     private readonly IDataService _onlineDataService;
     private readonly IHistoryDataService _historyDataService;
-    private readonly IMessenger _messenger;
 
-    double _sycnProgress;
-
-    public DataSyncService(IDataService onlineDataService, IHistoryDataService historyDataService, IMessenger messenger)
+    public DataSyncService(IDataService onlineDataService, IHistoryDataService historyDataService)
     {
         _onlineDataService = onlineDataService;
         _historyDataService = historyDataService;
-        _messenger = messenger;
     }
 
-    public async Task SyncDataAsync(IProgress<double> progress, CancellationToken token)
+    public async Task SyncDataAsync(IProgress<SyncProgress>? progress, CancellationToken token)
     {
-        var onlineDates = await _onlineDataService.GetAvailableDates(token);
+        var onlineDates = (await _onlineDataService.GetAvailableDatesAsync(token).ConfigureAwait(false)).OrderBy(date => date).ToList();
+        if (onlineDates.Count == 0)
+        {
+            progress?.Report(SyncProgress.Completed);
+            return;
+        }
+
         var todayIsWorkingDay = onlineDates.Last().Date == DateTime.Today;
         if (todayIsWorkingDay)
         {
-            onlineDates = onlineDates.ToArray()[..^1];
+            onlineDates = onlineDates[..^1];
         }
 
-        var historyDates = await _historyDataService.GetAvailableDates(token);
-        var lastHistoryDate = historyDates.Any() ? historyDates.Max() : onlineDates.Min();
+        if (onlineDates.Count == 0)
+        {
+            progress?.Report(SyncProgress.Completed);
+            return;
+        }
+
+        var historyDates = await _historyDataService.GetAvailableDatesAsync(token).ConfigureAwait(false);
+        var lastHistoryDate = historyDates.Count > 0 ? historyDates.Max() : DateTime.MinValue;
         bool needToUpdateHistory = lastHistoryDate < onlineDates.Last();
 
         if (needToUpdateHistory)
@@ -42,34 +48,32 @@ public class DataSyncService
             for (int i = 0; i < totalCount; i++)
             {
                 var date = datesToLoad[i];
-                var data = await _onlineDataService.GetDataForDate(date);
+                var data = await _onlineDataService.GetDataForDateAsync(date, token).ConfigureAwait(false);
                 if (data.DataRow.Count != 0)
                 {
-                    await SaveDataToHistory(data);
+                    await SaveDataToHistory(data, token).ConfigureAwait(false);
                 }
 
-                _sycnProgress = ((double)(i + 1)) / totalCount;
-                progress.Report(_sycnProgress);
-                _messenger.Send(new DownloadProgressMessage(_sycnProgress));
+                progress?.Report(new SyncProgress(i + 1, totalCount, date));
             }
         }
 
-        _messenger.Send(new DownloadCompletedMessage());
+        progress?.Report(SyncProgress.Completed);
     }
 
-    private Task<bool> SaveDataToHistory(ZcycData data)
+    private Task<bool> SaveDataToHistory(ZcycData data, CancellationToken cancellationToken)
     {
-        return _historyDataService.SaveData(data);
+        return _historyDataService.SaveDataAsync(data, cancellationToken);
     }
 
-    public async Task<ZcycData> GetYieldCurveForDateAsync(DateTime value)
+    public async Task<ZcycData> GetYieldCurveForDateAsync(DateTime value, CancellationToken cancellationToken = default)
     {
-        var dataToPlot = await _historyDataService.GetDataForDate(value);
+        var dataToPlot = await _historyDataService.GetDataForDateAsync(value, cancellationToken).ConfigureAwait(false);
         var emptyData = dataToPlot.DataRow.Count == 0;
 
         if (emptyData)
         {
-            dataToPlot = await _onlineDataService.GetDataForDate(value);
+            dataToPlot = await _onlineDataService.GetDataForDateAsync(value, cancellationToken).ConfigureAwait(false);
         }
 
         return dataToPlot;
@@ -77,8 +81,8 @@ public class DataSyncService
 
     public async Task<IEnumerable<DateTime>> GetBlackoutDatesAsync(CancellationToken token)
     {
-        var realtimeDates = await _onlineDataService.GetAvailableDates(token);
-        var historyDates = await _historyDataService.GetAvailableDates(token);
+        var realtimeDates = await _onlineDataService.GetAvailableDatesAsync(token).ConfigureAwait(false);
+        var historyDates = await _historyDataService.GetAvailableDatesAsync(token).ConfigureAwait(false);
 
         var historyDatesList = historyDates.ToList();
         var today = DateTime.Today;
@@ -88,16 +92,23 @@ public class DataSyncService
         return realtimeDates.Except(historyDatesList);
     }
 
-    public Task<IEnumerable<double>> GetAvailablePeriodsAsync()
+    public Task<IReadOnlyList<double>> GetAvailablePeriodsAsync(CancellationToken cancellationToken = default)
     {
-        return _historyDataService.GetPeriods();
+        return _historyDataService.GetPeriodsAsync(cancellationToken);
     }
 
-    public async Task<IEnumerable<Zcyc>> GetZcycForPeriodAsync(double period)
+    public async Task<IReadOnlyList<Zcyc>> GetZcycForPeriodAsync(double period, CancellationToken cancellationToken = default)
     {
-        var historyTask = _historyDataService.GetDataForPeriod(period);
-        var realtimeTask = _onlineDataService.GetDataForPeriod(period);
-        await Task.WhenAll(historyTask, realtimeTask);
-        return historyTask.Result.Union(realtimeTask.Result).OrderBy(z => z.Tradedate);
+        var historyTask = _historyDataService.GetDataForPeriodAsync(period, cancellationToken);
+        var realtimeTask = _onlineDataService.GetDataForPeriodAsync(period, cancellationToken);
+        await Task.WhenAll(historyTask, realtimeTask).ConfigureAwait(false);
+
+        var historyData = await historyTask.ConfigureAwait(false);
+        var realtimeData = await realtimeTask.ConfigureAwait(false);
+
+        return historyData
+            .Union(realtimeData)
+            .OrderBy(z => z.Tradedate)
+            .ToList();
     }
 }

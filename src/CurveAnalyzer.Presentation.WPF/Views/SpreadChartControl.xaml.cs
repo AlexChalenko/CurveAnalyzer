@@ -1,10 +1,10 @@
 using System.Windows;
 using System.Windows.Controls;
+using CommunityToolkit.Diagnostics;
 using CurveAnalyzer.Presentation.WPF.ViewModels;
+using LiveCharts;
 using LiveCharts.Defaults;
 using LiveCharts.Wpf;
-using LiveCharts;
-using CommunityToolkit.Diagnostics;
 
 namespace CurveAnalyzer.Presentation.WPF.Views
 {
@@ -12,11 +12,11 @@ namespace CurveAnalyzer.Presentation.WPF.Views
     {
         private SpreadChartViewModel? _spreadChartViewModel;
 
-        public SpreadChartControl()
+        public SpreadChartControl(/*SpreadChartViewModel spreadChartViewModel*/)
         {
             InitializeComponent();
-
             DataContextChanged += SpreadChartControl_DataContextChanged;
+            //DataContext = _spreadChartViewModel = spreadChartViewModel;
             Loaded += SpreadChartControl_Loaded;
         }
 
@@ -25,11 +25,11 @@ namespace CurveAnalyzer.Presentation.WPF.Views
             if (e.NewValue is SpreadChartViewModel spreadChartViewModel)
             {
                 _spreadChartViewModel = spreadChartViewModel;
-                _spreadChartViewModel.PropertyChanging += _spreadChartViewModel_PropertyChanging;
+                _spreadChartViewModel.PropertyChanged += _spreadChartViewModel_PropertyChanged;
             }
         }
 
-        private void _spreadChartViewModel_PropertyChanging(object? sender, System.ComponentModel.PropertyChangingEventArgs e)
+        private void _spreadChartViewModel_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
         {
             if (e.PropertyName == nameof(_spreadChartViewModel.Values))
             {
@@ -47,9 +47,12 @@ namespace CurveAnalyzer.Presentation.WPF.Views
             }
         }
 
-        private void SpreadChartControl_Loaded(object sender, RoutedEventArgs e)
+        private async void SpreadChartControl_Loaded(object sender, RoutedEventArgs e)
         {
-            _spreadChartViewModel?.Initialize();
+            if (_spreadChartViewModel != null)
+            {
+                await _spreadChartViewModel.Initialize();
+            }
         }
     }
 }
