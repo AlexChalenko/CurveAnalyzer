@@ -103,3 +103,19 @@
 - Исправление: `OnlineDataService` теперь получает XML через `HttpClient.GetByteArrayAsync(...)`, затем разбирает XML из памяти; internal awaits в `OnlineDataService` и `DataSyncService` используют `ConfigureAwait(false)`.
 - `dotnet build CurveAnalyzer.sln -c Release --no-restore`: успешно, warnings только ранее documented `NU1701` и существующие `CS8618` в MOEX DTO.
 - `dotnet test -c Release --no-restore`: успешно, 9 tests passed.
+
+## Database index follow-up
+
+- Добавлены composite indexes для таблицы `Zcycs`:
+  - `IX_Zcycs_Tradedate_Period` для yield curve by date;
+  - `IX_Zcycs_Period_Tradedate` для rate history by period.
+- Запросы репозитория теперь возвращают данные в порядке этих индексов:
+  curve rows по `Period`, period history по `Tradedate`, reference lists
+  отсортированы по значению.
+- EF migrations не вводились: приложение все еще использует `EnsureCreatedAsync`.
+  Для новой SQLite БД индексы создаются из EF model. Уже существующую локальную
+  БД без этих индексов нужно удалить/пересоздать или мигрировать отдельной
+  задачей, если сохранение локальной истории станет важным.
+- `dotnet build CurveAnalyzer.sln -c Release --no-restore`: успешно, warnings
+  только ранее documented `NU1701` и существующие `CS8618` в MOEX DTO.
+- `dotnet test -c Release --no-restore`: успешно, 9 tests passed.

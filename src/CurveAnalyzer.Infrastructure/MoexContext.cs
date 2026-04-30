@@ -13,9 +13,14 @@ public class MoexContext : DbContext
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
-        modelBuilder.Entity<Zcyc>()
-            .HasKey(z => z.Num);
+        var zcyc = modelBuilder.Entity<Zcyc>();
+
+        zcyc.HasKey(z => z.Num);
+
+        zcyc.HasIndex(z => new { z.Tradedate, z.Period })
+            .HasDatabaseName("IX_Zcycs_Tradedate_Period");
+
+        zcyc.HasIndex(z => new { z.Period, z.Tradedate })
+            .HasDatabaseName("IX_Zcycs_Period_Tradedate");
     }
-
 }
-

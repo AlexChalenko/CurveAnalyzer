@@ -17,6 +17,7 @@ public class ZcycRepository : IZcycRepository
     {
         var dbData = await _context.Zcycs
             .Where(r => r.Tradedate.Equals(date))
+            .OrderBy(r => r.Period)
             .ToListAsync(cancellationToken);
 
         return new ZcycData
@@ -31,6 +32,7 @@ public class ZcycRepository : IZcycRepository
         return await _context.Zcycs
             .Select(data => data.Tradedate)
             .Distinct()
+            .OrderBy(date => date)
             .ToListAsync(cancellationToken);
     }
 
@@ -39,6 +41,7 @@ public class ZcycRepository : IZcycRepository
         return await _context.Zcycs
             .Select(data => data.Period)
             .Distinct()
+            .OrderBy(period => period)
             .ToListAsync(cancellationToken);
     }
 
@@ -53,6 +56,7 @@ public class ZcycRepository : IZcycRepository
     {
         return await _context.Zcycs
             .Where(p => p.Period == period)
+            .OrderBy(p => p.Tradedate)
             .ToListAsync(cancellationToken);
     }
 }
