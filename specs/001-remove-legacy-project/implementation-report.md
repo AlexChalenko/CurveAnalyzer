@@ -61,7 +61,9 @@
 - `dotnet list CurveAnalyzer.sln package --vulnerable`: уязвимых пакетов нет.
 - `dotnet list CurveAnalyzer.sln package --deprecated`: deprecated packages нет после перехода test project с `xunit` на `xunit.v3`.
 - `LiveCharts.Wpf 0.9.7` остается documented compatibility exception: package не outdated/deprecated/vulnerable, но restore/build предупреждает `NU1701` для `net10.0-windows7.0`.
-- Manual smoke checklist из `quickstart.md` не запускался автоматически; требуется интерактивная проверка WPF UI.
+- Manual smoke checklist из `quickstart.md` выполнен вручную 2026-04-30:
+  yield curve by date, rate history by period и spread between periods работают
+  корректно.
 
 ## T060 Old TFM/package search
 
@@ -81,16 +83,19 @@
 ## T062 Spec Kit consistency analysis
 
 - Pre-hook note: `.specify/extensions.yml` содержит optional `speckit.git.commit` hooks для analyze; auto-commit не выполнялся из-за dirty worktree и отсутствия запроса на commit.
-- Findings:
-  - `MEDIUM`: `SC-003` / `T057` остаются без фактического manual smoke результата. Нужно интерактивно запустить WPF-приложение и пройти checklist из `quickstart.md` перед окончательным закрытием feature.
+- Findings после ручного smoke:
+  - `SC-003` / `T057` закрыт: manual smoke checklist выполнен вручную,
+    все основные UI-сценарии работают корректно.
 - Constitution drift, найденный перед финальной записью, исправлен: `.specify/memory/constitution.md` обновлен до `1.1.1`, обязательная build-команда теперь `dotnet build CurveAnalyzer.sln -c Release`.
 - Critical/high consistency blockers: не найдено.
 
 ## T063 Staging status
 
-- Staging не выполнялся: рабочее дерево уже содержит staged/unstaged изменения, часть из них была до текущего implementation pass.
-- Перед commit нужно отдельно собрать planned files и проверить `git diff --cached`.
-- Особое внимание: `src/CurveAnalyzer.Presentation.WPF/zcyc.db` сейчас отображается как `AD` в `git status --short` (staged add + working-tree delete). Перед commit нужно зафиксировать именно удаление runtime DB, а не staged add.
+- Planned files были собраны и проверены перед commit.
+- `.agents/skills/` и `.specify/` исключены из staged diff и добавлены в
+  `.gitignore` как local Spec Kit tooling.
+- `git diff --cached --check`: успешно.
+- Commit: `aed9e61 Удалить legacy-проект CurveAnalyzer`.
 
 ## Startup responsiveness follow-up
 

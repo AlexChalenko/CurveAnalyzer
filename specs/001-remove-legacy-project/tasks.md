@@ -139,7 +139,7 @@
 - [x] T054 [US4] Проверить отсутствие local binary paths и legacy references в `src/CurveAnalyzer.Presentation.WPF/CurveAnalyzer.Presentation.WPF.csproj`
 - [x] T055 [US4] Зафиксировать решение по `LiveCharts.Wpf` compatibility exception или chart migration в `specs/001-remove-legacy-project/implementation-report.md`
 - [x] T056 [US4] Запустить `dotnet list CurveAnalyzer.sln package --outdated`, `dotnet list CurveAnalyzer.sln package --vulnerable`, `dotnet list CurveAnalyzer.sln package --deprecated` и записать результат в `specs/001-remove-legacy-project/implementation-report.md`
-- [ ] T057 [US4] Выполнить manual smoke checklist из `specs/001-remove-legacy-project/quickstart.md` и записать результат в `specs/001-remove-legacy-project/implementation-report.md`
+- [x] T057 [US4] Выполнить manual smoke checklist из `specs/001-remove-legacy-project/quickstart.md` и записать результат в `specs/001-remove-legacy-project/implementation-report.md`
 
 **Контрольная точка**: supported project воспроизводим на другой машине с .NET 10 SDK.
 
@@ -154,7 +154,7 @@
 - [x] T060 Проверить отсутствие старых TFM/package versions через search и записать результат в `specs/001-remove-legacy-project/implementation-report.md`
 - [x] T061 Запустить финальные `dotnet restore`, `dotnet build CurveAnalyzer.sln -c Release`, `dotnet test -c Release` и записать результат в `specs/001-remove-legacy-project/implementation-report.md`
 - [x] T062 Запустить Spec Kit consistency analysis для `specs/001-remove-legacy-project/tasks.md` и записать findings или `no findings` в `specs/001-remove-legacy-project/implementation-report.md`
-- [ ] T063 Подготовить staged diff только по planned files и проверить его перед commit в `specs/001-remove-legacy-project/implementation-report.md`
+- [x] T063 Подготовить staged diff только по planned files и проверить его перед commit в `specs/001-remove-legacy-project/implementation-report.md`
 
 ---
 
