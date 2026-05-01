@@ -2,7 +2,7 @@
 
 <!-- SPECKIT START -->
 Для текущей миграции сначала читай активный план:
-`specs/001-remove-legacy-project/plan.md`.
+`specs/002-migrate-livecharts2/plan.md`.
 <!-- SPECKIT END -->
 
 ## Язык документации

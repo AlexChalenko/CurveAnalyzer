@@ -4,14 +4,14 @@ namespace CurveAnalyzer.Presentation.WPF.Data;
 
 public class Periods : IDataErrorInfo
 {
-    private double period1;
-    private double period2;
+    private double _period1;
+    private double _period2;
     private string _error = string.Empty;
 
     public string Error => _error;
 
-    public double Period2 { get => period2; set => period2 = value; }
-    public double Period1 { get => period1; set => period1 = value; }
+    public double Period2 { get => _period2; set => _period2 = value; }
+    public double Period1 { get => _period1; set => _period1 = value; }
 
     public string this[string columnName]
     {
@@ -37,13 +37,5 @@ public class Periods : IDataErrorInfo
         }
     }
 
-    public bool IsEmpty => period1 == default || period2 == default;
-    //partial void OnPeriod1Changed(double value)
-    //{
-
-    //}
-
-    ////private void OnPeriod2Changed(double value)
-    ////{
-    ////}
+    public bool IsEmpty => _period1 == default || _period2 == default;
 }
