@@ -1,9 +1,8 @@
 # Инструкции для агентов
 
 <!-- SPECKIT START -->
-Для текущей feature сначала читай активную спецификацию:
-`specs/005-ofz-analytics-summary/spec.md`.
-После создания `plan.md` используй его как основной рабочий план.
+Для текущей feature сначала читай активный план:
+`specs/005-ofz-analytics-summary/plan.md`.
 <!-- SPECKIT END -->
 
 ## Язык документации
