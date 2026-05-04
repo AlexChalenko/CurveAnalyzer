@@ -316,19 +316,20 @@ public sealed class OfzDurationYieldScatterSeriesConverter : IValueConverter
         return orderedPoints.Length == 0
             ? Array.Empty<ISeries>()
             : orderedPoints
-                .GroupBy(point => point.ScoreBucket)
-                .OrderBy(group => group.Key)
+                .GroupBy(point => new ScatterSeriesKey(point.ScoreBucket, point.LiquidityBucket))
+                .OrderBy(group => group.Key.ScoreBucket)
+                .ThenBy(group => group.Key.LiquidityBucket ?? OfzLiquidityBucket.MissingData)
                 .Select(group => new ScatterSeries<ObservablePoint>
                 {
                     Name = string.Empty,
                     Values = group
                         .Select(point => new ObservablePoint(point.DurationYears, point.Yield))
                         .ToArray(),
-                    Fill = new SolidColorPaint(GetBucketFillColor(group.Key)),
-                    GeometrySize = GetGeometrySize(group.Key),
-                    Stroke = new SolidColorPaint(GetBucketStrokeColor(group.Key))
+                    Fill = new SolidColorPaint(GetBucketFillColor(group.Key.ScoreBucket)),
+                    GeometrySize = GetGeometrySize(group.Key.ScoreBucket),
+                    Stroke = new SolidColorPaint(GetLiquidityStrokeColor(group.Key.LiquidityBucket))
                     {
-                        StrokeThickness = 1
+                        StrokeThickness = group.Key.LiquidityBucket.HasValue ? 2 : 1
                     },
                     YToolTipLabelFormatter = chartPoint => FormatScatterTooltip(chartPoint, orderedPoints)
                 })
@@ -353,7 +354,22 @@ public sealed class OfzDurationYieldScatterSeriesConverter : IValueConverter
 
         return point is null
             ? $"Дюр. {durationYears:N2}; дох. {yield:N2}"
-            : $"{point.ShortName}: дюр. {point.DurationYears:N2}; дох. {point.Yield:N2}; score {point.ActivityScore:N2}";
+            : $"{point.ShortName}: дюр. {point.DurationYears:N2}; дох. {point.Yield:N2}; score {point.ActivityScore:N2}; spread {FormatOptional(point.Spread, "N3")}; liquidity {FormatLiquidity(point)}";
+    }
+
+    private static string FormatOptional(double? value, string format)
+    {
+        return value.HasValue && double.IsFinite(value.Value)
+            ? value.Value.ToString(format, CultureInfo.CurrentCulture)
+            : "n/a";
+    }
+
+    private static string FormatLiquidity(OfzDurationYieldScatterPoint point)
+    {
+        var bucket = point.LiquidityBucket?.ToString() ?? "n/a";
+        return point.LiquidityStatus.HasValue
+            ? $"{bucket}/{point.LiquidityStatus.Value}"
+            : bucket;
     }
 
     private static double GetGeometrySize(int scoreBucket)
@@ -380,15 +396,125 @@ public sealed class OfzDurationYieldScatterSeriesConverter : IValueConverter
         };
     }
 
-    private static SKColor GetBucketStrokeColor(int scoreBucket)
+    private static SKColor GetLiquidityStrokeColor(OfzLiquidityBucket? bucket)
     {
-        return scoreBucket switch
+        return bucket switch
         {
-            >= 5 => new SKColor(198, 40, 40),
-            4 => new SKColor(239, 108, 0),
-            3 => new SKColor(245, 124, 0),
-            2 => new SKColor(67, 160, 71),
+            OfzLiquidityBucket.Problem => new SKColor(198, 40, 40),
+            OfzLiquidityBucket.Weak => new SKColor(239, 108, 0),
+            OfzLiquidityBucket.Normal => new SKColor(67, 160, 71),
+            OfzLiquidityBucket.Good => new SKColor(30, 136, 229),
+            OfzLiquidityBucket.MissingData => new SKColor(117, 117, 117),
             _ => new SKColor(30, 136, 229)
         };
+    }
+
+    private readonly record struct ScatterSeriesKey(int ScoreBucket, OfzLiquidityBucket? LiquidityBucket);
+}
+
+public sealed class OfzLiquidityMetricValueConverter : IValueConverter
+{
+    public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
+    {
+        if (value is null || value == System.Windows.DependencyProperty.UnsetValue)
+        {
+            return "n/a";
+        }
+
+        var mode = parameter as string ?? string.Empty;
+        return mode switch
+        {
+            "Price" => FormatDouble(value, "N3", culture),
+            "Spread" => FormatDouble(value, "N3", culture),
+            "Score" => FormatDouble(value, "N2", culture),
+            "ValueMillion" => FormatMillions(value, culture),
+            "Number" => FormatDouble(value, "N0", culture),
+            "ObservedAt" => FormatObservedAt(value, culture),
+            "ProvisionalLabel" => FormatProvisionalLabel(value),
+            "Bucket" => FormatBucket(value),
+            "Status" => FormatStatus(value),
+            "Source" => FormatSource(value),
+            _ => value.ToString() ?? "n/a"
+        };
+    }
+
+    public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
+    {
+        throw new NotSupportedException();
+    }
+
+    private static string FormatDouble(object value, string format, CultureInfo culture)
+    {
+        return value switch
+        {
+            double number when double.IsFinite(number) => number.ToString(format, culture),
+            int number => number.ToString(format, culture),
+            _ => "n/a"
+        };
+    }
+
+    private static string FormatMillions(object value, CultureInfo culture)
+    {
+        return value is double number && double.IsFinite(number)
+            ? (number / 1_000_000).ToString("N0", culture)
+            : "n/a";
+    }
+
+    private static string FormatObservedAt(object value, CultureInfo culture)
+    {
+        return value is DateTime observedAt
+            ? $"snapshot {observedAt.ToLocalTime().ToString("dd.MM.yyyy HH:mm", culture)}"
+            : "snapshot n/a";
+    }
+
+    private static string FormatProvisionalLabel(object value)
+    {
+        return value is bool isProvisional
+            ? isProvisional ? "предварительно" : "финально"
+            : "n/a";
+    }
+
+    private static string FormatBucket(object value)
+    {
+        return value is OfzLiquidityBucket bucket
+            ? bucket switch
+            {
+                OfzLiquidityBucket.Good => "хорошая",
+                OfzLiquidityBucket.Normal => "нормальная",
+                OfzLiquidityBucket.Weak => "слабая",
+                OfzLiquidityBucket.Problem => "проблемная",
+                OfzLiquidityBucket.MissingData => "нет котировок",
+                _ => bucket.ToString()
+            }
+            : "n/a";
+    }
+
+    private static string FormatStatus(object value)
+    {
+        return value is OfzLiquidityMetricStatus status
+            ? status switch
+            {
+                OfzLiquidityMetricStatus.Ready => "есть котировки",
+                OfzLiquidityMetricStatus.MissingQuotes => "нет bid/offer",
+                OfzLiquidityMetricStatus.MissingDepth => "нет глубины",
+                OfzLiquidityMetricStatus.SnapshotOnly => "только snapshot",
+                OfzLiquidityMetricStatus.InsufficientActivity => "мало сделок",
+                OfzLiquidityMetricStatus.NoData => "нет данных",
+                _ => status.ToString()
+            }
+            : "n/a";
+    }
+
+    private static string FormatSource(object value)
+    {
+        return value is OfzSpreadSource source
+            ? source switch
+            {
+                OfzSpreadSource.Provided => "ISS spread",
+                OfzSpreadSource.CalculatedFromBidOffer => "offer - bid",
+                OfzSpreadSource.Missing => "n/a",
+                _ => source.ToString()
+            }
+            : "n/a";
     }
 }

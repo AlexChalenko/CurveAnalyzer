@@ -7,4 +7,7 @@ public sealed record OfzActivityDailyData(
     DateTime TradeDate,
     IReadOnlyList<OfzIssue> Issues,
     IReadOnlyList<OfzDailyTrade> Trades,
-    OfzActivityLoadState LoadState);
+    OfzActivityLoadState LoadState)
+{
+    public IReadOnlyList<OfzLiquiditySnapshot> LiquiditySnapshots { get; init; } = [];
+}

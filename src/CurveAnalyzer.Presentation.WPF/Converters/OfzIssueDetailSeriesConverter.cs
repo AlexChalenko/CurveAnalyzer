@@ -75,6 +75,8 @@ public sealed class OfzIssueDetailSeriesConverter : IValueConverter
             "NumTrades" => point.NumTrades,
             "Price" => point.Price,
             "Yield" => point.Yield,
+            "Spread" => point.Spread,
+            "ZSpread" => point.ZSpreadAtWeightedAveragePrice ?? point.ZSpread,
             _ => point.Value.HasValue ? point.Value.Value / 1_000_000 : null
         };
 
@@ -90,6 +92,8 @@ public sealed class OfzIssueDetailSeriesConverter : IValueConverter
             "NumTrades" => "Сделки",
             "Price" => "Цена",
             "Yield" => "Доходность",
+            "Spread" => "Spread",
+            "ZSpread" => "Z-spread",
             _ => "Оборот, млн RUB"
         };
     }
@@ -123,6 +127,8 @@ public sealed class OfzIssueDetailSeriesConverter : IValueConverter
         {
             "NumTrades" => "N0",
             "Price" or "Yield" => "N2",
+            "Spread" => "N3",
+            "ZSpread" => "N2",
             _ => "N2"
         };
     }

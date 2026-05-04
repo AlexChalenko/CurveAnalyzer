@@ -23,6 +23,7 @@
         <converters:OfzDurationYieldScatterSeriesConverter x:Key="OfzDurationYieldScatterSeriesConverter" />
         <converters:OfzDurationYieldScatterXAxisConverter x:Key="OfzDurationYieldScatterXAxisConverter" />
         <converters:OfzDurationYieldScatterYAxisConverter x:Key="OfzDurationYieldScatterYAxisConverter" />
+        <converters:OfzLiquidityMetricValueConverter x:Key="OfzLiquidityMetricValueConverter" />
         <Style x:Key="HeatmapCellButtonStyle" TargetType="{x:Type Button}">
             <Setter Property="Width" Value="32" />
             <Setter Property="Height" Value="18" />
@@ -271,7 +272,15 @@
                         <ColumnDefinition Width="*" />
                     </Grid.ColumnDefinitions>
 
-                    <DataGrid
+                    <Grid Grid.Column="0">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="*" />
+                            <RowDefinition Height="4" />
+                            <RowDefinition Height="170" />
+                        </Grid.RowDefinitions>
+
+                        <DataGrid
+                        Grid.Row="0"
                         Grid.Column="0"
                         AutoGenerateColumns="False"
                         CanUserAddRows="False"
@@ -332,7 +341,70 @@
                                 Binding="{Binding Duration, StringFormat={}{0:N0}, TargetNullValue=n/a}"
                                 Header="Duration" />
                         </DataGrid.Columns>
-                    </DataGrid>
+                        </DataGrid>
+
+                        <GridSplitter
+                            Grid.Row="1"
+                            Height="4"
+                            HorizontalAlignment="Stretch"
+                            Background="LightGray" />
+
+                        <GroupBox Grid.Row="2" Header="Слабая ликвидность">
+                            <DataGrid
+                                AutoGenerateColumns="False"
+                                CanUserAddRows="False"
+                                IsReadOnly="True"
+                                ItemsSource="{Binding WeakLiquidityItems}"
+                                SelectedItem="{Binding SelectedWeakLiquidityItem, Mode=TwoWay}">
+                                <DataGrid.Columns>
+                                    <DataGridTextColumn
+                                        Width="45"
+                                        Binding="{Binding Rank}"
+                                        Header="#" />
+                                    <DataGridTextColumn
+                                        Width="85"
+                                        Binding="{Binding TradeDate, StringFormat={}{0:yyyy-MM-dd}}"
+                                        Header="Дата" />
+                                    <DataGridTextColumn
+                                        Width="105"
+                                        Binding="{Binding SecId}"
+                                        Header="SECID" />
+                                    <DataGridTextColumn
+                                        Width="120"
+                                        Binding="{Binding ShortName}"
+                                        Header="Выпуск" />
+                                    <DataGridTextColumn
+                                        Width="70"
+                                        Binding="{Binding CouponTypeMarker}"
+                                        Header="Тип" />
+                                    <DataGridTextColumn
+                                        Width="75"
+                                        Binding="{Binding Spread, StringFormat={}{0:N3}, TargetNullValue=n/a}"
+                                        Header="Spread" />
+                                    <DataGridTextColumn
+                                        Width="75"
+                                        Binding="{Binding LiquidityScore, StringFormat={}{0:N2}, TargetNullValue=n/a}"
+                                        Header="Score" />
+                                    <DataGridTextColumn
+                                        Width="95"
+                                        Binding="{Binding LiquidityBucket, Converter={StaticResource OfzLiquidityMetricValueConverter}, ConverterParameter=Bucket}"
+                                        Header="Bucket" />
+                                    <DataGridTextColumn
+                                        Width="110"
+                                        Binding="{Binding Status, Converter={StaticResource OfzLiquidityMetricValueConverter}, ConverterParameter=Status}"
+                                        Header="Status" />
+                                    <DataGridTextColumn
+                                        Width="110"
+                                        Binding="{Binding Value, StringFormat={}{0:N0}, TargetNullValue=n/a}"
+                                        Header="Оборот" />
+                                    <DataGridTextColumn
+                                        Width="75"
+                                        Binding="{Binding NumTrades, TargetNullValue=n/a}"
+                                        Header="Сделки" />
+                                </DataGrid.Columns>
+                            </DataGrid>
+                        </GroupBox>
+                    </Grid>
 
                     <GridSplitter
                         Grid.Column="1"
@@ -533,6 +605,7 @@
                                     </Grid.Style>
                                     <Grid.RowDefinitions>
                                         <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
                                         <RowDefinition Height="*" />
                                     </Grid.RowDefinitions>
 
@@ -555,12 +628,78 @@
                                             Text="{Binding SelectedIssueDetail.DisplayMarker}" />
                                     </DockPanel>
 
-                                    <Grid Grid.Row="1">
+                                    <Border
+                                        Grid.Row="1"
+                                        Margin="0,0,0,4"
+                                        Padding="6,4"
+                                        BorderBrush="#E0E0E0"
+                                        BorderThickness="0,0,0,1">
+                                        <StackPanel>
+                                            <DockPanel>
+                                                <TextBlock
+                                                    FontSize="11"
+                                                    FontWeight="SemiBold"
+                                                    Text="Ликвидность" />
+                                                <TextBlock
+                                                    Margin="12,0,0,0"
+                                                    FontSize="10"
+                                                    Foreground="DimGray"
+                                                    Text="{Binding SelectedIssueLiquidityProfile.CurrentSnapshotMetric.ObservedAt, Converter={StaticResource OfzLiquidityMetricValueConverter}, ConverterParameter=ObservedAt}" />
+                                                <TextBlock
+                                                    Margin="8,0,0,0"
+                                                    FontSize="10"
+                                                    Foreground="DimGray"
+                                                    Text="{Binding SelectedIssueLiquidityProfile.CurrentSnapshotMetric.IsProvisional, Converter={StaticResource OfzLiquidityMetricValueConverter}, ConverterParameter=ProvisionalLabel}" />
+                                            </DockPanel>
+                                            <WrapPanel Margin="0,3,0,0">
+                                                <StackPanel Margin="0,0,18,2">
+                                                    <TextBlock FontSize="10" Foreground="DimGray" Text="Bid" />
+                                                    <TextBlock Text="{Binding SelectedIssueLiquidityProfile.CurrentSnapshotMetric.Bid, Converter={StaticResource OfzLiquidityMetricValueConverter}, ConverterParameter=Price}" />
+                                                </StackPanel>
+                                                <StackPanel Margin="0,0,18,2">
+                                                    <TextBlock FontSize="10" Foreground="DimGray" Text="Offer" />
+                                                    <TextBlock Text="{Binding SelectedIssueLiquidityProfile.CurrentSnapshotMetric.Offer, Converter={StaticResource OfzLiquidityMetricValueConverter}, ConverterParameter=Price}" />
+                                                </StackPanel>
+                                                <StackPanel Margin="0,0,18,2">
+                                                    <TextBlock FontSize="10" Foreground="DimGray" Text="Spread" />
+                                                    <TextBlock Text="{Binding SelectedIssueLiquidityProfile.CurrentSnapshotMetric.Spread, Converter={StaticResource OfzLiquidityMetricValueConverter}, ConverterParameter=Spread}" />
+                                                </StackPanel>
+                                                <StackPanel Margin="0,0,18,2">
+                                                    <TextBlock FontSize="10" Foreground="DimGray" Text="Score" />
+                                                    <TextBlock Text="{Binding SelectedIssueLiquidityProfile.CurrentSnapshotMetric.LiquidityScore, Converter={StaticResource OfzLiquidityMetricValueConverter}, ConverterParameter=Score}" />
+                                                </StackPanel>
+                                                <StackPanel Margin="0,0,18,2">
+                                                    <TextBlock FontSize="10" Foreground="DimGray" Text="Bucket" />
+                                                    <TextBlock Text="{Binding SelectedIssueLiquidityProfile.CurrentSnapshotMetric.LiquidityBucket, Converter={StaticResource OfzLiquidityMetricValueConverter}, ConverterParameter=Bucket}" />
+                                                </StackPanel>
+                                                <StackPanel Margin="0,0,18,2">
+                                                    <TextBlock FontSize="10" Foreground="DimGray" Text="Status" />
+                                                    <TextBlock Text="{Binding SelectedIssueLiquidityProfile.CurrentSnapshotMetric.Status, Converter={StaticResource OfzLiquidityMetricValueConverter}, ConverterParameter=Status}" />
+                                                </StackPanel>
+                                                <StackPanel Margin="0,0,18,2">
+                                                    <TextBlock FontSize="10" Foreground="DimGray" Text="Оборот, млн" />
+                                                    <TextBlock Text="{Binding SelectedIssueLiquidityProfile.CurrentSnapshotMetric.Value, Converter={StaticResource OfzLiquidityMetricValueConverter}, ConverterParameter=ValueMillion}" />
+                                                </StackPanel>
+                                                <StackPanel Margin="0,0,18,2">
+                                                    <TextBlock FontSize="10" Foreground="DimGray" Text="Depth bid / offer" />
+                                                    <TextBlock>
+                                                        <Run Text="{Binding SelectedIssueLiquidityProfile.CurrentSnapshotMetric.BidDepthTotal, Converter={StaticResource OfzLiquidityMetricValueConverter}, ConverterParameter=ValueMillion}" />
+                                                        <Run Text=" / " />
+                                                        <Run Text="{Binding SelectedIssueLiquidityProfile.CurrentSnapshotMetric.OfferDepthTotal, Converter={StaticResource OfzLiquidityMetricValueConverter}, ConverterParameter=ValueMillion}" />
+                                                    </TextBlock>
+                                                </StackPanel>
+                                            </WrapPanel>
+                                        </StackPanel>
+                                    </Border>
+
+                                    <Grid Grid.Row="2">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*" />
                                             <ColumnDefinition Width="*" />
                                         </Grid.ColumnDefinitions>
                                         <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="*" />
                                             <RowDefinition Height="Auto" />
                                             <RowDefinition Height="*" />
                                             <RowDefinition Height="Auto" />
@@ -665,6 +804,33 @@
                                             ClipToBounds="True"
                                             Loaded="DetailChart_Loaded"
                                             Series="{Binding SelectedIssueDetail.Points, Converter={StaticResource OfzIssueDetailSeriesConverter}, ConverterParameter=Yield, NotifyOnTargetUpdated=True}"
+                                            TargetUpdated="DetailChart_TargetUpdated"
+                                            XAxes="{Binding SelectedIssueDetail.Points, Converter={StaticResource OfzIssueDetailXAxisConverter}, NotifyOnTargetUpdated=True}"
+                                            ZoomMode="X">
+                                            <lvc:CartesianChart.YAxes>
+                                                <lvc:AxesCollection>
+                                                    <skia:Axis TextSize="9" />
+                                                </lvc:AxesCollection>
+                                            </lvc:CartesianChart.YAxes>
+                                        </lvc:CartesianChart>
+
+                                        <TextBlock
+                                            Grid.Row="4"
+                                            Grid.ColumnSpan="2"
+                                            Margin="6,2,0,0"
+                                            FontSize="11"
+                                            FontWeight="SemiBold"
+                                            Text="Z-spread" />
+                                        <lvc:CartesianChart
+                                            Grid.Row="5"
+                                            Grid.ColumnSpan="2"
+                                            MinWidth="0"
+                                            MinHeight="0"
+                                            AnimationsSpeed="0:0:0"
+                                            Background="White"
+                                            ClipToBounds="True"
+                                            Loaded="DetailChart_Loaded"
+                                            Series="{Binding SelectedIssueDetail.Points, Converter={StaticResource OfzIssueDetailSeriesConverter}, ConverterParameter=ZSpread, NotifyOnTargetUpdated=True}"
                                             TargetUpdated="DetailChart_TargetUpdated"
                                             XAxes="{Binding SelectedIssueDetail.Points, Converter={StaticResource OfzIssueDetailXAxisConverter}, NotifyOnTargetUpdated=True}"
                                             ZoomMode="X">

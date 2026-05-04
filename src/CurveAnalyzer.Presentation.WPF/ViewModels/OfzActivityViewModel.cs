@@ -43,6 +43,12 @@ public partial class OfzActivityViewModel(OfzActivityService activityService) : 
     public partial OfzActivityAnomaly? SelectedTopAnomaly { get; set; }
 
     [ObservableProperty]
+    public partial ObservableCollection<OfzWeakLiquidityItem> WeakLiquidityItems { get; set; } = [];
+
+    [ObservableProperty]
+    public partial OfzWeakLiquidityItem? SelectedWeakLiquidityItem { get; set; }
+
+    [ObservableProperty]
     public partial ObservableCollection<DateTime> HeatmapDates { get; set; } = [];
 
     [ObservableProperty]
@@ -67,6 +73,9 @@ public partial class OfzActivityViewModel(OfzActivityService activityService) : 
     public partial OfzIssueDetail? SelectedIssueDetail { get; set; }
 
     [ObservableProperty]
+    public partial OfzIssueLiquidityProfile? SelectedIssueLiquidityProfile { get; set; }
+
+    [ObservableProperty]
     public partial bool IsLoadingIssueDetail { get; set; }
 
     [ObservableProperty]
@@ -86,6 +95,9 @@ public partial class OfzActivityViewModel(OfzActivityService activityService) : 
 
     [ObservableProperty]
     public partial bool HasAnomalies { get; set; }
+
+    [ObservableProperty]
+    public partial bool HasWeakLiquidity { get; set; }
 
     [ObservableProperty]
     public partial bool HasHeatmap { get; set; }
@@ -179,6 +191,16 @@ public partial class OfzActivityViewModel(OfzActivityService activityService) : 
         _ = LoadIssueDetailsAsync(value.SecId);
     }
 
+    partial void OnSelectedWeakLiquidityItemChanged(OfzWeakLiquidityItem? value)
+    {
+        if (value is null)
+        {
+            return;
+        }
+
+        _ = LoadIssueDetailsAsync(value.SecId);
+    }
+
     partial void OnSelectedCouponTypeFilterChanged(OfzCouponTypeFilter? value)
     {
         if (_currentResult is null || IsLoading)
@@ -218,15 +240,18 @@ public partial class OfzActivityViewModel(OfzActivityService activityService) : 
     private void ClearViewResults()
     {
         TopAnomalies.Clear();
+        WeakLiquidityItems.Clear();
         Insights.Clear();
         ActivityIndex = [];
         DurationYieldScatterPoints = [];
         SelectedTopAnomaly = null;
+        SelectedWeakLiquidityItem = null;
         HeatmapDates.Clear();
         HeatmapRows.Clear();
         SelectedHeatmapCell = null;
         SelectedHeatmapSummary = "Ячейка не выбрана";
         HasAnomalies = false;
+        HasWeakLiquidity = false;
         HasHeatmap = false;
         HasInsights = false;
         HasActivityIndex = false;
@@ -253,14 +278,27 @@ public partial class OfzActivityViewModel(OfzActivityService activityService) : 
             issues,
             _currentResult.StartDate,
             _currentResult.EndDate);
+        var liquidityMetrics = GetFilteredLiquidityMetrics(_currentResult, issues);
+        var signalLiquidityMetrics = GetSignalLiquidityMetrics(liquidityMetrics);
         var insightMetrics = GetInsightMetrics(signalMetrics, _currentResult);
-        var insights = OfzActivityAnalyzer.BuildActivityInsights(insightMetrics, issues);
+        var insightLiquidityMetrics = GetInsightLiquidityMetrics(signalLiquidityMetrics, _currentResult);
+        var insights = OfzActivityAnalyzer.BuildActivityInsights(insightMetrics, issues)
+            .Concat(OfzActivityAnalyzer.BuildLiquidityInsights(insightLiquidityMetrics, issues))
+            .OrderByDescending(insight => insight.Severity)
+            .ThenBy(insight => insight.Kind)
+            .ToList();
         var activityIndex = OfzActivityAnalyzer.BuildActivityIndex(signalMetrics);
-        var scatterPoints = OfzActivityAnalyzer.BuildDurationYieldScatter(signalMetrics, issues);
+        var scatterPoints = OfzActivityAnalyzer.BuildDurationYieldScatter(signalMetrics, issues, signalLiquidityMetrics);
+        var weakLiquidityItems = OfzActivityAnalyzer.GetWeakLiquidityRankings(signalLiquidityMetrics, issues);
 
         foreach (var anomaly in anomalies)
         {
             TopAnomalies.Add(anomaly);
+        }
+
+        foreach (var weakLiquidityItem in weakLiquidityItems)
+        {
+            WeakLiquidityItems.Add(weakLiquidityItem);
         }
 
         ApplyHeatmap(heatmapCells);
@@ -269,11 +307,12 @@ public partial class OfzActivityViewModel(OfzActivityService activityService) : 
         ApplyDurationYieldScatter(scatterPoints);
 
         HasAnomalies = TopAnomalies.Count > 0;
+        HasWeakLiquidity = WeakLiquidityItems.Count > 0;
         var filterLabel = SelectedCouponTypeFilter?.DisplayName ?? "Все";
         var insightPeriodLabel = SelectedInsightPeriodFilter?.DisplayName ?? "Весь диапазон";
         var signalScopeLabel = SelectedSignalScopeFilter?.DisplayName ?? "Все дни";
         StatusMessage = HasAnomalies || HasHeatmap || HasInsights || HasActivityIndex || HasDurationYieldScatter
-            ? $"Найдено всплесков: {TopAnomalies.Count}; heatmap: {HeatmapRows.Count} выпусков; выводов: {Insights.Count}; index: {ActivityIndex.Count}; scatter: {DurationYieldScatterPoints.Count}; тип: {filterLabel}; сигналы: {signalScopeLabel}; период выводов: {insightPeriodLabel}"
+            ? $"Найдено всплесков: {TopAnomalies.Count}; weak liquidity: {WeakLiquidityItems.Count}; heatmap: {HeatmapRows.Count} выпусков; выводов: {Insights.Count}; index: {ActivityIndex.Count}; scatter: {DurationYieldScatterPoints.Count}; тип: {filterLabel}; сигналы: {signalScopeLabel}; период выводов: {insightPeriodLabel}"
             : $"Нет записей с достаточной baseline; тип: {filterLabel}; сигналы: {signalScopeLabel}; период выводов: {insightPeriodLabel}";
     }
 
@@ -300,7 +339,50 @@ public partial class OfzActivityViewModel(OfzActivityService activityService) : 
         return (issues, metrics);
     }
 
+    private IReadOnlyList<OfzLiquidityMetric> GetFilteredLiquidityMetrics(
+        OfzActivityLoadResult result,
+        IReadOnlyList<OfzIssue> issues)
+    {
+        var metrics = result.LiquidityMetrics
+            .Concat(result.SnapshotLiquidityMetrics);
+        var selectedType = SelectedCouponTypeFilter?.CouponType;
+        if (!selectedType.HasValue)
+        {
+            return metrics.ToList();
+        }
+
+        var secIds = issues
+            .Select(issue => issue.SecId)
+            .Where(secId => !string.IsNullOrWhiteSpace(secId))
+            .ToHashSet(StringComparer.Ordinal);
+
+        return metrics
+            .Where(metric => secIds.Contains(metric.SecId))
+            .ToList();
+    }
+
     private IReadOnlyList<OfzActivityMetric> GetSignalMetrics(IReadOnlyList<OfzActivityMetric> metrics)
+    {
+        if (SelectedSignalScopeFilter?.LastAvailableDayOnly != true)
+        {
+            return metrics;
+        }
+
+        var lastDate = metrics
+            .Select(metric => metric.TradeDate.Date)
+            .DefaultIfEmpty()
+            .Max();
+        if (lastDate == default)
+        {
+            return [];
+        }
+
+        return metrics
+            .Where(metric => metric.TradeDate.Date == lastDate)
+            .ToList();
+    }
+
+    private IReadOnlyList<OfzLiquidityMetric> GetSignalLiquidityMetrics(IReadOnlyList<OfzLiquidityMetric> metrics)
     {
         if (SelectedSignalScopeFilter?.LastAvailableDayOnly != true)
         {
@@ -323,6 +405,34 @@ public partial class OfzActivityViewModel(OfzActivityService activityService) : 
 
     private IReadOnlyList<OfzActivityMetric> GetInsightMetrics(
         IReadOnlyList<OfzActivityMetric> metrics,
+        OfzActivityLoadResult result)
+    {
+        var days = SelectedInsightPeriodFilter?.Days;
+        if (!days.HasValue)
+        {
+            return metrics;
+        }
+
+        var startDate = result.StartDate.Date;
+        var endDate = result.EndDate.Date;
+        if (startDate > endDate)
+        {
+            (startDate, endDate) = (endDate, startDate);
+        }
+
+        var insightStartDate = endDate.AddDays(-(days.Value - 1));
+        if (insightStartDate < startDate)
+        {
+            insightStartDate = startDate;
+        }
+
+        return metrics
+            .Where(metric => metric.TradeDate.Date >= insightStartDate && metric.TradeDate.Date <= endDate)
+            .ToList();
+    }
+
+    private IReadOnlyList<OfzLiquidityMetric> GetInsightLiquidityMetrics(
+        IReadOnlyList<OfzLiquidityMetric> metrics,
         OfzActivityLoadResult result)
     {
         var days = SelectedInsightPeriodFilter?.Days;
@@ -397,7 +507,7 @@ public partial class OfzActivityViewModel(OfzActivityService activityService) : 
         DurationYieldScatterPoints = new ObservableCollection<OfzDurationYieldScatterPoint>(points);
         HasDurationYieldScatter = DurationYieldScatterPoints.Count > 0;
         DurationYieldScatterStatusMessage = HasDurationYieldScatter
-            ? $"{DurationYieldScatterPoints.Count} точек; X = дюрация, Y = доходность; цвет/размер = score bucket"
+            ? $"{DurationYieldScatterPoints.Count} точек; X = дюрация, Y = доходность; заливка/размер = score, обводка/tooltip = liquidity"
             : "Нет точек: нужны Duration и текущая доходность; у ОФЗ-ПК эти поля часто отсутствуют";
     }
 
@@ -414,9 +524,14 @@ public partial class OfzActivityViewModel(OfzActivityService activityService) : 
 
         try
         {
-            var detail = await activityService
-                .GetIssueDetailsAsync(secId, StartDate.Value, EndDate.Value, CancellationToken.None)
-                .ConfigureAwait(true);
+            var detailTask = activityService
+                .GetIssueDetailsAsync(secId, StartDate.Value, EndDate.Value, CancellationToken.None);
+            var liquidityProfileTask = activityService
+                .GetIssueLiquidityProfileAsync(secId, StartDate.Value, EndDate.Value, CancellationToken.None);
+
+            await Task.WhenAll(detailTask, liquidityProfileTask).ConfigureAwait(true);
+            var detail = await detailTask.ConfigureAwait(true);
+            var liquidityProfile = await liquidityProfileTask.ConfigureAwait(true);
 
             if (version != _detailSelectionVersion)
             {
@@ -424,6 +539,7 @@ public partial class OfzActivityViewModel(OfzActivityService activityService) : 
             }
 
             SelectedIssueDetail = detail;
+            SelectedIssueLiquidityProfile = liquidityProfile;
             IssueDetailStatusMessage = detail.HasPoints
                 ? $"{detail.ShortName} ({detail.SecId}): {detail.Points.Count} записей"
                 : $"{secId}: нет записей за диапазон";
@@ -436,6 +552,7 @@ public partial class OfzActivityViewModel(OfzActivityService activityService) : 
             }
 
             SelectedIssueDetail = null;
+            SelectedIssueLiquidityProfile = null;
             IssueDetailStatusMessage = $"Ошибка детализации: {ex.Message}";
         }
         finally
@@ -451,6 +568,7 @@ public partial class OfzActivityViewModel(OfzActivityService activityService) : 
     {
         _detailSelectionVersion++;
         SelectedIssueDetail = null;
+        SelectedIssueLiquidityProfile = null;
         IsLoadingIssueDetail = false;
         IssueDetailStatusMessage = "Выпуск не выбран";
     }

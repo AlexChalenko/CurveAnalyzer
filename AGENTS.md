@@ -1,8 +1,8 @@
 # Инструкции для агентов
 
 <!-- SPECKIT START -->
-Для текущей миграции сначала читай активный план:
-`specs/002-migrate-livecharts2/plan.md`.
+Для текущей feature сначала читай активный план:
+`specs/004-ofz-liquidity-spread/plan.md`.
 <!-- SPECKIT END -->
 
 ## Язык документации

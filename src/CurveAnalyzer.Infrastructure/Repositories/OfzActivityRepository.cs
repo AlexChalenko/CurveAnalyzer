@@ -46,6 +46,8 @@ public sealed class OfzActivityRepository(IDbContextFactory<MoexContext> context
             .ExecuteDeleteAsync(cancellationToken)
             .ConfigureAwait(false);
 
+        await SaveLiquiditySnapshotsAsync(context, data, cancellationToken).ConfigureAwait(false);
+
         var trades = data.Trades
             .Where(trade => !string.IsNullOrWhiteSpace(trade.SecId))
             .GroupBy(trade => new { trade.BoardId, trade.SecId, trade.TradeDate })
@@ -111,6 +113,50 @@ public sealed class OfzActivityRepository(IDbContextFactory<MoexContext> context
                 trade.TradeDate >= startDate.Date &&
                 trade.TradeDate <= endDate.Date)
             .OrderBy(trade => trade.TradeDate)
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<OfzLiquiditySnapshot>> GetLiquiditySnapshotsAsync(
+        DateTime startDate,
+        DateTime endDate,
+        string boardId,
+        CancellationToken cancellationToken = default)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
+
+        return await context.OfzLiquiditySnapshots
+            .AsNoTracking()
+            .Where(snapshot =>
+                snapshot.BoardId == boardId &&
+                snapshot.TradeDate >= startDate.Date &&
+                snapshot.TradeDate <= endDate.Date)
+            .OrderBy(snapshot => snapshot.SecId)
+            .ThenBy(snapshot => snapshot.TradeDate)
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<OfzLiquiditySnapshot>> GetIssueLiquiditySnapshotsAsync(
+        string secId,
+        DateTime startDate,
+        DateTime endDate,
+        string boardId,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(secId))
+        {
+            return [];
+        }
+
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
+
+        return await context.OfzLiquiditySnapshots
+            .AsNoTracking()
+            .Where(snapshot =>
+                snapshot.BoardId == boardId &&
+                snapshot.SecId == secId &&
+                snapshot.TradeDate >= startDate.Date &&
+                snapshot.TradeDate <= endDate.Date)
+            .OrderBy(snapshot => snapshot.TradeDate)
             .ToListAsync(cancellationToken);
     }
 
@@ -185,6 +231,43 @@ public sealed class OfzActivityRepository(IDbContextFactory<MoexContext> context
             {
                 await context.OfzIssues.AddAsync(issue, cancellationToken).ConfigureAwait(false);
             }
+        }
+    }
+
+    private static async Task SaveLiquiditySnapshotsAsync(
+        MoexContext context,
+        OfzActivityDailyData data,
+        CancellationToken cancellationToken)
+    {
+        var snapshots = data.LiquiditySnapshots
+            .Where(snapshot =>
+                snapshot.BoardId == data.BoardId &&
+                snapshot.TradeDate == data.TradeDate.Date &&
+                !string.IsNullOrWhiteSpace(snapshot.SecId))
+            .GroupBy(snapshot => new { snapshot.BoardId, snapshot.SecId, snapshot.TradeDate })
+            .Select(group => group.Last())
+            .ToList();
+
+        if (snapshots.Count > 0)
+        {
+            await context.OfzLiquiditySnapshots
+                .Where(snapshot => snapshot.BoardId == data.BoardId && snapshot.TradeDate == data.TradeDate.Date)
+                .ExecuteDeleteAsync(cancellationToken)
+                .ConfigureAwait(false);
+
+            await context.OfzLiquiditySnapshots.AddRangeAsync(snapshots, cancellationToken).ConfigureAwait(false);
+            return;
+        }
+
+        if (!data.LoadState.IsProvisional)
+        {
+            await context.OfzLiquiditySnapshots
+                .Where(snapshot =>
+                    snapshot.BoardId == data.BoardId &&
+                    snapshot.TradeDate == data.TradeDate.Date &&
+                    snapshot.IsProvisional)
+                .ExecuteDeleteAsync(cancellationToken)
+                .ConfigureAwait(false);
         }
     }
 }

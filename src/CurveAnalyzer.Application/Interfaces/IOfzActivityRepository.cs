@@ -27,6 +27,19 @@ public interface IOfzActivityRepository
         string boardId,
         CancellationToken cancellationToken = default);
 
+    Task<IReadOnlyList<OfzLiquiditySnapshot>> GetLiquiditySnapshotsAsync(
+        DateTime startDate,
+        DateTime endDate,
+        string boardId,
+        CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<OfzLiquiditySnapshot>> GetIssueLiquiditySnapshotsAsync(
+        string secId,
+        DateTime startDate,
+        DateTime endDate,
+        string boardId,
+        CancellationToken cancellationToken = default);
+
     Task<IReadOnlyList<OfzDailyTrade>> GetBaselineTradesAsync(
         DateTime beforeDate,
         int recordsPerIssue,
