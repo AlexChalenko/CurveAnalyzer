@@ -177,11 +177,12 @@
                         Text="{Binding SelectedSummaryEvidenceText}"
                         TextWrapping="Wrap" />
 
-                    <StackPanel
+                    <DockPanel
                         Grid.RowSpan="2"
                         Grid.Column="2"
-                        Margin="0,2,0,0">
-                        <DockPanel Margin="0,0,0,4">
+                        Margin="0,2,0,0"
+                        LastChildFill="True">
+                        <DockPanel Margin="0,0,0,4" DockPanel.Dock="Top">
                             <TextBlock
                                 VerticalAlignment="Center"
                                 DockPanel.Dock="Left"
@@ -194,8 +195,39 @@
                                 Content="JSON"
                                 DockPanel.Dock="Right" />
                         </DockPanel>
+
+                        <Border
+                            DockPanel.Dock="Bottom"
+                            Margin="0,4,0,0"
+                            Padding="0,4,0,0"
+                            BorderBrush="#E0E0E0"
+                            BorderThickness="0,1,0,0"
+                            Visibility="{Binding HasSummaryLimitations, Converter={StaticResource BoolToVis}}">
+                            <StackPanel>
+                                <TextBlock
+                                    FontWeight="SemiBold"
+                                    Text="Ограничения" />
+                                <ScrollViewer
+                                    MaxHeight="52"
+                                    HorizontalScrollBarVisibility="Disabled"
+                                    VerticalScrollBarVisibility="Auto">
+                                    <ItemsControl ItemsSource="{Binding SummaryLimitations}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <TextBlock
+                                                    Margin="0,1,0,0"
+                                                    FontSize="10"
+                                                    Foreground="DimGray"
+                                                    Text="{Binding Text}"
+                                                    TextWrapping="Wrap" />
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </ScrollViewer>
+                            </StackPanel>
+                        </Border>
+
                         <ScrollViewer
-                            MaxHeight="130"
                             HorizontalScrollBarVisibility="Disabled"
                             VerticalScrollBarVisibility="Auto">
                             <ItemsControl ItemsSource="{Binding SegmentSummaries}">
@@ -231,26 +263,7 @@
                                 </ItemsControl.ItemTemplate>
                             </ItemsControl>
                         </ScrollViewer>
-                        <StackPanel
-                            Margin="0,4,0,0"
-                            Visibility="{Binding HasSummaryLimitations, Converter={StaticResource BoolToVis}}">
-                            <TextBlock
-                                FontWeight="SemiBold"
-                                Text="Ограничения" />
-                            <ItemsControl ItemsSource="{Binding SummaryLimitations}">
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate>
-                                        <TextBlock
-                                            Margin="0,1,0,0"
-                                            FontSize="10"
-                                            Foreground="DimGray"
-                                            Text="{Binding Text}"
-                                            TextWrapping="Wrap" />
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-                        </StackPanel>
-                    </StackPanel>
+                    </DockPanel>
                 </Grid>
             </GroupBox>
 
