@@ -133,34 +133,125 @@
                 Grid.Row="0"
                 Margin="0,0,0,6"
                 Header="Выводы"
-                Visibility="{Binding HasInsights, Converter={StaticResource BoolToVis}}">
-                <ScrollViewer
-                    MaxHeight="150"
-                    HorizontalScrollBarVisibility="Disabled"
-                    VerticalScrollBarVisibility="Auto">
-                    <ItemsControl ItemsSource="{Binding Insights}">
-                        <ItemsControl.ItemTemplate>
+                Visibility="{Binding HasMarketSummary, Converter={StaticResource BoolToVis}}">
+                <Grid MaxHeight="170">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="2*" />
+                        <ColumnDefinition Width="8" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <ListBox
+                        Grid.Row="0"
+                        Grid.Column="0"
+                        BorderThickness="0"
+                        ItemsSource="{Binding SummaryFindings}"
+                        SelectedItem="{Binding SelectedSummaryFinding, Mode=TwoWay}"
+                        ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                        ScrollViewer.VerticalScrollBarVisibility="Auto">
+                        <ListBox.ItemTemplate>
                             <DataTemplate>
-                                <Border
-                                    Margin="4,2"
-                                    Padding="4,2"
-                                    BorderBrush="#E0E0E0"
-                                    BorderThickness="0,0,0,1">
-                                    <StackPanel>
+                                <StackPanel Margin="2,2,6,3">
+                                    <TextBlock
+                                        FontWeight="SemiBold"
+                                        Text="{Binding Title}"
+                                        TextWrapping="Wrap" />
+                                    <TextBlock
+                                        Margin="0,2,0,0"
+                                        Text="{Binding Text}"
+                                        TextWrapping="Wrap" />
+                                </StackPanel>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+
+                    <TextBlock
+                        Grid.Row="1"
+                        Grid.Column="0"
+                        Margin="4,4,4,0"
+                        Foreground="DimGray"
+                        Text="{Binding SelectedSummaryEvidenceText}"
+                        TextWrapping="Wrap" />
+
+                    <StackPanel
+                        Grid.RowSpan="2"
+                        Grid.Column="2"
+                        Margin="0,2,0,0">
+                        <DockPanel Margin="0,0,0,4">
+                            <TextBlock
+                                VerticalAlignment="Center"
+                                DockPanel.Dock="Left"
+                                FontWeight="SemiBold"
+                                Text="Сегменты" />
+                            <Button
+                                Margin="8,0,0,0"
+                                Padding="8,2"
+                                Command="{Binding CopySummaryJsonCommand}"
+                                Content="JSON"
+                                DockPanel.Dock="Right" />
+                        </DockPanel>
+                        <ScrollViewer
+                            MaxHeight="130"
+                            HorizontalScrollBarVisibility="Disabled"
+                            VerticalScrollBarVisibility="Auto">
+                            <ItemsControl ItemsSource="{Binding SegmentSummaries}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border
+                                            Margin="0,0,0,4"
+                                            Padding="0,0,0,4"
+                                            BorderBrush="#E0E0E0"
+                                            BorderThickness="0,0,0,1">
+                                            <StackPanel>
+                                                <TextBlock FontWeight="SemiBold">
+                                                    <Run Text="{Binding CouponTypeMarker}" />
+                                                    <Run Text=": " />
+                                                    <Run Text="{Binding TotalValue, StringFormat={}{0:N0}}" />
+                                                    <Run Text=" " />
+                                                    <Run Text="{Binding TotalValueUnitMarker}" />
+                                                </TextBlock>
+                                                <TextBlock
+                                                    FontSize="10"
+                                                    Foreground="DimGray"
+                                                    TextWrapping="Wrap">
+                                                    <Run Text="активных " />
+                                                    <Run Text="{Binding ActiveIssueCount}" />
+                                                    <Run Text=", weak " />
+                                                    <Run Text="{Binding WeakLiquidityCount}" />
+                                                    <Run Text=", missing quotes " />
+                                                    <Run Text="{Binding MissingQuotesCount}" />
+                                                </TextBlock>
+                                            </StackPanel>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
+                        <StackPanel
+                            Margin="0,4,0,0"
+                            Visibility="{Binding HasSummaryLimitations, Converter={StaticResource BoolToVis}}">
+                            <TextBlock
+                                FontWeight="SemiBold"
+                                Text="Ограничения" />
+                            <ItemsControl ItemsSource="{Binding SummaryLimitations}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
                                         <TextBlock
-                                            FontWeight="SemiBold"
-                                            Text="{Binding Title}"
-                                            TextWrapping="Wrap" />
-                                        <TextBlock
-                                            Margin="0,2,0,0"
+                                            Margin="0,1,0,0"
+                                            FontSize="10"
+                                            Foreground="DimGray"
                                             Text="{Binding Text}"
                                             TextWrapping="Wrap" />
-                                    </StackPanel>
-                                </Border>
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
-                </ScrollViewer>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </StackPanel>
+                </Grid>
             </GroupBox>
 
             <GroupBox Grid.Row="1" Header="Карта активности">
