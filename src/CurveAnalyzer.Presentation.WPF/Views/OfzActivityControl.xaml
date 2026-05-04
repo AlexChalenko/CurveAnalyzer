@@ -212,7 +212,7 @@
                                                     <Run Text=": " />
                                                     <Run Text="{Binding TotalValue, StringFormat={}{0:N0}}" />
                                                     <Run Text=" " />
-                                                    <Run Text="{Binding TotalValueUnitMarker}" />
+                                                    <Run Text="{Binding TotalValueUnitMarker, Mode=OneWay}" />
                                                 </TextBlock>
                                                 <TextBlock
                                                     FontSize="10"
