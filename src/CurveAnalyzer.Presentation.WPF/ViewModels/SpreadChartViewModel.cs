@@ -10,6 +10,7 @@ namespace CurveAnalyzer.Presentation.WPF.ViewModels;
 public partial class SpreadChartViewModel : ObservableObject, IChartViewModel
 {
     private readonly DataSyncService _dataService;
+    private bool _initialized;
 
     [ObservableProperty]
     public partial ObservableCollection<double> PeriodsList { get; set; } = [];
@@ -33,6 +34,11 @@ public partial class SpreadChartViewModel : ObservableObject, IChartViewModel
 
     public async Task Initialize()
     {
+        if (_initialized && PeriodsList.Count > 0)
+        {
+            return;
+        }
+
         var periods = await _dataService.GetAvailablePeriodsAsync(CancellationToken.None);
 
         PeriodsList.Clear();
@@ -40,6 +46,8 @@ public partial class SpreadChartViewModel : ObservableObject, IChartViewModel
         {
             PeriodsList.Add(period);
         }
+
+        _initialized = true;
     }
 
     private async Task LoadDataAsync()

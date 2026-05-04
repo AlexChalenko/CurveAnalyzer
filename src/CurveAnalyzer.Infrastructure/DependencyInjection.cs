@@ -17,13 +17,14 @@ public static class DependencyInjection
         var connectionString = ResolveConnectionString(
             configuration.GetConnectionString("MoexHistory") ?? CreateDefaultConnectionString());
 
-        services.AddDbContext<MoexContext>(options =>
+        services.AddDbContextFactory<MoexContext>(options =>
             options
                 .UseSqlite(connectionString)
                 .UseQueryTrackingBehavior(QueryTrackingBehavior.NoTracking));
 
-        services.AddScoped<IZcycRepository, ZcycRepository>();
-        services.AddScoped<IDatabaseInitializer, DatabaseInitializer>();
+        services.AddSingleton<IZcycRepository, ZcycRepository>();
+        services.AddSingleton<IOfzActivityRepository, OfzActivityRepository>();
+        services.AddSingleton<IDatabaseInitializer, DatabaseInitializer>();
 
         return services;
     }

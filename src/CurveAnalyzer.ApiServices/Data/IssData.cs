@@ -1,5 +1,7 @@
 using System.Xml.Serialization;
 
+#nullable disable
+
 namespace CurveAnalyzer.ApiServices.Data;
 
 

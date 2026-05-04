@@ -8,6 +8,7 @@ namespace CurveAnalyzer.Presentation.WPF.ViewModels;
 public partial class RateChartViewModel(DataSyncService dataService) : ObservableObject, IChartViewModel
 {
     private readonly DataSyncService _dataService = dataService;
+    private bool _initialized;
 
     [ObservableProperty]
     public partial double SelectedPeriod { get; set; }
@@ -20,6 +21,11 @@ public partial class RateChartViewModel(DataSyncService dataService) : Observabl
 
     public async Task Initialize()
     {
+        if (_initialized && Periods.Count > 0)
+        {
+            return;
+        }
+
         var periods = await _dataService.GetAvailablePeriodsAsync(CancellationToken.None);
 
         Periods.Clear();
@@ -27,6 +33,8 @@ public partial class RateChartViewModel(DataSyncService dataService) : Observabl
         {
             Periods.Add(period);
         }
+
+        _initialized = true;
     }
 
     partial void OnSelectedPeriodChanged(double value)

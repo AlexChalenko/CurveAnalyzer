@@ -8,7 +8,8 @@ public static class DependencyInjection
     public static IServiceCollection AddMoexApiServices(this IServiceCollection services)
     {
         services.AddSingleton<HttpClient>();
-        services.AddScoped<IDataService, OnlineDataService>();
+        services.AddSingleton<IDataService, OnlineDataService>();
+        services.AddSingleton<IOfzActivityDataService, OfzActivityOnlineDataService>();
 
         return services;
     }
