@@ -38,6 +38,9 @@ public sealed class OfzActivityService(
         var rangeTrades = await repository
             .GetTradesAsync(startDate, endDate, BoardId, cancellationToken)
             .ConfigureAwait(false);
+        var liquiditySnapshots = await repository
+            .GetLiquiditySnapshotsAsync(startDate, endDate, BoardId, cancellationToken)
+            .ConfigureAwait(false);
 
         var allTrades = baselineTrades
             .Concat(rangeTrades)
@@ -48,6 +51,8 @@ public sealed class OfzActivityService(
         var metrics = OfzActivityAnalyzer.CalculateMetrics(allTrades)
             .Where(metric => metric.TradeDate >= startDate && metric.TradeDate <= endDate)
             .ToList();
+        var liquidityMetrics = OfzActivityAnalyzer.CalculateLiquidityMetrics(rangeTrades);
+        var snapshotLiquidityMetrics = OfzActivityAnalyzer.CalculateSnapshotLiquidityMetrics(liquiditySnapshots);
 
         var secIds = allTrades
             .Select(trade => trade.SecId)
@@ -56,7 +61,12 @@ public sealed class OfzActivityService(
             .ToList();
         var issues = await repository.GetIssuesAsync(secIds, cancellationToken).ConfigureAwait(false);
 
-        return new OfzActivityLoadResult(startDate, endDate, issues, rangeTrades, metrics);
+        return new OfzActivityLoadResult(startDate, endDate, issues, rangeTrades, metrics)
+        {
+            LiquiditySnapshots = liquiditySnapshots,
+            LiquidityMetrics = liquidityMetrics,
+            SnapshotLiquidityMetrics = snapshotLiquidityMetrics
+        };
     }
 
     public async Task<IReadOnlyList<OfzActivityAnomaly>> GetTopAnomaliesAsync(
@@ -68,6 +78,36 @@ public sealed class OfzActivityService(
     {
         var result = await LoadActivityAsync(startDate, endDate, progress, cancellationToken).ConfigureAwait(false);
         return OfzActivityAnalyzer.GetTopAnomalies(result.Metrics, result.Issues, topCount);
+    }
+
+    public async Task<IReadOnlyList<OfzWeakLiquidityItem>> GetWeakLiquidityAsync(
+        DateTime startDate,
+        DateTime endDate,
+        int topCount = 50,
+        IProgress<SyncProgress>? progress = null,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await LoadActivityAsync(startDate, endDate, progress, cancellationToken).ConfigureAwait(false);
+        var metrics = result.LiquidityMetrics
+            .Concat(result.SnapshotLiquidityMetrics)
+            .ToList();
+
+        return OfzActivityAnalyzer.GetWeakLiquidityRankings(metrics, result.Issues, topCount);
+    }
+
+    public async Task<IReadOnlyList<OfzActivityInsight>> GetLiquidityInsightsAsync(
+        DateTime startDate,
+        DateTime endDate,
+        int maxInsights = 4,
+        IProgress<SyncProgress>? progress = null,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await LoadActivityAsync(startDate, endDate, progress, cancellationToken).ConfigureAwait(false);
+        var metrics = result.LiquidityMetrics
+            .Concat(result.SnapshotLiquidityMetrics)
+            .ToList();
+
+        return OfzActivityAnalyzer.BuildLiquidityInsights(metrics, result.Issues, maxInsights);
     }
 
     public async Task<IReadOnlyList<OfzActivityHeatmapCell>> GetHeatmapCellsAsync(
@@ -98,7 +138,11 @@ public sealed class OfzActivityService(
         CancellationToken cancellationToken = default)
     {
         var result = await LoadActivityAsync(startDate, endDate, progress, cancellationToken).ConfigureAwait(false);
-        return OfzActivityAnalyzer.BuildDurationYieldScatter(result.Metrics, result.Issues, tradeDate);
+        return OfzActivityAnalyzer.BuildDurationYieldScatter(
+            result.Metrics,
+            result.Issues,
+            result.LiquidityMetrics,
+            tradeDate);
     }
 
     public async Task<OfzIssueDetail> GetIssueDetailsAsync(
@@ -120,8 +164,49 @@ public sealed class OfzActivityService(
         var issues = await repository
             .GetIssuesAsync([secId], cancellationToken)
             .ConfigureAwait(false);
+        var snapshots = await repository
+            .GetIssueLiquiditySnapshotsAsync(secId, startDate, endDate, BoardId, cancellationToken)
+            .ConfigureAwait(false);
+        var currentSnapshot = snapshots
+            .OrderByDescending(snapshot => snapshot.TradeDate)
+            .ThenByDescending(snapshot => snapshot.ObservedAt)
+            .FirstOrDefault();
 
-        return OfzActivityAnalyzer.BuildIssueDetail(secId, trades, issues.FirstOrDefault());
+        return OfzActivityAnalyzer.BuildIssueDetail(secId, trades, issues.FirstOrDefault(), currentSnapshot);
+    }
+
+    public async Task<OfzIssueLiquidityProfile> GetIssueLiquidityProfileAsync(
+        string secId,
+        DateTime startDate,
+        DateTime endDate,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(secId))
+        {
+            throw new ArgumentException("SECID is required.", nameof(secId));
+        }
+
+        (startDate, endDate) = NormalizeRange(startDate, endDate);
+
+        var trades = await repository
+            .GetIssueTradesAsync(secId, startDate, endDate, BoardId, cancellationToken)
+            .ConfigureAwait(false);
+        var snapshots = await repository
+            .GetIssueLiquiditySnapshotsAsync(secId, startDate, endDate, BoardId, cancellationToken)
+            .ConfigureAwait(false);
+        var issues = await repository
+            .GetIssuesAsync([secId], cancellationToken)
+            .ConfigureAwait(false);
+        var currentSnapshot = snapshots
+            .OrderByDescending(snapshot => snapshot.TradeDate)
+            .ThenByDescending(snapshot => snapshot.ObservedAt)
+            .FirstOrDefault();
+
+        return OfzActivityAnalyzer.BuildIssueLiquidityProfile(
+            secId,
+            trades,
+            currentSnapshot,
+            issues.FirstOrDefault());
     }
 
     private async Task EnsureDatesLoadedAsync(

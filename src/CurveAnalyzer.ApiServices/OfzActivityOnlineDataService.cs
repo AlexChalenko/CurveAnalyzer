@@ -9,7 +9,7 @@ public sealed class OfzActivityOnlineDataService(HttpClient httpClient) : IOfzAc
 {
     private const string BoardId = "TQOB";
     private const string HistoryColumns =
-        "BOARDID,TRADEDATE,SHORTNAME,SECID,NUMTRADES,VALUE,LOW,HIGH,CLOSE,WAPRICE,YIELDCLOSE,OPEN,VOLUME,MATDATE,DURATION,YIELDATWAP,COUPONPERCENT,COUPONVALUE,COUPONPERIOD,COUPONDATE,FACEVALUE,INITIALFACEVALUE,CURRENCYID,FACEUNIT,ZSPREAD,ZSPREADATWAPRICE,BONDTYPE,BONDSUBTYPE,SECNAME,ISSUENAME,LISTLEVEL,ISSUESIZE,ISSUESIZEPLACED";
+        "BOARDID,TRADEDATE,SHORTNAME,SECID,NUMTRADES,VALUE,LOW,HIGH,CLOSE,WAPRICE,YIELDCLOSE,OPEN,VOLUME,MATDATE,DURATION,YIELDATWAP,BID,OFFER,SPREAD,HIGHBID,LOWOFFER,ZSPREAD,ZSPREADATWAPRICE,IRICPICLOSE,BEICLOSE,CBRCLOSE,COUPONPERCENT,COUPONVALUE,COUPONPERIOD,COUPONDATE,FACEVALUE,INITIALFACEVALUE,CURRENCYID,FACEUNIT,BONDTYPE,BONDSUBTYPE,SECNAME,ISSUENAME,LISTLEVEL,ISSUESIZE,ISSUESIZEPLACED";
 
     public async Task<OfzActivityDailyData> GetHistoryForDateAsync(
         DateTime date,
@@ -77,7 +77,7 @@ public sealed class OfzActivityOnlineDataService(HttpClient httpClient) : IOfzAc
     {
         var tradeDate = DateTime.Today;
         var loadedAt = DateTime.UtcNow;
-        var url = "https://iss.moex.com/iss/engines/stock/markets/bonds/boards/TQOB/securities.json?iss.only=securities,marketdata&iss.meta=off";
+        var url = "https://iss.moex.com/iss/engines/stock/markets/bonds/boards/TQOB/securities.json?iss.only=securities,marketdata,marketdata_yields&iss.meta=off";
 
         await using var stream = await httpClient.GetStreamAsync(url, cancellationToken).ConfigureAwait(false);
         using var document = await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken).ConfigureAwait(false);
@@ -99,7 +99,9 @@ public sealed class OfzActivityOnlineDataService(HttpClient httpClient) : IOfzAc
             }
         }
 
+        var yieldDataBySecId = MapYieldDataBySecId(root);
         List<OfzDailyTrade> trades = [];
+        List<OfzLiquiditySnapshot> liquiditySnapshots = [];
         var marketData = IssJsonTable.TryCreate(root, "marketdata");
         if (marketData is not null)
         {
@@ -117,6 +119,8 @@ public sealed class OfzActivityOnlineDataService(HttpClient httpClient) : IOfzAc
                 }
 
                 trades.Add(MapTradeFromMarketData(marketData, row, secId, tradeDate, loadedAt));
+                yieldDataBySecId.TryGetValue(secId, out var yieldData);
+                liquiditySnapshots.Add(MapLiquiditySnapshotFromMarketData(marketData, row, secId, tradeDate, loadedAt, yieldData));
             }
         }
 
@@ -133,7 +137,10 @@ public sealed class OfzActivityOnlineDataService(HttpClient httpClient) : IOfzAc
                 Status = trades.Count == 0 ? OfzActivityLoadStatus.NoData : OfzActivityLoadStatus.Loaded,
                 RowsLoaded = trades.Count,
                 LoadedAt = loadedAt
-            });
+            })
+        {
+            LiquiditySnapshots = liquiditySnapshots
+        };
     }
 
     private static string CreateHistoryUrl(DateTime date, int start)
@@ -222,8 +229,16 @@ public sealed class OfzActivityOnlineDataService(HttpClient httpClient) : IOfzAc
             YieldClose = NullIfZero(table.GetDouble(row, "YIELDCLOSE")),
             YieldAtWeightedAveragePrice = NullIfZero(table.GetDouble(row, "YIELDATWAP")),
             Duration = NullIfZero(table.GetDouble(row, "DURATION")),
+            Bid = table.GetDouble(row, "BID"),
+            Offer = table.GetDouble(row, "OFFER"),
+            Spread = table.GetDouble(row, "SPREAD"),
+            HighBid = table.GetDouble(row, "HIGHBID"),
+            LowOffer = table.GetDouble(row, "LOWOFFER"),
             ZSpread = table.GetDouble(row, "ZSPREAD"),
             ZSpreadAtWeightedAveragePrice = table.GetDouble(row, "ZSPREADATWAPRICE"),
+            ImpliedFloatingRate = table.GetDouble(row, "IRICPICLOSE"),
+            ImpliedInflation = table.GetDouble(row, "BEICLOSE"),
+            ImpliedCbrRate = table.GetDouble(row, "CBRCLOSE"),
             LoadedAt = loadedAt
         };
     }
@@ -250,7 +265,80 @@ public sealed class OfzActivityOnlineDataService(HttpClient httpClient) : IOfzAc
             Duration = NullIfZero(table.GetDouble(row, "DURATION")),
             ZSpread = table.GetDouble(row, "ZSPREAD"),
             ZSpreadAtWeightedAveragePrice = table.GetDouble(row, "ZSPREADATWAPRICE"),
+            ImpliedFloatingRate = table.GetDouble(row, "IRICPICLOSE"),
+            ImpliedInflation = table.GetDouble(row, "BEICLOSE"),
+            ImpliedCbrRate = table.GetDouble(row, "CBRCLOSE"),
             LoadedAt = loadedAt
+        };
+    }
+
+    private static Dictionary<string, CurrentYieldData> MapYieldDataBySecId(JsonElement root)
+    {
+        var result = new Dictionary<string, CurrentYieldData>(StringComparer.Ordinal);
+        var marketDataYields = IssJsonTable.TryCreate(root, "marketdata_yields");
+        if (marketDataYields is null)
+        {
+            return result;
+        }
+
+        foreach (var row in marketDataYields.Rows)
+        {
+            var secId = marketDataYields.GetString(row, "SECID");
+            if (string.IsNullOrWhiteSpace(secId))
+            {
+                continue;
+            }
+
+            result[secId] = new CurrentYieldData(
+                NullIfZero(marketDataYields.GetDouble(row, "EFFECTIVEYIELD")),
+                NullIfZero(marketDataYields.GetDouble(row, "EFFECTIVEYIELDWAPRICE")),
+                NullIfZero(marketDataYields.GetDouble(row, "DURATION")),
+                NullIfZero(marketDataYields.GetDouble(row, "DURATIONWAPRICE")),
+                marketDataYields.GetDouble(row, "ZSPREADBP"),
+                marketDataYields.GetDouble(row, "GSPREADBP"));
+        }
+
+        return result;
+    }
+
+    private static OfzLiquiditySnapshot MapLiquiditySnapshotFromMarketData(
+        IssJsonTable table,
+        JsonElement row,
+        string secId,
+        DateTime tradeDate,
+        DateTime observedAt,
+        CurrentYieldData yieldData)
+    {
+        return new OfzLiquiditySnapshot
+        {
+            BoardId = table.GetString(row, "BOARDID") ?? BoardId,
+            SecId = secId,
+            TradeDate = tradeDate.Date,
+            ObservedAt = observedAt,
+            Bid = table.GetDouble(row, "BID"),
+            Offer = table.GetDouble(row, "OFFER"),
+            Spread = table.GetDouble(row, "SPREAD"),
+            BidDepth = table.GetDouble(row, "BIDDEPTH"),
+            OfferDepth = table.GetDouble(row, "OFFERDEPTH"),
+            BidDepthTotal = table.GetDouble(row, "BIDDEPTHT"),
+            OfferDepthTotal = table.GetDouble(row, "OFFERDEPTHT"),
+            NumBids = table.GetInt(row, "NUMBIDS"),
+            NumOffers = table.GetInt(row, "NUMOFFERS"),
+            ValueToday = table.GetDouble(row, "VALTODAY"),
+            VolumeToday = table.GetDouble(row, "VOLTODAY"),
+            NumTrades = table.GetInt(row, "NUMTRADES"),
+            EffectiveYield = yieldData.EffectiveYield,
+            EffectiveYieldAtWeightedAveragePrice = yieldData.EffectiveYieldAtWeightedAveragePrice,
+            Duration = yieldData.Duration,
+            DurationAtWeightedAveragePrice = yieldData.DurationAtWeightedAveragePrice,
+            ZSpread = table.GetDouble(row, "ZSPREAD"),
+            ZSpreadAtWeightedAveragePrice = table.GetDouble(row, "ZSPREADATWAPRICE"),
+            ZSpreadBp = yieldData.ZSpreadBp,
+            GSpreadBp = yieldData.GSpreadBp,
+            ImpliedFloatingRate = table.GetDouble(row, "IRICPICLOSE"),
+            ImpliedInflation = table.GetDouble(row, "BEICLOSE"),
+            ImpliedCbrRate = table.GetDouble(row, "CBRCLOSE"),
+            IsProvisional = true
         };
     }
 
@@ -268,4 +356,12 @@ public sealed class OfzActivityOnlineDataService(HttpClient httpClient) : IOfzAc
     {
         return value is 0 ? null : value;
     }
+
+    private readonly record struct CurrentYieldData(
+        double? EffectiveYield,
+        double? EffectiveYieldAtWeightedAveragePrice,
+        double? Duration,
+        double? DurationAtWeightedAveragePrice,
+        double? ZSpreadBp,
+        double? GSpreadBp);
 }

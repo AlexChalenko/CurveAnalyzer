@@ -63,17 +63,35 @@ partial class MoexContextModelSnapshot : ModelSnapshot
             b.Property(e => e.TradeDate)
                 .HasColumnType("TEXT");
 
+            b.Property(e => e.Bid)
+                .HasColumnType("REAL");
+
             b.Property(e => e.ClosePrice)
                 .HasColumnType("REAL");
 
             b.Property(e => e.Duration)
                 .HasColumnType("REAL");
 
+            b.Property(e => e.HighBid)
+                .HasColumnType("REAL");
+
             b.Property(e => e.HighPrice)
+                .HasColumnType("REAL");
+
+            b.Property(e => e.ImpliedCbrRate)
+                .HasColumnType("REAL");
+
+            b.Property(e => e.ImpliedFloatingRate)
+                .HasColumnType("REAL");
+
+            b.Property(e => e.ImpliedInflation)
                 .HasColumnType("REAL");
 
             b.Property(e => e.LoadedAt)
                 .HasColumnType("TEXT");
+
+            b.Property(e => e.LowOffer)
+                .HasColumnType("REAL");
 
             b.Property(e => e.LowPrice)
                 .HasColumnType("REAL");
@@ -81,7 +99,13 @@ partial class MoexContextModelSnapshot : ModelSnapshot
             b.Property(e => e.NumTrades)
                 .HasColumnType("INTEGER");
 
+            b.Property(e => e.Offer)
+                .HasColumnType("REAL");
+
             b.Property(e => e.OpenPrice)
+                .HasColumnType("REAL");
+
+            b.Property(e => e.Spread)
                 .HasColumnType("REAL");
 
             b.Property(e => e.Value)
@@ -123,6 +147,105 @@ partial class MoexContextModelSnapshot : ModelSnapshot
                 .IsRequired();
 
             b.ToTable("OfzDailyTrades");
+        });
+
+        modelBuilder.Entity<OfzLiquiditySnapshot>(b =>
+        {
+            b.Property(e => e.BoardId)
+                .HasMaxLength(16)
+                .HasColumnType("TEXT");
+
+            b.Property(e => e.SecId)
+                .HasMaxLength(32)
+                .HasColumnType("TEXT");
+
+            b.Property(e => e.TradeDate)
+                .HasColumnType("TEXT");
+
+            b.Property(e => e.Bid)
+                .HasColumnType("REAL");
+
+            b.Property(e => e.BidDepth)
+                .HasColumnType("REAL");
+
+            b.Property(e => e.BidDepthTotal)
+                .HasColumnType("REAL");
+
+            b.Property(e => e.Duration)
+                .HasColumnType("REAL");
+
+            b.Property(e => e.DurationAtWeightedAveragePrice)
+                .HasColumnType("REAL");
+
+            b.Property(e => e.EffectiveYield)
+                .HasColumnType("REAL");
+
+            b.Property(e => e.EffectiveYieldAtWeightedAveragePrice)
+                .HasColumnType("REAL");
+
+            b.Property(e => e.GSpreadBp)
+                .HasColumnType("REAL");
+
+            b.Property(e => e.ImpliedCbrRate)
+                .HasColumnType("REAL");
+
+            b.Property(e => e.ImpliedFloatingRate)
+                .HasColumnType("REAL");
+
+            b.Property(e => e.ImpliedInflation)
+                .HasColumnType("REAL");
+
+            b.Property(e => e.IsProvisional)
+                .HasColumnType("INTEGER");
+
+            b.Property(e => e.NumBids)
+                .HasColumnType("INTEGER");
+
+            b.Property(e => e.NumOffers)
+                .HasColumnType("INTEGER");
+
+            b.Property(e => e.NumTrades)
+                .HasColumnType("INTEGER");
+
+            b.Property(e => e.ObservedAt)
+                .HasColumnType("TEXT");
+
+            b.Property(e => e.Offer)
+                .HasColumnType("REAL");
+
+            b.Property(e => e.OfferDepth)
+                .HasColumnType("REAL");
+
+            b.Property(e => e.OfferDepthTotal)
+                .HasColumnType("REAL");
+
+            b.Property(e => e.Spread)
+                .HasColumnType("REAL");
+
+            b.Property(e => e.ValueToday)
+                .HasColumnType("REAL");
+
+            b.Property(e => e.VolumeToday)
+                .HasColumnType("REAL");
+
+            b.Property(e => e.ZSpread)
+                .HasColumnType("REAL");
+
+            b.Property(e => e.ZSpreadAtWeightedAveragePrice)
+                .HasColumnType("REAL");
+
+            b.Property(e => e.ZSpreadBp)
+                .HasColumnType("REAL");
+
+            b.HasKey(e => new { e.BoardId, e.SecId, e.TradeDate });
+
+            b.HasIndex(e => new { e.SecId, e.TradeDate })
+                .HasDatabaseName("IX_OfzLiquiditySnapshots_SecId_TradeDate");
+
+            b.HasIndex(e => e.TradeDate)
+                .HasDatabaseName("IX_OfzLiquiditySnapshots_TradeDate");
+
+            b.ToTable("OfzLiquiditySnapshots");
         });
 
         modelBuilder.Entity<OfzIssue>(b =>

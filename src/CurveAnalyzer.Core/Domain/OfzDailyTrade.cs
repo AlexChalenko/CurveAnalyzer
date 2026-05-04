@@ -16,8 +16,16 @@ public class OfzDailyTrade
     public double? YieldClose { get; set; }
     public double? YieldAtWeightedAveragePrice { get; set; }
     public double? Duration { get; set; }
+    public double? Bid { get; set; }
+    public double? Offer { get; set; }
+    public double? Spread { get; set; }
+    public double? HighBid { get; set; }
+    public double? LowOffer { get; set; }
     public double? ZSpread { get; set; }
     public double? ZSpreadAtWeightedAveragePrice { get; set; }
+    public double? ImpliedFloatingRate { get; set; }
+    public double? ImpliedInflation { get; set; }
+    public double? ImpliedCbrRate { get; set; }
     public DateTime LoadedAt { get; set; } = DateTime.UtcNow;
 
     public OfzIssue? Issue { get; set; }

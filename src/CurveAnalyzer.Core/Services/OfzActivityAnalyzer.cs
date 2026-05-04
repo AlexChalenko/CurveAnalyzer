@@ -5,6 +5,9 @@ public static class OfzActivityAnalyzer
     public const int DefaultBaselineWindow = 20;
     public const int DefaultMinimumBaselineDays = 10;
     public const double DefaultMinimumBaselineMedianValue = 10_000_000;
+    private const double GoodLiquidityScoreLimit = 5;
+    private const double NormalLiquidityScoreLimit = 20;
+    private const double WeakLiquidityScoreLimit = 50;
 
     public static IReadOnlyList<OfzActivityMetric> CalculateMetrics(
         IEnumerable<OfzDailyTrade> trades,
@@ -60,6 +63,105 @@ public static class OfzActivityAnalyzer
         return metrics
             .OrderBy(metric => metric.SecId, StringComparer.Ordinal)
             .ThenBy(metric => metric.TradeDate)
+            .ToList();
+    }
+
+    public static IReadOnlyList<OfzLiquidityMetric> CalculateLiquidityMetrics(IEnumerable<OfzDailyTrade> trades)
+    {
+        return trades
+            .Where(trade => !string.IsNullOrWhiteSpace(trade.SecId))
+            .Select(CreateLiquidityMetric)
+            .OrderBy(metric => metric.SecId, StringComparer.Ordinal)
+            .ThenBy(metric => metric.TradeDate)
+            .ToList();
+    }
+
+    public static IReadOnlyList<OfzLiquidityMetric> CalculateSnapshotLiquidityMetrics(IEnumerable<OfzLiquiditySnapshot> snapshots)
+    {
+        return snapshots
+            .Where(snapshot => !string.IsNullOrWhiteSpace(snapshot.SecId))
+            .Select(CreateLiquidityMetric)
+            .OrderBy(metric => metric.SecId, StringComparer.Ordinal)
+            .ThenBy(metric => metric.TradeDate)
+            .ThenBy(metric => metric.ObservedAt)
+            .ToList();
+    }
+
+    public static OfzIssueLiquidityProfile BuildIssueLiquidityProfile(
+        string secId,
+        IEnumerable<OfzDailyTrade> trades,
+        OfzLiquiditySnapshot? currentSnapshot = null,
+        OfzIssue? issue = null)
+    {
+        if (string.IsNullOrWhiteSpace(secId))
+        {
+            throw new ArgumentException("SECID is required.", nameof(secId));
+        }
+
+        var historicalMetrics = CalculateLiquidityMetrics(trades)
+            .Where(metric => string.Equals(metric.SecId, secId, StringComparison.Ordinal))
+            .OrderBy(metric => metric.TradeDate)
+            .ToList();
+
+        var snapshotMetric = currentSnapshot is not null &&
+            string.Equals(currentSnapshot.SecId, secId, StringComparison.Ordinal)
+                ? CreateLiquidityMetric(currentSnapshot)
+                : null;
+
+        return new OfzIssueLiquidityProfile
+        {
+            SecId = secId,
+            ShortName = GetShortName(issue, secId),
+            DisplayMarker = issue?.DisplayMarker ?? string.Empty,
+            HistoricalMetrics = historicalMetrics,
+            CurrentSnapshotMetric = snapshotMetric
+        };
+    }
+
+    public static IReadOnlyList<OfzWeakLiquidityItem> GetWeakLiquidityRankings(
+        IEnumerable<OfzLiquidityMetric> metrics,
+        IEnumerable<OfzIssue> issues,
+        int topCount = 50)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(topCount);
+
+        var issuesBySecId = issues
+            .Where(issue => !string.IsNullOrWhiteSpace(issue.SecId))
+            .GroupBy(issue => issue.SecId, StringComparer.Ordinal)
+            .ToDictionary(group => group.Key, group => group.First(), StringComparer.Ordinal);
+
+        return metrics
+            .Where(metric => !string.IsNullOrWhiteSpace(metric.SecId))
+            .Where(IsWeakLiquidityCandidate)
+            .OrderByDescending(GetWeakLiquidityPriority)
+            .ThenByDescending(metric => metric.LiquidityScore ?? -1)
+            .ThenByDescending(metric => metric.Value ?? 0)
+            .ThenByDescending(metric => metric.NumTrades ?? 0)
+            .ThenBy(metric => metric.SecId, StringComparer.Ordinal)
+            .Take(topCount)
+            .Select((metric, index) =>
+            {
+                var issue = GetIssue(issuesBySecId, metric.SecId);
+
+                return new OfzWeakLiquidityItem
+                {
+                    Rank = index + 1,
+                    SecId = metric.SecId,
+                    ShortName = GetShortName(issue, metric.SecId),
+                    TradeDate = metric.TradeDate,
+                    CouponType = issue?.CouponType ?? OfzCouponType.Unknown,
+                    CouponTypeMarker = issue?.CouponTypeMarker ?? string.Empty,
+                    Spread = metric.Spread,
+                    SpreadSource = metric.SpreadSource,
+                    LiquidityScore = metric.LiquidityScore,
+                    LiquidityBucket = metric.LiquidityBucket,
+                    Status = metric.Status,
+                    Value = metric.Value,
+                    NumTrades = metric.NumTrades,
+                    IsSnapshot = metric.IsSnapshot,
+                    IsProvisional = metric.IsProvisional
+                };
+            })
             .ToList();
     }
 
@@ -189,26 +291,56 @@ public static class OfzActivityAnalyzer
     public static OfzIssueDetail BuildIssueDetail(
         string secId,
         IEnumerable<OfzDailyTrade> trades,
-        OfzIssue? issue = null)
+        OfzIssue? issue = null,
+        OfzLiquiditySnapshot? currentSnapshot = null)
     {
         if (string.IsNullOrWhiteSpace(secId))
         {
             throw new ArgumentException("SECID is required.", nameof(secId));
         }
 
+        var liquidityMetrics = CalculateLiquidityMetrics(trades)
+            .Where(metric => string.Equals(metric.SecId, secId, StringComparison.Ordinal))
+            .GroupBy(metric => (metric.SecId, TradeDate: metric.TradeDate.Date))
+            .ToDictionary(
+                group => group.Key,
+                group => group
+                    .OrderByDescending(metric => metric.LiquidityScore ?? -1)
+                    .ThenByDescending(metric => metric.Value ?? 0)
+                    .First());
+
         var points = trades
             .Where(trade => string.Equals(trade.SecId, secId, StringComparison.Ordinal))
             .OrderBy(trade => trade.TradeDate)
-            .Select(trade => new OfzIssueDetailPoint
+            .Select(trade =>
             {
-                SecId = trade.SecId,
-                TradeDate = trade.TradeDate.Date,
-                Value = trade.Value,
-                NumTrades = trade.NumTrades,
-                Price = trade.PreferredPrice,
-                Yield = trade.PreferredYield
+                liquidityMetrics.TryGetValue((trade.SecId, trade.TradeDate.Date), out var liquidityMetric);
+
+                return new OfzIssueDetailPoint
+                {
+                    SecId = trade.SecId,
+                    TradeDate = trade.TradeDate.Date,
+                    Value = trade.Value,
+                    NumTrades = trade.NumTrades,
+                    Price = trade.PreferredPrice,
+                    Yield = trade.PreferredYield,
+                    Bid = trade.Bid,
+                    Offer = trade.Offer,
+                    Spread = liquidityMetric?.Spread,
+                    ZSpread = trade.ZSpread,
+                    ZSpreadAtWeightedAveragePrice = trade.ZSpreadAtWeightedAveragePrice,
+                    SpreadSource = liquidityMetric?.SpreadSource ?? OfzSpreadSource.Missing,
+                    LiquidityScore = liquidityMetric?.LiquidityScore,
+                    LiquidityBucket = liquidityMetric?.LiquidityBucket,
+                    LiquidityStatus = liquidityMetric?.Status
+                };
             })
             .ToList();
+
+        var snapshotMetric = currentSnapshot is not null &&
+            string.Equals(currentSnapshot.SecId, secId, StringComparison.Ordinal)
+                ? CreateLiquidityMetric(currentSnapshot)
+                : null;
 
         return new OfzIssueDetail
         {
@@ -216,7 +348,11 @@ public static class OfzActivityAnalyzer
             ShortName = string.IsNullOrWhiteSpace(issue?.ShortName) ? secId : issue.ShortName,
             DisplayMarker = issue?.DisplayMarker ?? string.Empty,
             MatDate = issue?.MatDate,
-            Points = points
+            Points = points,
+            LiquidityMetrics = liquidityMetrics.Values
+                .OrderBy(metric => metric.TradeDate)
+                .ToList(),
+            CurrentLiquiditySnapshot = snapshotMetric
         };
     }
 
@@ -257,6 +393,17 @@ public static class OfzActivityAnalyzer
         int maxPoints = 80,
         double minimumActivityScore = 0)
     {
+        return BuildDurationYieldScatter(metrics, issues, [], tradeDate, maxPoints, minimumActivityScore);
+    }
+
+    public static IReadOnlyList<OfzDurationYieldScatterPoint> BuildDurationYieldScatter(
+        IEnumerable<OfzActivityMetric> metrics,
+        IEnumerable<OfzIssue> issues,
+        IEnumerable<OfzLiquidityMetric> liquidityMetrics,
+        DateTime? tradeDate = null,
+        int maxPoints = 80,
+        double minimumActivityScore = 0)
+    {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxPoints);
         ArgumentOutOfRangeException.ThrowIfNegative(minimumActivityScore);
 
@@ -264,6 +411,14 @@ public static class OfzActivityAnalyzer
             .Where(issue => !string.IsNullOrWhiteSpace(issue.SecId))
             .GroupBy(issue => issue.SecId, StringComparer.Ordinal)
             .ToDictionary(group => group.Key, group => group.First(), StringComparer.Ordinal);
+        var liquidityByKey = liquidityMetrics
+            .Where(metric => !metric.IsSnapshot)
+            .GroupBy(metric => (metric.SecId, TradeDate: metric.TradeDate.Date))
+            .ToDictionary(
+                group => group.Key,
+                group => group
+                    .OrderByDescending(metric => metric.LiquidityScore ?? -1)
+                    .First());
 
         var scatterMetrics = metrics
             .Where(metric => !tradeDate.HasValue || metric.TradeDate.Date == tradeDate.Value.Date)
@@ -287,6 +442,7 @@ public static class OfzActivityAnalyzer
             .Select(metric =>
             {
                 var issue = GetIssue(issuesBySecId, metric.SecId);
+                liquidityByKey.TryGetValue((metric.SecId, metric.TradeDate.Date), out var liquidityMetric);
 
                 return new OfzDurationYieldScatterPoint
                 {
@@ -302,6 +458,11 @@ public static class OfzActivityAnalyzer
                     NumTrades = metric.NumTrades,
                     ActivityScore = metric.ActivityScore!.Value,
                     ScoreBucket = GetScoreBucket(metric),
+                    Spread = liquidityMetric?.Spread,
+                    SpreadSource = liquidityMetric?.SpreadSource ?? OfzSpreadSource.Missing,
+                    LiquidityScore = liquidityMetric?.LiquidityScore,
+                    LiquidityBucket = liquidityMetric?.LiquidityBucket,
+                    LiquidityStatus = liquidityMetric?.Status,
                     Status = metric.Status
                 };
             })
@@ -349,6 +510,75 @@ public static class OfzActivityAnalyzer
             .OrderByDescending(insight => insight.Severity)
             .ThenBy(insight => insight.Kind)
             .Take(maxInsights)
+            .ToList();
+    }
+
+    public static IReadOnlyList<OfzSpreadSignal> BuildSpreadSignals(
+        IEnumerable<OfzLiquidityMetric> metrics,
+        IEnumerable<OfzIssue> issues,
+        int maxSignals = 6)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxSignals);
+
+        var issuesBySecId = issues
+            .Where(issue => !string.IsNullOrWhiteSpace(issue.SecId))
+            .GroupBy(issue => issue.SecId, StringComparer.Ordinal)
+            .ToDictionary(group => group.Key, group => group.First(), StringComparer.Ordinal);
+        var orderedMetrics = metrics
+            .Where(metric => !string.IsNullOrWhiteSpace(metric.SecId))
+            .OrderByDescending(metric => metric.TradeDate)
+            .ThenByDescending(metric => metric.LiquidityScore ?? -1)
+            .ThenByDescending(metric => metric.Value ?? 0)
+            .ToList();
+
+        if (orderedMetrics.Count == 0)
+        {
+            return [];
+        }
+
+        List<OfzSpreadSignal> signals = [];
+        AddMissingQuotesSignal(signals, orderedMetrics, issuesBySecId);
+        AddActivityWithWideSpreadSignal(signals, orderedMetrics, issuesBySecId);
+        AddWideSpreadSignal(signals, orderedMetrics, issuesBySecId);
+        AddImprovingSpreadSignal(signals, orderedMetrics, issuesBySecId);
+        AddZSpreadContextSignal(signals, orderedMetrics, issuesBySecId);
+
+        return signals
+            .GroupBy(signal => new { signal.Kind, signal.SecId, signal.TradeDate })
+            .Select(group => group.OrderByDescending(signal => signal.Severity).First())
+            .OrderByDescending(signal => signal.Severity)
+            .ThenBy(signal => signal.Kind)
+            .Take(maxSignals)
+            .ToList();
+    }
+
+    public static IReadOnlyList<OfzActivityInsight> BuildLiquidityInsights(
+        IEnumerable<OfzLiquidityMetric> metrics,
+        IEnumerable<OfzIssue> issues,
+        int maxInsights = 4)
+    {
+        return BuildSpreadSignals(metrics, issues, maxInsights)
+            .Select(signal => new OfzActivityInsight
+            {
+                Kind = OfzActivityInsightKind.LiquiditySignal,
+                Severity = signal.Severity,
+                Title = GetSpreadSignalTitle(signal.Kind),
+                Text = signal.Text,
+                TradeDate = signal.TradeDate,
+                SecId = signal.SecId,
+                ShortName = signal.ShortName,
+                CouponType = signal.CouponType,
+                CouponTypeMarker = signal.CouponTypeMarker,
+                Value = signal.Value,
+                NumTrades = signal.NumTrades,
+                Spread = signal.Spread,
+                LiquidityScore = signal.LiquidityScore,
+                ZSpread = signal.ZSpread,
+                ZSpreadBp = signal.ZSpreadBp,
+                GSpreadBp = signal.GSpreadBp,
+                LiquidityBucket = signal.LiquidityBucket,
+                LiquidityStatus = signal.LiquidityStatus
+            })
             .ToList();
     }
 
@@ -459,6 +689,63 @@ public static class OfzActivityAnalyzer
         };
     }
 
+    private static OfzLiquidityMetric CreateLiquidityMetric(OfzDailyTrade trade)
+    {
+        var (spread, spreadSource) = ResolveSpread(trade.Spread, trade.Bid, trade.Offer);
+        var liquidityScore = GetLiquidityScore(spread);
+
+        return new OfzLiquidityMetric
+        {
+            SecId = trade.SecId,
+            TradeDate = trade.TradeDate.Date,
+            Bid = NormalizePositive(trade.Bid),
+            Offer = NormalizePositive(trade.Offer),
+            Spread = spread,
+            SpreadSource = spreadSource,
+            Value = trade.Value,
+            NumTrades = trade.NumTrades,
+            ZSpread = trade.ZSpread,
+            ZSpreadAtWeightedAveragePrice = trade.ZSpreadAtWeightedAveragePrice,
+            LiquidityScore = liquidityScore,
+            LiquidityBucket = GetLiquidityBucket(liquidityScore),
+            Status = spreadSource == OfzSpreadSource.Missing
+                ? OfzLiquidityMetricStatus.MissingQuotes
+                : OfzLiquidityMetricStatus.Ready
+        };
+    }
+
+    private static OfzLiquidityMetric CreateLiquidityMetric(OfzLiquiditySnapshot snapshot)
+    {
+        var (spread, spreadSource) = ResolveSpread(snapshot.Spread, snapshot.Bid, snapshot.Offer);
+        var liquidityScore = GetLiquidityScore(spread);
+
+        return new OfzLiquidityMetric
+        {
+            SecId = snapshot.SecId,
+            TradeDate = snapshot.TradeDate.Date,
+            Bid = NormalizePositive(snapshot.Bid),
+            Offer = NormalizePositive(snapshot.Offer),
+            Spread = spread,
+            SpreadSource = spreadSource,
+            BidDepthTotal = NormalizeNonNegative(snapshot.BidDepthTotal),
+            OfferDepthTotal = NormalizeNonNegative(snapshot.OfferDepthTotal),
+            Value = snapshot.ValueToday,
+            NumTrades = snapshot.NumTrades,
+            ZSpread = snapshot.ZSpread,
+            ZSpreadAtWeightedAveragePrice = snapshot.ZSpreadAtWeightedAveragePrice,
+            ZSpreadBp = snapshot.ZSpreadBp,
+            GSpreadBp = snapshot.GSpreadBp,
+            LiquidityScore = liquidityScore,
+            LiquidityBucket = GetLiquidityBucket(liquidityScore),
+            Status = spreadSource == OfzSpreadSource.Missing
+                ? OfzLiquidityMetricStatus.MissingQuotes
+                : OfzLiquidityMetricStatus.SnapshotOnly,
+            IsSnapshot = true,
+            IsProvisional = snapshot.IsProvisional,
+            ObservedAt = snapshot.ObservedAt
+        };
+    }
+
     private static OfzActivityHeatmapCell CreateHeatmapCell(OfzActivityMetric metric, OfzIssue? issue, string shortName)
     {
         return new OfzActivityHeatmapCell
@@ -474,6 +761,274 @@ public static class OfzActivityAnalyzer
             YieldMove = metric.YieldMove,
             Status = metric.Status
         };
+    }
+
+    private static bool IsWeakLiquidityCandidate(OfzLiquidityMetric metric)
+    {
+        return metric.LiquidityBucket is OfzLiquidityBucket.Problem or OfzLiquidityBucket.Weak ||
+            metric.LiquidityBucket == OfzLiquidityBucket.MissingData &&
+            metric.IsSnapshot &&
+            (metric.Value is > 0 || metric.NumTrades is > 0);
+    }
+
+    private static int GetWeakLiquidityPriority(OfzLiquidityMetric metric)
+    {
+        return metric.LiquidityBucket switch
+        {
+            OfzLiquidityBucket.Problem => 3,
+            OfzLiquidityBucket.Weak => 2,
+            OfzLiquidityBucket.MissingData => 1,
+            _ => 0
+        };
+    }
+
+    private static (double? Spread, OfzSpreadSource Source) ResolveSpread(
+        double? providedSpread,
+        double? bid,
+        double? offer)
+    {
+        var normalizedBid = NormalizePositive(bid);
+        var normalizedOffer = NormalizePositive(offer);
+
+        if (providedSpread is > 0)
+        {
+            return (providedSpread.Value, OfzSpreadSource.Provided);
+        }
+
+        if (providedSpread is 0)
+        {
+            return normalizedBid.HasValue && normalizedOffer.HasValue
+                ? (0, OfzSpreadSource.Provided)
+                : (null, OfzSpreadSource.Missing);
+        }
+
+        if (normalizedBid.HasValue && normalizedOffer.HasValue)
+        {
+            var calculatedSpread = normalizedOffer.Value - normalizedBid.Value;
+            if (calculatedSpread >= 0)
+            {
+                return (calculatedSpread, OfzSpreadSource.CalculatedFromBidOffer);
+            }
+        }
+
+        return (null, OfzSpreadSource.Missing);
+    }
+
+    private static double? GetLiquidityScore(double? spread)
+    {
+        return spread.HasValue ? spread.Value * 100 : null;
+    }
+
+    private static OfzLiquidityBucket GetLiquidityBucket(double? liquidityScore)
+    {
+        if (!liquidityScore.HasValue)
+        {
+            return OfzLiquidityBucket.MissingData;
+        }
+
+        return liquidityScore.Value switch
+        {
+            <= GoodLiquidityScoreLimit => OfzLiquidityBucket.Good,
+            <= NormalLiquidityScoreLimit => OfzLiquidityBucket.Normal,
+            <= WeakLiquidityScoreLimit => OfzLiquidityBucket.Weak,
+            _ => OfzLiquidityBucket.Problem
+        };
+    }
+
+    private static double? NormalizePositive(double? value)
+    {
+        return value is > 0 ? value : null;
+    }
+
+    private static double? NormalizeNonNegative(double? value)
+    {
+        return value is >= 0 ? value : null;
+    }
+
+    private static void AddMissingQuotesSignal(
+        ICollection<OfzSpreadSignal> signals,
+        IReadOnlyList<OfzLiquidityMetric> metrics,
+        IReadOnlyDictionary<string, OfzIssue> issuesBySecId)
+    {
+        var metric = metrics
+            .Where(metric => metric.Status == OfzLiquidityMetricStatus.MissingQuotes)
+            .Where(metric => metric.IsSnapshot)
+            .Where(metric => metric.Value is > 0 || metric.NumTrades is > 0)
+            .OrderByDescending(metric => metric.Value ?? 0)
+            .ThenByDescending(metric => metric.NumTrades ?? 0)
+            .FirstOrDefault();
+
+        if (metric is null)
+        {
+            return;
+        }
+
+        var issue = GetIssue(issuesBySecId, metric.SecId);
+        signals.Add(CreateSpreadSignal(
+            OfzSpreadSignalKind.MissingQuotesOnActiveDay,
+            severity: 6,
+            metric,
+            issue,
+            $"{GetShortName(issue, metric.SecId)}: нет bid/offer при обороте {metric.Value:N0} RUB и {metric.NumTrades:N0} сделках на {metric.TradeDate:dd.MM.yyyy}."));
+    }
+
+    private static void AddActivityWithWideSpreadSignal(
+        ICollection<OfzSpreadSignal> signals,
+        IReadOnlyList<OfzLiquidityMetric> metrics,
+        IReadOnlyDictionary<string, OfzIssue> issuesBySecId)
+    {
+        var metric = metrics
+            .Where(metric => metric.LiquidityBucket is OfzLiquidityBucket.Problem or OfzLiquidityBucket.Weak)
+            .Where(metric => metric.Value >= 1_000_000_000 || metric.NumTrades >= 1_000)
+            .OrderByDescending(metric => metric.LiquidityScore ?? -1)
+            .ThenByDescending(metric => metric.Value ?? 0)
+            .FirstOrDefault();
+
+        if (metric is null)
+        {
+            return;
+        }
+
+        var issue = GetIssue(issuesBySecId, metric.SecId);
+        signals.Add(CreateSpreadSignal(
+            OfzSpreadSignalKind.ActivityWithWideSpread,
+            severity: 5,
+            metric,
+            issue,
+            $"{GetShortName(issue, metric.SecId)}: активная торговля при spread {metric.Spread:N3}; liquidity score {metric.LiquidityScore:N2}, оборот {metric.Value:N0} RUB на {metric.TradeDate:dd.MM.yyyy}."));
+    }
+
+    private static void AddWideSpreadSignal(
+        ICollection<OfzSpreadSignal> signals,
+        IReadOnlyList<OfzLiquidityMetric> metrics,
+        IReadOnlyDictionary<string, OfzIssue> issuesBySecId)
+    {
+        var metric = metrics
+            .Where(metric => metric.LiquidityBucket is OfzLiquidityBucket.Problem or OfzLiquidityBucket.Weak)
+            .OrderByDescending(metric => metric.LiquidityScore ?? -1)
+            .ThenByDescending(metric => metric.Value ?? 0)
+            .FirstOrDefault();
+
+        if (metric is null)
+        {
+            return;
+        }
+
+        var issue = GetIssue(issuesBySecId, metric.SecId);
+        signals.Add(CreateSpreadSignal(
+            OfzSpreadSignalKind.WideSpread,
+            severity: metric.LiquidityBucket == OfzLiquidityBucket.Problem ? 4 : 3,
+            metric,
+            issue,
+            $"{GetShortName(issue, metric.SecId)}: wide spread {metric.Spread:N3}; liquidity score {metric.LiquidityScore:N2}, источник {metric.SpreadSource} на {metric.TradeDate:dd.MM.yyyy}."));
+    }
+
+    private static void AddImprovingSpreadSignal(
+        ICollection<OfzSpreadSignal> signals,
+        IReadOnlyList<OfzLiquidityMetric> metrics,
+        IReadOnlyDictionary<string, OfzIssue> issuesBySecId)
+    {
+        var candidate = metrics
+            .Where(metric => metric.Spread is > 0)
+            .GroupBy(metric => metric.SecId, StringComparer.Ordinal)
+            .Select(group => group
+                .OrderByDescending(metric => metric.TradeDate)
+                .Take(2)
+                .OrderBy(metric => metric.TradeDate)
+                .ToArray())
+            .Where(pair => pair.Length == 2 && pair[1].Spread < pair[0].Spread * 0.75)
+            .OrderByDescending(pair => pair[0].Spread - pair[1].Spread)
+            .FirstOrDefault();
+
+        if (candidate is null)
+        {
+            return;
+        }
+
+        var latest = candidate[1];
+        var previous = candidate[0];
+        var issue = GetIssue(issuesBySecId, latest.SecId);
+        signals.Add(CreateSpreadSignal(
+            OfzSpreadSignalKind.ImprovingSpread,
+            severity: 2,
+            latest,
+            issue,
+            $"{GetShortName(issue, latest.SecId)}: spread снизился с {previous.Spread:N3} до {latest.Spread:N3} между {previous.TradeDate:dd.MM.yyyy} и {latest.TradeDate:dd.MM.yyyy}."));
+    }
+
+    private static void AddZSpreadContextSignal(
+        ICollection<OfzSpreadSignal> signals,
+        IReadOnlyList<OfzLiquidityMetric> metrics,
+        IReadOnlyDictionary<string, OfzIssue> issuesBySecId)
+    {
+        var metric = metrics
+            .Where(metric => metric.ZSpreadBp.HasValue || metric.ZSpread.HasValue)
+            .OrderByDescending(metric => Math.Abs(metric.ZSpreadBp ?? metric.ZSpread ?? 0))
+            .FirstOrDefault();
+
+        if (metric is null)
+        {
+            return;
+        }
+
+        var issue = GetIssue(issuesBySecId, metric.SecId);
+        signals.Add(CreateSpreadSignal(
+            OfzSpreadSignalKind.ZSpreadContext,
+            severity: 1,
+            metric,
+            issue,
+            $"{GetShortName(issue, metric.SecId)}: Z-spread context {FormatNullable(metric.ZSpreadBp ?? metric.ZSpread, "N2")} на {metric.TradeDate:dd.MM.yyyy}; spread {FormatNullable(metric.Spread, "N3")}."));
+    }
+
+    private static OfzSpreadSignal CreateSpreadSignal(
+        OfzSpreadSignalKind kind,
+        int severity,
+        OfzLiquidityMetric metric,
+        OfzIssue? issue,
+        string text)
+    {
+        return new OfzSpreadSignal
+        {
+            Kind = kind,
+            Severity = severity,
+            SecId = metric.SecId,
+            ShortName = GetShortName(issue, metric.SecId),
+            TradeDate = metric.TradeDate,
+            CouponType = issue?.CouponType ?? OfzCouponType.Unknown,
+            CouponTypeMarker = issue?.CouponTypeMarker ?? string.Empty,
+            Value = metric.Value,
+            NumTrades = metric.NumTrades,
+            Spread = metric.Spread,
+            LiquidityScore = metric.LiquidityScore,
+            LiquidityBucket = metric.LiquidityBucket,
+            LiquidityStatus = metric.Status,
+            ZSpread = metric.ZSpread,
+            ZSpreadBp = metric.ZSpreadBp,
+            GSpreadBp = metric.GSpreadBp,
+            Text = text
+        };
+    }
+
+    private static string GetSpreadSignalTitle(OfzSpreadSignalKind kind)
+    {
+        return kind switch
+        {
+            OfzSpreadSignalKind.WideSpread => "Широкий spread",
+            OfzSpreadSignalKind.ActivityWithWideSpread => "Активность при широком spread",
+            OfzSpreadSignalKind.MissingQuotesOnActiveDay => "Нет котировок в активный день",
+            OfzSpreadSignalKind.ImprovingSpread => "Сужение spread",
+            OfzSpreadSignalKind.DepthImbalance => "Дисбаланс глубины",
+            OfzSpreadSignalKind.SpreadOutlier => "Spread outlier",
+            OfzSpreadSignalKind.ZSpreadContext => "Z-spread context",
+            _ => kind.ToString()
+        };
+    }
+
+    private static string FormatNullable(double? value, string format)
+    {
+        return value.HasValue
+            ? value.Value.ToString(format)
+            : "n/a";
     }
 
     private static void AddMarketWideActivityInsight(

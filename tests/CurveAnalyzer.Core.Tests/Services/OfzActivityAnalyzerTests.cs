@@ -96,6 +96,287 @@ public class OfzActivityAnalyzerTests
     }
 
     [Fact]
+    public void CalculateLiquidityMetrics_KeepsMissingSpreadSeparateFromValidZeroSpread()
+    {
+        OfzDailyTrade[] trades =
+        [
+            LiquidityTrade("MISSING", new DateTime(2026, 04, 20), 100_000_000, bid: null, offer: null, spread: null),
+            LiquidityTrade("ZERO_WITHOUT_QUOTES", new DateTime(2026, 04, 20), 110_000_000, bid: null, offer: null, spread: 0),
+            LiquidityTrade("ZERO", new DateTime(2026, 04, 20), 120_000_000, bid: 100, offer: 100, spread: 0),
+            LiquidityTrade("PROVIDED", new DateTime(2026, 04, 20), 130_000_000, bid: null, offer: null, spread: 0.12),
+            LiquidityTrade("CALCULATED", new DateTime(2026, 04, 20), 140_000_000, bid: 99.7, offer: 100.1, spread: null)
+        ];
+
+        var metrics = OfzActivityAnalyzer.CalculateLiquidityMetrics(trades);
+
+        var missing = Assert.Single(metrics, metric => metric.SecId == "MISSING");
+        Assert.Null(missing.Spread);
+        Assert.Null(missing.LiquidityScore);
+        Assert.Equal(OfzSpreadSource.Missing, missing.SpreadSource);
+        Assert.Equal(OfzLiquidityMetricStatus.MissingQuotes, missing.Status);
+        Assert.Equal(OfzLiquidityBucket.MissingData, missing.LiquidityBucket);
+
+        var zeroWithoutQuotes = Assert.Single(metrics, metric => metric.SecId == "ZERO_WITHOUT_QUOTES");
+        Assert.Null(zeroWithoutQuotes.Spread);
+        Assert.Null(zeroWithoutQuotes.LiquidityScore);
+        Assert.Equal(OfzSpreadSource.Missing, zeroWithoutQuotes.SpreadSource);
+        Assert.Equal(OfzLiquidityMetricStatus.MissingQuotes, zeroWithoutQuotes.Status);
+        Assert.Equal(OfzLiquidityBucket.MissingData, zeroWithoutQuotes.LiquidityBucket);
+
+        var zero = Assert.Single(metrics, metric => metric.SecId == "ZERO");
+        Assert.Equal(0, zero.Spread);
+        Assert.Equal(0, zero.LiquidityScore);
+        Assert.Equal(OfzSpreadSource.Provided, zero.SpreadSource);
+        Assert.Equal(OfzLiquidityMetricStatus.Ready, zero.Status);
+        Assert.Equal(OfzLiquidityBucket.Good, zero.LiquidityBucket);
+
+        var provided = Assert.Single(metrics, metric => metric.SecId == "PROVIDED");
+        Assert.Equal(0.12, provided.Spread);
+        Assert.Equal(OfzSpreadSource.Provided, provided.SpreadSource);
+
+        var calculated = Assert.Single(metrics, metric => metric.SecId == "CALCULATED");
+        Assert.Equal(0.4, calculated.Spread!.Value, 10);
+        Assert.Equal(OfzSpreadSource.CalculatedFromBidOffer, calculated.SpreadSource);
+    }
+
+    [Fact]
+    public void GetWeakLiquidityRankings_OrdersByBucketScoreAndValue()
+    {
+        var date = new DateTime(2026, 04, 20);
+        OfzDailyTrade[] trades =
+        [
+            LiquidityTrade("GOOD", date, 2_000_000_000, bid: 100, offer: 100.02, spread: null),
+            LiquidityTrade("WEAK", date, 600_000_000, bid: 100, offer: 100.32, spread: null),
+            LiquidityTrade("PROBLEM_LOW_VALUE", date, 300_000_000, bid: 100, offer: 100.8, spread: null),
+            LiquidityTrade("PROBLEM_HIGH_VALUE", date, 900_000_000, bid: 100, offer: 100.8, spread: null)
+        ];
+        OfzIssue[] issues =
+        [
+            new() { SecId = "WEAK", ShortName = "Weak issue", FaceUnit = "SUR" },
+            new() { SecId = "PROBLEM_LOW_VALUE", ShortName = "Problem low", FaceUnit = "SUR" },
+            new() { SecId = "PROBLEM_HIGH_VALUE", ShortName = "Problem high", FaceUnit = "SUR" }
+        ];
+
+        var liquidityMetrics = OfzActivityAnalyzer.CalculateLiquidityMetrics(trades);
+        var rankings = OfzActivityAnalyzer.GetWeakLiquidityRankings(liquidityMetrics, issues);
+
+        Assert.DoesNotContain(rankings, item => item.SecId == "GOOD");
+        Assert.Collection(
+            rankings,
+            first =>
+            {
+                Assert.Equal("PROBLEM_HIGH_VALUE", first.SecId);
+                Assert.Equal(OfzLiquidityBucket.Problem, first.LiquidityBucket);
+                Assert.Equal(1, first.Rank);
+            },
+            second => Assert.Equal("PROBLEM_LOW_VALUE", second.SecId),
+            third =>
+            {
+                Assert.Equal("WEAK", third.SecId);
+                Assert.Equal(OfzLiquidityBucket.Weak, third.LiquidityBucket);
+            });
+    }
+
+    [Fact]
+    public void GetWeakLiquidityRankings_IncludesCurrentSnapshotWithMissingQuotes()
+    {
+        var date = new DateTime(2026, 04, 20);
+        OfzLiquiditySnapshot[] snapshots =
+        [
+            new()
+            {
+                SecId = "ACTIVE_MISSING",
+                TradeDate = date,
+                ObservedAt = new DateTime(2026, 04, 20, 12, 0, 0, DateTimeKind.Utc),
+                ValueToday = 700_000_000,
+                NumTrades = 10
+            }
+        ];
+
+        var liquidityMetrics = OfzActivityAnalyzer.CalculateSnapshotLiquidityMetrics(snapshots);
+        var item = Assert.Single(OfzActivityAnalyzer.GetWeakLiquidityRankings(liquidityMetrics, []));
+
+        Assert.Equal("ACTIVE_MISSING", item.SecId);
+        Assert.Equal(OfzLiquidityBucket.MissingData, item.LiquidityBucket);
+        Assert.Equal(OfzLiquidityMetricStatus.MissingQuotes, item.Status);
+        Assert.True(item.IsSnapshot);
+        Assert.Null(item.Spread);
+        Assert.Null(item.LiquidityScore);
+        Assert.Equal(700_000_000, item.Value);
+    }
+
+    [Fact]
+    public void BuildIssueLiquidityProfile_KeepsCurrentSnapshotSeparateFromHistoricalMetrics()
+    {
+        var date = new DateTime(2026, 04, 20);
+        OfzDailyTrade[] trades =
+        [
+            LiquidityTrade("SU26238RMFS4", date, 100_000_000, bid: 99.9, offer: 100.1, spread: null)
+        ];
+        var snapshot = new OfzLiquiditySnapshot
+        {
+            SecId = "SU26238RMFS4",
+            TradeDate = date,
+            ObservedAt = new DateTime(2026, 04, 20, 12, 0, 0, DateTimeKind.Utc),
+            Bid = 99.5,
+            Offer = 100.5,
+            Spread = 1,
+            BidDepthTotal = 10_000_000,
+            OfferDepthTotal = 11_000_000,
+            IsProvisional = true
+        };
+
+        var profile = OfzActivityAnalyzer.BuildIssueLiquidityProfile("SU26238RMFS4", trades, snapshot);
+
+        var historical = Assert.Single(profile.HistoricalMetrics);
+        Assert.False(historical.IsSnapshot);
+        Assert.False(historical.IsProvisional);
+        Assert.Equal(0.2, historical.Spread!.Value, 10);
+        Assert.Equal(OfzSpreadSource.CalculatedFromBidOffer, historical.SpreadSource);
+
+        Assert.NotNull(profile.CurrentSnapshotMetric);
+        Assert.True(profile.CurrentSnapshotMetric.IsSnapshot);
+        Assert.True(profile.CurrentSnapshotMetric.IsProvisional);
+        Assert.Equal(OfzLiquidityMetricStatus.SnapshotOnly, profile.CurrentSnapshotMetric.Status);
+        Assert.Equal(1, profile.CurrentSnapshotMetric.Spread);
+    }
+
+    [Fact]
+    public void BuildIssueDetail_KeepsMissingSnapshotQuotesAsMissingValues()
+    {
+        var date = new DateTime(2026, 04, 20);
+        OfzDailyTrade[] trades =
+        [
+            LiquidityTrade("SU26238RMFS4", date, 100_000_000, bid: null, offer: null, spread: null)
+        ];
+        var snapshot = new OfzLiquiditySnapshot
+        {
+            SecId = "SU26238RMFS4",
+            TradeDate = date,
+            ObservedAt = new DateTime(2026, 04, 20, 12, 0, 0, DateTimeKind.Utc),
+            ValueToday = 150_000_000,
+            NumTrades = 200,
+            IsProvisional = true
+        };
+
+        var detail = OfzActivityAnalyzer.BuildIssueDetail("SU26238RMFS4", trades, currentSnapshot: snapshot);
+
+        Assert.False(detail.HasSpread);
+        Assert.NotNull(detail.CurrentLiquiditySnapshot);
+        Assert.Null(detail.CurrentLiquiditySnapshot.Spread);
+        Assert.Null(detail.CurrentLiquiditySnapshot.LiquidityScore);
+        Assert.Equal(OfzSpreadSource.Missing, detail.CurrentLiquiditySnapshot.SpreadSource);
+        Assert.Equal(OfzLiquidityMetricStatus.MissingQuotes, detail.CurrentLiquiditySnapshot.Status);
+        Assert.Equal(OfzLiquidityBucket.MissingData, detail.CurrentLiquiditySnapshot.LiquidityBucket);
+    }
+
+    [Fact]
+    public void BuildDurationYieldScatter_AddsOptionalLiquidityFieldsWhenAvailable()
+    {
+        var date = new DateTime(2026, 04, 20);
+        OfzActivityMetric[] metrics =
+        [
+            ScatterMetric("SU26238RMFS4", date, 5, 1_000_000_000, 12.4, 900)
+        ];
+        OfzLiquidityMetric[] liquidityMetrics =
+        [
+            new()
+            {
+                SecId = "SU26238RMFS4",
+                TradeDate = date,
+                Spread = 0.32,
+                SpreadSource = OfzSpreadSource.CalculatedFromBidOffer,
+                LiquidityScore = 32,
+                LiquidityBucket = OfzLiquidityBucket.Weak,
+                Status = OfzLiquidityMetricStatus.Ready
+            }
+        ];
+
+        var point = Assert.Single(OfzActivityAnalyzer.BuildDurationYieldScatter(metrics, [], liquidityMetrics));
+
+        Assert.Equal(0.32, point.Spread);
+        Assert.Equal(32, point.LiquidityScore);
+        Assert.Equal(OfzLiquidityBucket.Weak, point.LiquidityBucket);
+        Assert.Equal(OfzSpreadSource.CalculatedFromBidOffer, point.SpreadSource);
+    }
+
+    [Fact]
+    public void BuildSpreadSignals_GeneratesEvidenceAndAvoidsRecommendationLanguage()
+    {
+        var date = new DateTime(2026, 04, 20);
+        OfzLiquidityMetric[] metrics =
+        [
+            new()
+            {
+                SecId = "WIDE",
+                TradeDate = date,
+                Spread = 0.7,
+                SpreadSource = OfzSpreadSource.CalculatedFromBidOffer,
+                LiquidityScore = 70,
+                LiquidityBucket = OfzLiquidityBucket.Problem,
+                Status = OfzLiquidityMetricStatus.Ready,
+                Value = 1_500_000_000,
+                NumTrades = 1_100
+            },
+            new()
+            {
+                SecId = "MISSING",
+                TradeDate = date,
+                SpreadSource = OfzSpreadSource.Missing,
+                LiquidityBucket = OfzLiquidityBucket.MissingData,
+                Status = OfzLiquidityMetricStatus.MissingQuotes,
+                IsSnapshot = true,
+                Value = 800_000_000,
+                NumTrades = 500
+            }
+        ];
+        OfzIssue[] issues =
+        [
+            new() { SecId = "WIDE", ShortName = "ОФЗ wide", FaceUnit = "SUR" },
+            new() { SecId = "MISSING", ShortName = "ОФЗ missing", FaceUnit = "SUR" }
+        ];
+
+        var signals = OfzActivityAnalyzer.BuildSpreadSignals(metrics, issues);
+
+        Assert.Contains(signals, signal => signal.Kind == OfzSpreadSignalKind.ActivityWithWideSpread);
+        Assert.Contains(signals, signal => signal.Kind == OfzSpreadSignalKind.MissingQuotesOnActiveDay);
+        Assert.All(signals, signal =>
+        {
+            Assert.NotEqual(default, signal.TradeDate);
+            Assert.False(ContainsRecommendationLanguage(signal.Text), signal.Text);
+        });
+    }
+
+    [Fact]
+    public void BuildLiquidityInsights_ReturnsConcreteSpreadSignalText()
+    {
+        var date = new DateTime(2026, 04, 20);
+        OfzLiquidityMetric[] metrics =
+        [
+            new()
+            {
+                SecId = "WIDE",
+                TradeDate = date,
+                Spread = 0.7,
+                SpreadSource = OfzSpreadSource.Provided,
+                LiquidityScore = 70,
+                LiquidityBucket = OfzLiquidityBucket.Problem,
+                Status = OfzLiquidityMetricStatus.Ready,
+                Value = 1_500_000_000,
+                NumTrades = 1_100
+            }
+        ];
+
+        var insight = Assert.Single(OfzActivityAnalyzer.BuildLiquidityInsights(metrics, [], maxInsights: 1));
+
+        Assert.Equal(OfzActivityInsightKind.LiquiditySignal, insight.Kind);
+        Assert.Equal("WIDE", insight.SecId);
+        Assert.Contains("spread", insight.Text, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("20.04.2026", insight.Text, StringComparison.Ordinal);
+        Assert.False(ContainsRecommendationLanguage(insight.Text), insight.Text);
+    }
+
+    [Fact]
     public void GetTopAnomalies_RanksByActivityScoreThenValue()
     {
         OfzActivityMetric[] metrics =
@@ -252,6 +533,34 @@ public class OfzActivityAnalyzerTests
                 Assert.Equal(96.4, second.Price);
                 Assert.Equal(7.15, second.Yield);
             });
+        Assert.False(detail.HasSpread);
+        Assert.Collection(
+            detail.Points,
+            first => Assert.Null(first.Spread),
+            second => Assert.Null(second.Spread));
+    }
+
+    [Fact]
+    public void BuildIssueDetail_MapsHistoricalZSpreadForDetailChart()
+    {
+        OfzDailyTrade[] trades =
+        [
+            new()
+            {
+                SecId = "SU26238RMFS4",
+                TradeDate = new DateTime(2026, 04, 20),
+                Value = 100_000_000,
+                ZSpread = 115.25,
+                ZSpreadAtWeightedAveragePrice = 112.5
+            }
+        ];
+
+        var detail = OfzActivityAnalyzer.BuildIssueDetail("SU26238RMFS4", trades);
+        var point = Assert.Single(detail.Points);
+
+        Assert.Equal(115.25, point.ZSpread);
+        Assert.Equal(112.5, point.ZSpreadAtWeightedAveragePrice);
+        Assert.False(detail.HasSpread);
     }
 
     [Fact]
@@ -466,6 +775,33 @@ public class OfzActivityAnalyzerTests
             ClosePrice = closePrice,
             Duration = 1000
         };
+    }
+
+    private static OfzDailyTrade LiquidityTrade(
+        string secId,
+        DateTime date,
+        double? value,
+        double? bid,
+        double? offer,
+        double? spread)
+    {
+        return new OfzDailyTrade
+        {
+            SecId = secId,
+            TradeDate = date,
+            Value = value,
+            NumTrades = value.HasValue ? 10 : null,
+            Bid = bid,
+            Offer = offer,
+            Spread = spread,
+            Duration = 1000
+        };
+    }
+
+    private static bool ContainsRecommendationLanguage(string text)
+    {
+        string[] blockedWords = ["купить", "покупать", "продать", "продавать", "buy", "sell"];
+        return blockedWords.Any(word => text.Contains(word, StringComparison.OrdinalIgnoreCase));
     }
 
     private static OfzActivityMetric Metric(

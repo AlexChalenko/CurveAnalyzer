@@ -8,6 +8,7 @@ public class MoexContext : DbContext
     public DbSet<Zcyc> Zcycs { get; set; }
     public DbSet<OfzIssue> OfzIssues { get; set; }
     public DbSet<OfzDailyTrade> OfzDailyTrades { get; set; }
+    public DbSet<OfzLiquiditySnapshot> OfzLiquiditySnapshots { get; set; }
     public DbSet<OfzActivityLoadState> OfzActivityLoadStates { get; set; }
 
     public MoexContext(DbContextOptions<MoexContext> options) : base(options)
@@ -61,6 +62,15 @@ public class MoexContext : DbContext
             .HasDatabaseName("IX_OfzDailyTrades_SecId_TradeDate");
         trade.HasIndex(t => new { t.TradeDate, t.Duration })
             .HasDatabaseName("IX_OfzDailyTrades_TradeDate_Duration");
+
+        var liquiditySnapshot = modelBuilder.Entity<OfzLiquiditySnapshot>();
+        liquiditySnapshot.HasKey(s => new { s.BoardId, s.SecId, s.TradeDate });
+        liquiditySnapshot.Property(s => s.BoardId).HasMaxLength(16);
+        liquiditySnapshot.Property(s => s.SecId).HasMaxLength(32);
+        liquiditySnapshot.HasIndex(s => s.TradeDate)
+            .HasDatabaseName("IX_OfzLiquiditySnapshots_TradeDate");
+        liquiditySnapshot.HasIndex(s => new { s.SecId, s.TradeDate })
+            .HasDatabaseName("IX_OfzLiquiditySnapshots_SecId_TradeDate");
 
         var loadState = modelBuilder.Entity<OfzActivityLoadState>();
         loadState.HasKey(s => new { s.BoardId, s.TradeDate });

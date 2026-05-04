@@ -42,6 +42,11 @@ public class OfzDurationYieldScatterPoint
     public int? NumTrades { get; init; }
     public double ActivityScore { get; init; }
     public int ScoreBucket { get; init; }
+    public double? Spread { get; init; }
+    public OfzSpreadSource SpreadSource { get; init; }
+    public double? LiquidityScore { get; init; }
+    public OfzLiquidityBucket? LiquidityBucket { get; init; }
+    public OfzLiquidityMetricStatus? LiquidityStatus { get; init; }
     public OfzActivityMetricStatus Status { get; init; }
 }
 
@@ -52,10 +57,14 @@ public class OfzIssueDetail
     public string DisplayMarker { get; init; } = string.Empty;
     public DateTime? MatDate { get; init; }
     public IReadOnlyList<OfzIssueDetailPoint> Points { get; init; } = [];
+    public IReadOnlyList<OfzLiquidityMetric> LiquidityMetrics { get; init; } = [];
+    public OfzLiquidityMetric? CurrentLiquiditySnapshot { get; init; }
 
     public bool HasPoints => Points.Count > 0;
     public bool HasYield => Points.Any(point => point.Yield.HasValue);
     public bool HasPrice => Points.Any(point => point.Price.HasValue);
+    public bool HasSpread => Points.Any(point => point.Spread.HasValue) || LiquidityMetrics.Any(metric => metric.Spread.HasValue);
+    public bool HasCurrentLiquiditySnapshot => CurrentLiquiditySnapshot is not null;
 }
 
 public class OfzIssueDetailPoint
@@ -66,6 +75,15 @@ public class OfzIssueDetailPoint
     public int? NumTrades { get; init; }
     public double? Price { get; init; }
     public double? Yield { get; init; }
+    public double? Bid { get; init; }
+    public double? Offer { get; init; }
+    public double? Spread { get; init; }
+    public double? ZSpread { get; init; }
+    public double? ZSpreadAtWeightedAveragePrice { get; init; }
+    public OfzSpreadSource SpreadSource { get; init; }
+    public double? LiquidityScore { get; init; }
+    public OfzLiquidityBucket? LiquidityBucket { get; init; }
+    public OfzLiquidityMetricStatus? LiquidityStatus { get; init; }
 }
 
 public enum OfzActivityInsightKind
@@ -75,7 +93,8 @@ public enum OfzActivityInsightKind
     YieldMoveActivity = 2,
     BlockLikeActivity = 3,
     TradeCountActivity = 4,
-    CouponTypeConcentration = 5
+    CouponTypeConcentration = 5,
+    LiquiditySignal = 6
 }
 
 public class OfzActivityInsight
@@ -93,4 +112,11 @@ public class OfzActivityInsight
     public double? Value { get; init; }
     public int? NumTrades { get; init; }
     public double? YieldMove { get; init; }
+    public double? Spread { get; init; }
+    public double? LiquidityScore { get; init; }
+    public OfzLiquidityBucket? LiquidityBucket { get; init; }
+    public OfzLiquidityMetricStatus? LiquidityStatus { get; init; }
+    public double? ZSpread { get; init; }
+    public double? ZSpreadBp { get; init; }
+    public double? GSpreadBp { get; init; }
 }
