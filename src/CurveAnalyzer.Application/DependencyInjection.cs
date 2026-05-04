@@ -7,8 +7,9 @@ public static class DependencyInjection
 {
     public static IServiceCollection AddApplication(this IServiceCollection services)
     {
-        services.AddScoped<IHistoryDataService, HistoryDataService>();
-        services.AddScoped<DataSyncService>();
+        services.AddSingleton<IHistoryDataService, HistoryDataService>();
+        services.AddSingleton<DataSyncService>();
+        services.AddSingleton<OfzActivityService>();
 
         return services;
     }

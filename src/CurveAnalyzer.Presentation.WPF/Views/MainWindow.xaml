@@ -5,8 +5,6 @@
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:local="clr-namespace:CurveAnalyzer.Presentation.WPF"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-    xmlns:viewmodels="clr-namespace:CurveAnalyzer.Presentation.WPF.ViewModels"
-    xmlns:views="clr-namespace:CurveAnalyzer.Presentation.WPF.Views"
     Title="MainWindow"
     Width="800"
     Height="450"
@@ -36,6 +34,12 @@
                 IsIndeterminate="false"
                 Visibility="{Binding IsLoading, Converter={StaticResource BoolToVis}}"
                 Value="{Binding LoadingHistoryProgress}" />
+            <TextBlock
+                Margin="10,4,10,0"
+                FontSize="11"
+                Text="{Binding LoadingHistoryStatusMessage}"
+                TextWrapping="Wrap"
+                Visibility="{Binding IsLoading, Converter={StaticResource BoolToVis}}" />
             <Button
                 Margin="10"
                 Command="{Binding ShowYieldCurveCommand}"
@@ -48,22 +52,13 @@
                 Margin="10"
                 Command="{Binding ShowSpreadChangeCommand}"
                 Content="Spread Change" />
+            <Button
+                Margin="10"
+                Command="{Binding ShowOfzActivityCommand}"
+                Content="Активность ОФЗ" />
             <!--  Add more buttons for other charts  -->
         </StackPanel>
 
-        <!--  Main content area where charts will be dynamically loaded  -->
-        <!--<ContentControl Grid.Column="1" Content="{Binding SelectedChart}" />-->
-        <ContentControl Grid.Column="1" Content="{Binding SelectedChart}">
-            <!--<ContentControl.ContentTemplate>
-        <DataTemplate DataType="{x:Type viewmodel:YieldCurveViewModel}">
-          <view:YieldCurveControl />
-        </DataTemplate>
-            -->
-            <!--<DataTemplate DataType="{x:Type viewmodel:RateChartViewModel}">
-          <view:RateChartControl/>
-        </DataTemplate>-->
-            <!--
-      </ContentControl.ContentTemplate>-->
-        </ContentControl>
+        <ContentControl Grid.Column="1" Content="{Binding SelectedChartView}" />
     </Grid>
 </Window>

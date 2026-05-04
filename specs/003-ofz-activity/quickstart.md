@@ -1,0 +1,162 @@
+# Quickstart: анализ активности ОФЗ
+
+## Цель проверки
+
+Проверить, что новая feature загружает дневные данные ОФЗ, строит рейтинг
+всплесков, heatmap и детализацию выбранного выпуска без поломки существующих
+графиков.
+
+## Preconditions
+
+- Ветка: `003-ofz-activity`.
+- Активная feature: `specs/003-ofz-activity`.
+- Машина имеет доступ к `https://iss.moex.com`.
+- Локальный SQLite файл может уже существовать в
+  `%LOCALAPPDATA%\CurveAnalyzer\zcyc.db`; он считается cache storage. Старый
+  `EnsureCreated`-файл без migration history может быть пересоздан, потому что
+  ZCYC и OFZ history можно скачать заново.
+
+## Automated Validation
+
+```powershell
+dotnet restore
+dotnet build CurveAnalyzer.sln -c Release
+dotnet test -c Release
+```
+
+Baseline before implementation, 2026-05-03:
+
+- `dotnet restore` - PASS, all projects are up to date for restore.
+- `dotnet build CurveAnalyzer.sln -c Release` - PASS, 0 warnings, 0 errors.
+- `dotnet test -c Release` - PASS, 9 tests passed, 0 failed, 0 skipped.
+
+Implementation validation, 2026-05-03:
+
+- `dotnet restore` - PASS, all projects are up to date for restore.
+- `dotnet build CurveAnalyzer.sln -c Release` - PASS, 0 warnings, 0 errors.
+- `dotnet test -c Release` - PASS, 16 tests passed, 0 failed, 0 skipped.
+- ISS history parser smoke: `2026-04-30` returned 62 issues and 62 daily
+  trades from MOEX ISS `TQOB` history.
+- Schema smoke on a copy of legacy `%LOCALAPPDATA%\CurveAnalyzer\zcyc.db` -
+  PASS: old cache is recreated as migration-based DB; tables `Zcycs`,
+  `OfzIssues`, `OfzDailyTrades`, `OfzActivityLoadStates` exist and migration
+  history contains `InitialZcycBaseline` and `AddOfzActivityTables`.
+- Partial manual WPF smoke, 2026-05-03: screen `Активность ОФЗ` opened,
+  history loaded, range `2026-03-19` - `2026-05-03` returned 50 top anomalies.
+  Follow-up accepted: add baseline quality columns and avoid showing missing
+  yield/duration as real zero values.
+- Post-smoke corrections, 2026-05-03: top anomalies now require baseline
+  median value at least 10 mln RUB by default; table shows `Base` and `Days`;
+  technical zero yield/duration values are treated as missing and displayed as
+  `n/a`.
+- US2 heatmap implementation, 2026-05-03: targeted Core tests PASS, 18 tests
+  passed; `dotnet build CurveAnalyzer.sln -c Release` PASS, 0 warnings,
+  0 errors. Heatmap matrix uses separate color buckets for `NoData`,
+  `InsufficientBaseline` and scored cells, and clears stale cells on range load.
+- US3 issue detail implementation, 2026-05-03: targeted Core tests PASS,
+  19 tests passed; `dotnet build CurveAnalyzer.sln -c Release` PASS,
+  0 warnings, 0 errors. Selecting a top anomaly row or heatmap cell loads
+  detail charts for turnover, trades, price and yield for one `SecId`.
+- US3 layout correction, 2026-05-03: detail panel moved to the right of the
+  top anomalies table so selected issue charts remain visible after selection;
+  WPF project build PASS, 0 warnings, 0 errors.
+- US3 chart axis correction, 2026-05-03: detail chart X axes now format
+  LiveCharts `DateTimePoint` values as `dd.MM` dates with one-day step;
+  WPF project build PASS, 0 warnings, 0 errors.
+- US3 chart axis runtime correction, 2026-05-03: `Axis.Labeler` cannot use WPF
+  `{Binding}` because it is not a dependency property; changed detail chart
+  axes to use static `x:Static` labeler. WPF project build PASS, 0 warnings,
+  0 errors.
+- US3 chart axis range correction, 2026-05-03: detail date labeler now ignores
+  non-finite or out-of-range axis values before constructing `DateTime`.
+  WPF project build PASS, 0 warnings, 0 errors.
+- US3 detail visualization correction, 2026-05-03: turnover and trades detail
+  charts switched to column series; price and yield remain line series without
+  area fill; mini-chart labels are smaller and X axis uses weekly date labels.
+  WPF project build PASS, 0 warnings, 0 errors.
+- US3 trading-axis correction, 2026-05-03: detail charts now use ordinal
+  trading-record indexes on X axis and map labels back to trade dates, so
+  weekends and other missing calendar days do not create visual gaps.
+  WPF project build PASS, 0 warnings, 0 errors.
+- Startup OFZ sync target, 2026-05-03: startup warm-up should load the last
+  trading year of OFZ activity history (252 weekday dates) and then only fill
+  missing/new dates inside that rolling window on subsequent starts. Full
+  historical OFZ backfill is intentionally not a startup default.
+- Startup OFZ sync implementation, 2026-05-03: app startup now runs ZCYC sync
+  first, then OFZ activity warm-up for 252 weekday dates. Shared progress bar
+  uses first half for ZCYC and second half for OFZ, with a sidebar status label.
+- Metadata/insights implementation, 2026-05-03: OFZ issue metadata now includes
+  coupon/issue classification fields; `OfzCouponType` distinguishes fixed,
+  floating, inflation-linked, amortized and currency issues; activity insights
+  are generated by deterministic Core rules. Targeted tests PASS, 26 tests
+  passed; `dotnet build CurveAnalyzer.sln -c Release` PASS; `dotnet test -c
+  Release` PASS.
+- Lifetime/tooling hardening, 2026-05-04: repositories and database
+  initializer use `IDbContextFactory<MoexContext>` so cached WPF views do not
+  keep one EF context for the whole app lifetime; EF design-time factory allows
+  `dotnet ef migrations list --project src\CurveAnalyzer.Infrastructure\CurveAnalyzer.Infrastructure.csproj --startup-project src\CurveAnalyzer.Infrastructure\CurveAnalyzer.Infrastructure.csproj --context MoexContext --no-build` to list current migrations. `dotnet build CurveAnalyzer.sln -c Release` PASS; `dotnet test -c Release` PASS, 34 tests passed.
+
+Targeted unit tests for activity calculations:
+
+```powershell
+dotnet test tests/CurveAnalyzer.Core.Tests/CurveAnalyzer.Core.Tests.csproj -c Release
+```
+
+Schema upgrade validation:
+
+1. Запустить приложение или тестовую инициализацию с legacy
+   `%LOCALAPPDATA%\CurveAnalyzer\zcyc.db`, созданным до migrations.
+2. Проверить, что legacy cache пересоздан как migration-based DB.
+3. Проверить, что таблицы `Zcycs`, `OfzIssues`, `OfzDailyTrades`,
+   `OfzActivityLoadStates` созданы и приложение может заново скачать данные.
+
+## Manual Smoke: основной сценарий
+
+1. Запустить supported WPF app.
+2. Дождаться завершения существующей синхронизации ZCYC, если она запускается.
+3. Открыть пункт `Активность ОФЗ`.
+4. Проверить, что экран запускает или предлагает предварительную загрузку
+   недавней дневной истории ОФЗ и показывает progress/status.
+5. После warm-up выбрать диапазон последних 30 торговых дней.
+6. Проверить, что top anomalies table заполняется и каждая строка содержит:
+   дату, выпуск, оборот, activity score и yield move или пометку отсутствия
+   доходности.
+7. Выбрать строку рейтинга.
+8. Проверить, что detail panel показывает оборот и доходность выбранного
+   выпуска по времени.
+9. Проверить heatmap: активные ячейки выделены цветом, пустые/недостаточные
+   ячейки визуально отличаются.
+
+## Manual Smoke: смена диапазона
+
+1. На экране `Активность ОФЗ` выбрать другой диапазон до 90 торговых дней.
+2. Проверить, что старые top anomalies и heatmap не остаются видимыми как
+   актуальные во время пересчета.
+3. Дождаться результата.
+4. Проверить, что рейтинг и heatmap соответствуют новому диапазону.
+5. Для диапазона до 90 торговых дней зафиксировать, что рейтинг аномалий
+   появляется не дольше 10 секунд на типовом локальном наборе данных.
+
+## Manual Smoke: пустой или узкий диапазон
+
+1. Выбрать диапазон, где нет сохраненных или доступных торговых данных.
+2. Проверить empty state.
+3. Выбрать диапазон из 1-2 торговых дней.
+4. Проверить, что выпуски с недостаточной baseline базой не выдают ложный
+   уверенный score.
+
+## Manual Smoke: regressions existing charts
+
+После проверки нового экрана открыть существующие сценарии:
+
+- `Yield Curve`: выбрать дату и убедиться, что график строится.
+- `Rate Change`: выбрать период и убедиться, что история отображается.
+- `Spread Change`: выбрать два периода и убедиться, что спред отображается.
+
+## Expected Result
+
+- Build и tests проходят.
+- Новый экран работает с migration-based локальной cache-базой; legacy
+  `EnsureCreated` cache может быть пересоздан автоматически.
+- Top anomalies, heatmap и detail panel обновляются при смене параметров.
+- Существующие chart workflows остаются работоспособными.
