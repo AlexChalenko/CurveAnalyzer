@@ -541,22 +541,15 @@
                                     GroupName="OfzDetailTabs" />
                             </StackPanel>
 
-                            <Grid ClipToBounds="True">
-                                <Grid
-                                    x:Name="SegmentsContentHost"
-                                    MinWidth="0"
-                                    MinHeight="0"
-                                    ClipToBounds="True">
-                                    <Grid.Style>
-                                        <Style TargetType="{x:Type Grid}">
-                                            <Setter Property="Visibility" Value="Hidden" />
-                                            <Style.Triggers>
-                                                <DataTrigger Binding="{Binding IsChecked, ElementName=SegmentsDetailToggle}" Value="True">
-                                                    <Setter Property="Visibility" Value="Visible" />
-                                                </DataTrigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </Grid.Style>
+                            <ContentControl
+                                ClipToBounds="True"
+                                Content="{Binding}">
+                                <ContentControl.Resources>
+                                    <DataTemplate x:Key="SegmentsDetailTemplate">
+                                                    <Grid
+                                                        MinWidth="0"
+                                                        MinHeight="0"
+                                                        ClipToBounds="True">
                                     <Grid.RowDefinitions>
                                         <RowDefinition Height="Auto" />
                                         <RowDefinition Height="*" />
@@ -690,23 +683,13 @@
                                         XAxes="{Binding DurationYieldScatterPoints, Converter={StaticResource OfzDurationYieldScatterXAxisConverter}, NotifyOnTargetUpdated=True}"
                                         YAxes="{Binding DurationYieldScatterPoints, Converter={StaticResource OfzDurationYieldScatterYAxisConverter}, NotifyOnTargetUpdated=True}"
                                         ZoomMode="None" />
-                                </Grid>
-
-                                <Grid
-                                    x:Name="IssueContentHost"
-                                    MinWidth="0"
-                                    MinHeight="0"
-                                    ClipToBounds="True">
-                                    <Grid.Style>
-                                        <Style TargetType="{x:Type Grid}">
-                                            <Setter Property="Visibility" Value="Hidden" />
-                                            <Style.Triggers>
-                                                <DataTrigger Binding="{Binding IsChecked, ElementName=IssueDetailToggle}" Value="True">
-                                                    <Setter Property="Visibility" Value="Visible" />
-                                                </DataTrigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </Grid.Style>
+                                                    </Grid>
+                                    </DataTemplate>
+                                    <DataTemplate x:Key="IssueDetailTemplate">
+                                                            <Grid
+                                                                MinWidth="0"
+                                                                MinHeight="0"
+                                                                ClipToBounds="True">
                                     <Grid.RowDefinitions>
                                         <RowDefinition Height="Auto" />
                                         <RowDefinition Height="Auto" />
@@ -945,8 +928,20 @@
                                             </lvc:CartesianChart.YAxes>
                                         </lvc:CartesianChart>
                                     </Grid>
-                                </Grid>
-                            </Grid>
+                                                            </Grid>
+                                    </DataTemplate>
+                                </ContentControl.Resources>
+                                <ContentControl.Style>
+                                    <Style TargetType="{x:Type ContentControl}">
+                                        <Setter Property="ContentTemplate" Value="{StaticResource SegmentsDetailTemplate}" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsChecked, ElementName=IssueDetailToggle}" Value="True">
+                                                <Setter Property="ContentTemplate" Value="{StaticResource IssueDetailTemplate}" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </ContentControl.Style>
+                            </ContentControl>
                         </DockPanel>
                     </GroupBox>
                 </Grid>
