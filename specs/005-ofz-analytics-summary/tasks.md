@@ -135,6 +135,7 @@
 - [X] T038 [P] Добавить lightweight performance smoke test для 90 торговых дней и 100 выпусков в `tests/CurveAnalyzer.Core.Tests/Services/OfzMarketSummaryBuilderTests.cs`
 - [ ] T039 Проверить вручную вкладку `Активность ОФЗ`: summary, filters, heatmap, weak liquidity, detail charts, structured JSON
 - [X] T040 Убедиться, что рабочее дерево содержит только intended feature files перед commit в `C:\Users\Alexey\source\repos\CurveAnalyzer`
+- [X] T041 Разделить detail area вкладки `Активность ОФЗ` на отдельные WPF controls для режимов `Сегменты` и `Выпуск`
 
 ---
 
