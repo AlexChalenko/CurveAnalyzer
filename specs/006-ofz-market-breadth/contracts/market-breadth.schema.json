@@ -1,0 +1,616 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://curve-analyzer.local/contracts/ofz/market-breadth.schema.json",
+  "title": "OfzMarketSummary",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "startDate",
+    "endDate",
+    "generatedAt",
+    "findings",
+    "segments",
+    "breadthDays",
+    "limitations",
+    "sourceCounts"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "type": "string",
+      "const": "1.1"
+    },
+    "startDate": {
+      "type": "string",
+      "format": "date"
+    },
+    "endDate": {
+      "type": "string",
+      "format": "date"
+    },
+    "generatedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "couponTypeFilter": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "enum": [
+        "Fixed",
+        "Floating",
+        "InflationLinked",
+        "Amortized",
+        "Currency",
+        "Unknown",
+        null
+      ]
+    },
+    "couponTypeMarker": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "signalScope": {
+      "type": "string",
+      "enum": [
+        "AllDays",
+        "LastAvailableDay"
+      ]
+    },
+    "insightStartDate": {
+      "type": "string",
+      "format": "date"
+    },
+    "insightEndDate": {
+      "type": "string",
+      "format": "date"
+    },
+    "findings": {
+      "type": "array",
+      "maxItems": 7,
+      "items": {
+        "$ref": "#/$defs/finding"
+      }
+    },
+    "segments": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/segment"
+      }
+    },
+    "breadthDays": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/breadthDay"
+      }
+    },
+    "limitations": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/limitation"
+      }
+    },
+    "sourceCounts": {
+      "$ref": "#/$defs/sourceCounts"
+    }
+  },
+  "$defs": {
+    "finding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "kind",
+        "priority",
+        "scope",
+        "title",
+        "text",
+        "evidence",
+        "limitations"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "MarketActivity",
+            "SegmentConcentration",
+            "RepeatedIssue",
+            "YieldMove",
+            "WeakLiquidity",
+            "SpreadSignal",
+            "DataQuality",
+            "MarketBreadth",
+            "TurnoverConcentration",
+            "TypeShare"
+          ]
+        },
+        "priority": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "scope": {
+          "type": "string",
+          "enum": [
+            "Market",
+            "Segment",
+            "Issue",
+            "Date",
+            "Liquidity",
+            "Spread",
+            "DataQuality",
+            "MarketBreadth"
+          ]
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1
+        },
+        "text": {
+          "type": "string",
+          "minLength": 1
+        },
+        "evidence": {
+          "type": "object"
+        },
+        "limitations": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/limitation"
+          }
+        },
+        "drillDown": {
+          "$ref": "#/$defs/drillDown"
+        }
+      }
+    },
+    "segment": {
+      "type": "object"
+    },
+    "drillDown": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "target": {
+          "type": "string",
+          "enum": [
+            "HeatmapDate",
+            "IssueDetail",
+            "SegmentDetail",
+            "WeakLiquidityTable",
+            "ActivityTable",
+            "MarketBreadthDay"
+          ]
+        },
+        "secId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "tradeDate": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date"
+        },
+        "couponType": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "sourceCounts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "issues",
+        "trades",
+        "activityMetrics",
+        "liquidityMetrics",
+        "snapshotLiquidityMetrics",
+        "dates"
+      ],
+      "properties": {
+        "issues": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "trades": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "activityMetrics": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "liquidityMetrics": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "snapshotLiquidityMetrics": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "dates": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "breadthDay": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "tradeDate",
+        "issueCount",
+        "comparableIssueCount",
+        "notComparableIssueCount",
+        "activeIssueCount",
+        "direction",
+        "concentration",
+        "typeShares",
+        "topContributors",
+        "limitations",
+        "isProvisional"
+      ],
+      "properties": {
+        "tradeDate": {
+          "type": "string",
+          "format": "date"
+        },
+        "issueCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "comparableIssueCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "notComparableIssueCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "activeIssueCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "activeIssueShare": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0,
+          "maximum": 1
+        },
+        "totalValue": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "numTrades": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "direction": {
+          "$ref": "#/$defs/direction"
+        },
+        "concentration": {
+          "$ref": "#/$defs/concentration"
+        },
+        "typeShares": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/typeShare"
+          }
+        },
+        "topContributors": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/contributor"
+          }
+        },
+        "limitations": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/limitation"
+          }
+        },
+        "isProvisional": {
+          "type": "boolean"
+        }
+      }
+    },
+    "direction": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "yieldUpCount",
+        "yieldDownCount",
+        "unchangedCount",
+        "notComparableCount",
+        "dominantDirection"
+      ],
+      "properties": {
+        "yieldUpCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "yieldDownCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "unchangedCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "notComparableCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "dominantDirection": {
+          "type": "string",
+          "enum": [
+            "Up",
+            "Down",
+            "Mixed",
+            "Flat",
+            "None"
+          ]
+        },
+        "dominantDirectionShare": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0,
+          "maximum": 1
+        },
+        "medianYieldMove": {
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      }
+    },
+    "concentration": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "issueBaseCount"
+      ],
+      "properties": {
+        "totalValue": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "issueBaseCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "top5Value": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "top5Share": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0,
+          "maximum": 1
+        },
+        "top10Value": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "top10Share": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0,
+          "maximum": 1
+        },
+        "isHighConcentration": {
+          "type": "boolean"
+        }
+      }
+    },
+    "typeShare": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "couponType",
+        "couponTypeMarker",
+        "issueCount",
+        "activeIssueCount"
+      ],
+      "properties": {
+        "couponType": {
+          "type": "string"
+        },
+        "couponTypeMarker": {
+          "type": "string"
+        },
+        "issueCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "activeIssueCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "totalValue": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "valueShare": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0,
+          "maximum": 1
+        },
+        "numTrades": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "missingTypeCount": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "contributor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "secId",
+        "shortName",
+        "tradeDate",
+        "reason"
+      ],
+      "properties": {
+        "secId": {
+          "type": "string"
+        },
+        "shortName": {
+          "type": "string"
+        },
+        "couponType": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "couponTypeMarker": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "tradeDate": {
+          "type": "string",
+          "format": "date"
+        },
+        "value": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "valueShare": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0,
+          "maximum": 1
+        },
+        "numTrades": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "yieldMove": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "yieldDirection": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            "Up",
+            "Down",
+            "Unchanged",
+            "NotComparable",
+            null
+          ]
+        },
+        "reason": {
+          "type": "string",
+          "enum": [
+            "TopTurnover",
+            "YieldUp",
+            "YieldDown",
+            "WeakLiquidity",
+            "HighActivity"
+          ]
+        }
+      }
+    },
+    "limitation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "scope",
+        "text"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string"
+        },
+        "scope": {
+          "type": "string"
+        },
+        "text": {
+          "type": "string"
+        },
+        "secId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "tradeDate": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date"
+        },
+        "couponType": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    }
+  }
+}

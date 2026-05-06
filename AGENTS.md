@@ -2,7 +2,7 @@
 
 <!-- SPECKIT START -->
 Для текущей feature сначала читай активный план:
-`specs/005-ofz-analytics-summary/plan.md`.
+`specs/006-ofz-market-breadth/plan.md`.
 <!-- SPECKIT END -->
 
 ## Язык документации

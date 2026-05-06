@@ -12,7 +12,10 @@ public enum OfzSummaryFindingKind
     YieldMove = 3,
     WeakLiquidity = 4,
     SpreadSignal = 5,
-    DataQuality = 6
+    DataQuality = 6,
+    MarketBreadth = 7,
+    TurnoverConcentration = 8,
+    TypeShare = 9
 }
 
 public enum OfzSummaryScope
@@ -23,7 +26,8 @@ public enum OfzSummaryScope
     Date = 3,
     Liquidity = 4,
     Spread = 5,
-    DataQuality = 6
+    DataQuality = 6,
+    MarketBreadth = 7
 }
 
 public enum OfzDataLimitationKind
@@ -35,7 +39,8 @@ public enum OfzDataLimitationKind
     SnapshotOnly = 4,
     Provisional = 5,
     CurrencyMixed = 6,
-    ShortRange = 7
+    ShortRange = 7,
+    UnknownCouponType = 8
 }
 
 public enum OfzIssueFocusReason
@@ -59,12 +64,13 @@ public enum OfzSummaryDrillDownTarget
     IssueDetail = 1,
     SegmentDetail = 2,
     WeakLiquidityTable = 3,
-    ActivityTable = 4
+    ActivityTable = 4,
+    MarketBreadthDay = 5
 }
 
 public class OfzMarketSummary
 {
-    public const string CurrentSchemaVersion = "1.0";
+    public const string CurrentSchemaVersion = "1.1";
 
     public string SchemaVersion { get; init; } = CurrentSchemaVersion;
     [JsonConverter(typeof(OfzDateJsonConverter))]
@@ -81,6 +87,7 @@ public class OfzMarketSummary
     public DateTime InsightEndDate { get; init; }
     public IReadOnlyList<OfzSummaryFinding> Findings { get; init; } = [];
     public IReadOnlyList<OfzSegmentSummary> Segments { get; init; } = [];
+    public IReadOnlyList<MarketBreadthDay> BreadthDays { get; init; } = [];
     public IReadOnlyList<OfzDataLimitation> Limitations { get; init; } = [];
     public OfzSummarySourceCounts SourceCounts { get; init; } = new();
 }
@@ -109,15 +116,31 @@ public class OfzFindingEvidence
     public int? IssueCount { get; init; }
     public int? ActiveIssueCount { get; init; }
     public int? RankableIssueCount { get; init; }
+    public int? ComparableIssueCount { get; init; }
+    public int? NotComparableIssueCount { get; init; }
     public double? TotalValue { get; init; }
     public double? Value { get; init; }
     public int? TotalNumTrades { get; init; }
     public int? NumTrades { get; init; }
+    public double? ActiveIssueShare { get; init; }
     public double? ActivityScore { get; init; }
     public double? MedianActivityScore { get; init; }
     public double? MaxActivityScore { get; init; }
     public double? YieldMove { get; init; }
     public double? YieldValue { get; init; }
+    public int? YieldUpCount { get; init; }
+    public int? YieldDownCount { get; init; }
+    public int? UnchangedCount { get; init; }
+    public OfzDominantYieldDirection? DominantDirection { get; init; }
+    public double? DominantDirectionShare { get; init; }
+    public double? MedianYieldMove { get; init; }
+    public int? IssueBaseCount { get; init; }
+    public double? Top5Value { get; init; }
+    public double? Top5Share { get; init; }
+    public double? Top10Value { get; init; }
+    public double? Top10Share { get; init; }
+    public double? ValueShare { get; init; }
+    public int? MissingTypeCount { get; init; }
     public double? Duration { get; init; }
     public double? Spread { get; init; }
     public OfzSpreadSource? SpreadSource { get; init; }
