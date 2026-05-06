@@ -56,7 +56,7 @@
             Margin="0,0,0,6"
             Header="Выводы"
             Visibility="{Binding HasMarketSummary, Converter={StaticResource BoolToVis}}">
-            <Grid MaxHeight="210">
+            <Grid MaxHeight="260">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="2*" />
                     <ColumnDefinition Width="8" />
@@ -104,33 +104,127 @@
                     Grid.Column="2"
                     Margin="0,2,0,0"
                     LastChildFill="True">
-                    <DockPanel Margin="0,0,0,4" DockPanel.Dock="Top">
+                    <DockPanel
+                        Margin="0,0,0,4"
+                        DockPanel.Dock="Top"
+                        LastChildFill="False">
                         <TextBlock
                             VerticalAlignment="Center"
                             DockPanel.Dock="Left"
                             FontWeight="SemiBold"
-                            Text="Сегменты" />
+                            Text="Сводка" />
                         <Button
                             Margin="8,0,0,0"
                             Padding="8,2"
+                            HorizontalAlignment="Right"
                             Command="{Binding CopySummaryJsonCommand}"
                             Content="JSON"
                             DockPanel.Dock="Right" />
                     </DockPanel>
 
-                    <Border
-                        DockPanel.Dock="Bottom"
-                        Margin="0,4,0,0"
-                        Padding="0,4,0,0"
-                        BorderBrush="#E0E0E0"
-                        BorderThickness="0,1,0,0"
-                        Visibility="{Binding HasSummaryLimitations, Converter={StaticResource BoolToVis}}">
-                        <StackPanel>
-                            <TextBlock
-                                FontWeight="SemiBold"
-                                Text="Ограничения" />
+                    <TabControl>
+                        <TabItem Header="Ширина">
+                            <StackPanel Margin="0,4,0,0">
+                                <TextBlock
+                                    FontWeight="SemiBold"
+                                    Text="Ширина рынка" />
+                                <TextBlock
+                                    Margin="0,1,0,3"
+                                    FontSize="10"
+                                    Foreground="DimGray"
+                                    Text="по периоду выводов: направления доходности, активность и концентрация оборота"
+                                    TextWrapping="Wrap" />
+                                <DataGrid
+                                    MaxHeight="158"
+                                    AutoGenerateColumns="False"
+                                    CanUserAddRows="False"
+                                    HeadersVisibility="Column"
+                                    IsReadOnly="True"
+                                    ItemsSource="{Binding MarketSummary.BreadthDays}"
+                                    SelectedItem="{Binding SelectedBreadthDay, Mode=TwoWay}"
+                                    ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                                    ScrollViewer.VerticalScrollBarVisibility="Auto">
+                                    <DataGrid.Columns>
+                                        <DataGridTextColumn
+                                            Width="64"
+                                            Binding="{Binding TradeDate, Mode=OneWay, StringFormat={}{0:dd.MM}}"
+                                            Header="Дата" />
+                                        <DataGridTextColumn
+                                            Width="42"
+                                            Binding="{Binding Direction.YieldUpCount, Mode=OneWay}"
+                                            Header="Up" />
+                                        <DataGridTextColumn
+                                            Width="42"
+                                            Binding="{Binding Direction.YieldDownCount, Mode=OneWay}"
+                                            Header="Down" />
+                                        <DataGridTextColumn
+                                            Width="44"
+                                            Binding="{Binding Direction.UnchangedCount, Mode=OneWay}"
+                                            Header="Flat" />
+                                        <DataGridTextColumn
+                                            Width="46"
+                                            Binding="{Binding NotComparableIssueCount, Mode=OneWay}"
+                                            Header="n/a" />
+                                        <DataGridTextColumn
+                                            Width="54"
+                                            Binding="{Binding ActiveIssueCount, Mode=OneWay}"
+                                            Header="Акт." />
+                                        <DataGridTextColumn
+                                            Width="58"
+                                            Binding="{Binding Concentration.Top5Share, Mode=OneWay, StringFormat={}{0:P0}, TargetNullValue=n/a}"
+                                            Header="Top-5" />
+                                        <DataGridTextColumn
+                                            Width="58"
+                                            Binding="{Binding Concentration.Top10Share, Mode=OneWay, StringFormat={}{0:P0}, TargetNullValue=n/a}"
+                                            Header="Top-10" />
+                                    </DataGrid.Columns>
+                                </DataGrid>
+                            </StackPanel>
+                        </TabItem>
+
+                        <TabItem Header="Сегменты">
                             <ScrollViewer
-                                MaxHeight="52"
+                                Margin="0,4,0,0"
+                                HorizontalScrollBarVisibility="Disabled"
+                                VerticalScrollBarVisibility="Auto">
+                                <ItemsControl ItemsSource="{Binding SegmentSummaries}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Border
+                                                Margin="0,0,0,4"
+                                                Padding="0,0,0,4"
+                                                BorderBrush="#E0E0E0"
+                                                BorderThickness="0,0,0,1">
+                                                <StackPanel>
+                                                    <TextBlock FontWeight="SemiBold">
+                                                        <Run Text="{Binding CouponTypeMarker}" />
+                                                        <Run Text=": " />
+                                                        <Run Text="{Binding TotalValue, StringFormat={}{0:N0}}" />
+                                                        <Run Text=" " />
+                                                        <Run Text="{Binding TotalValueUnitMarker, Mode=OneWay}" />
+                                                    </TextBlock>
+                                                    <TextBlock
+                                                        FontSize="10"
+                                                        Foreground="DimGray"
+                                                        TextWrapping="Wrap">
+                                                        <Run Text="активных " />
+                                                        <Run Text="{Binding ActiveIssueCount}" />
+                                                        <Run Text=", weak " />
+                                                        <Run Text="{Binding WeakLiquidityCount}" />
+                                                        <Run Text=", missing quotes " />
+                                                        <Run Text="{Binding MissingQuotesCount}" />
+                                                    </TextBlock>
+                                                </StackPanel>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </ScrollViewer>
+                        </TabItem>
+
+                        <TabItem Header="Ограничения">
+                            <ScrollViewer
+                                Margin="0,4,0,0"
                                 HorizontalScrollBarVisibility="Disabled"
                                 VerticalScrollBarVisibility="Auto">
                                 <ItemsControl ItemsSource="{Binding SummaryLimitations}">
@@ -146,45 +240,77 @@
                                     </ItemsControl.ItemTemplate>
                                 </ItemsControl>
                             </ScrollViewer>
-                        </StackPanel>
-                    </Border>
+                        </TabItem>
 
-                    <ScrollViewer
-                        HorizontalScrollBarVisibility="Disabled"
-                        VerticalScrollBarVisibility="Auto">
-                        <ItemsControl ItemsSource="{Binding SegmentSummaries}">
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate>
-                                    <Border
-                                        Margin="0,0,0,4"
-                                        Padding="0,0,0,4"
-                                        BorderBrush="#E0E0E0"
-                                        BorderThickness="0,0,0,1">
-                                        <StackPanel>
-                                            <TextBlock FontWeight="SemiBold">
-                                                <Run Text="{Binding CouponTypeMarker}" />
-                                                <Run Text=": " />
-                                                <Run Text="{Binding TotalValue, StringFormat={}{0:N0}}" />
-                                                <Run Text=" " />
-                                                <Run Text="{Binding TotalValueUnitMarker, Mode=OneWay}" />
-                                            </TextBlock>
+                        <TabItem Header="День">
+                            <StackPanel Margin="0,4,0,0">
+                                <TextBlock
+                                    FontWeight="SemiBold"
+                                    Text="Выбранный день" />
+                                <TextBlock
+                                    Margin="0,1,0,3"
+                                    FontSize="10"
+                                    Foreground="DimGray"
+                                    Text="{Binding SelectedBreadthDaySummary}"
+                                    TextWrapping="Wrap" />
+                                <DataGrid
+                                    MaxHeight="136"
+                                    AutoGenerateColumns="False"
+                                    CanUserAddRows="False"
+                                    HeadersVisibility="Column"
+                                    IsReadOnly="True"
+                                    ItemsSource="{Binding SelectedBreadthContributors}"
+                                    ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                                    ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                    Visibility="{Binding HasSelectedBreadthContributors, Converter={StaticResource BoolToVis}}">
+                                    <DataGrid.Columns>
+                                        <DataGridTextColumn
+                                            Width="90"
+                                            Binding="{Binding ShortName, Mode=OneWay}"
+                                            Header="Выпуск" />
+                                        <DataGridTextColumn
+                                            Width="58"
+                                            Binding="{Binding CouponTypeMarker, Mode=OneWay, TargetNullValue=n/a}"
+                                            Header="Тип" />
+                                        <DataGridTextColumn
+                                            Width="70"
+                                            Binding="{Binding YieldDirection, Mode=OneWay}"
+                                            Header="Yield" />
+                                        <DataGridTextColumn
+                                            Width="64"
+                                            Binding="{Binding YieldMove, Mode=OneWay, StringFormat={}{0:N2}, TargetNullValue=n/a}"
+                                            Header="Δ" />
+                                        <DataGridTextColumn
+                                            Width="85"
+                                            Binding="{Binding Value, Mode=OneWay, StringFormat={}{0:N0}, TargetNullValue=n/a}"
+                                            Header="Оборот" />
+                                        <DataGridTextColumn
+                                            Width="55"
+                                            Binding="{Binding ValueShare, Mode=OneWay, StringFormat={}{0:P0}, TargetNullValue=n/a}"
+                                            Header="Доля" />
+                                        <DataGridTextColumn
+                                            Width="80"
+                                            Binding="{Binding Reason, Mode=OneWay}"
+                                            Header="Роль" />
+                                    </DataGrid.Columns>
+                                </DataGrid>
+                                <ItemsControl
+                                    Margin="0,3,0,0"
+                                    ItemsSource="{Binding SelectedBreadthLimitations}"
+                                    Visibility="{Binding HasSelectedBreadthLimitations, Converter={StaticResource BoolToVis}}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
                                             <TextBlock
                                                 FontSize="10"
                                                 Foreground="DimGray"
-                                                TextWrapping="Wrap">
-                                                <Run Text="активных " />
-                                                <Run Text="{Binding ActiveIssueCount}" />
-                                                <Run Text=", weak " />
-                                                <Run Text="{Binding WeakLiquidityCount}" />
-                                                <Run Text=", missing quotes " />
-                                                <Run Text="{Binding MissingQuotesCount}" />
-                                            </TextBlock>
-                                        </StackPanel>
-                                    </Border>
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
-                    </ScrollViewer>
+                                                Text="{Binding Text}"
+                                                TextWrapping="Wrap" />
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+                        </TabItem>
+                    </TabControl>
                 </DockPanel>
             </Grid>
         </GroupBox>

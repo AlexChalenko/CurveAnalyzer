@@ -11,6 +11,8 @@ namespace CurveAnalyzer.Presentation.WPF.ViewModels;
 
 public partial class OfzActivityViewModel(OfzActivityService activityService) : ObservableObject, IChartViewModel
 {
+    private const string BreadthDayPlaceholder = "Выберите строку во вкладке \"Ширина\" или вывод по ширине рынка.";
+
     private bool _initialized;
     private int _detailSelectionVersion;
     private OfzActivityLoadResult? _currentResult;
@@ -81,10 +83,22 @@ public partial class OfzActivityViewModel(OfzActivityService activityService) : 
     public partial ObservableCollection<OfzDataLimitation> SummaryLimitations { get; set; } = [];
 
     [ObservableProperty]
+    public partial ObservableCollection<MarketBreadthContributor> SelectedBreadthContributors { get; set; } = [];
+
+    [ObservableProperty]
+    public partial MarketBreadthDay? SelectedBreadthDay { get; set; }
+
+    [ObservableProperty]
+    public partial ObservableCollection<OfzDataLimitation> SelectedBreadthLimitations { get; set; } = [];
+
+    [ObservableProperty]
     public partial string StructuredSummaryJson { get; set; } = string.Empty;
 
     [ObservableProperty]
     public partial string SelectedSummaryEvidenceText { get; set; } = "Вывод не выбран";
+
+    [ObservableProperty]
+    public partial string SelectedBreadthDaySummary { get; set; } = BreadthDayPlaceholder;
 
     [ObservableProperty]
     public partial ObservableCollection<OfzActivityIndexPoint> ActivityIndex { get; set; } = [];
@@ -142,6 +156,12 @@ public partial class OfzActivityViewModel(OfzActivityService activityService) : 
 
     [ObservableProperty]
     public partial bool HasSummaryLimitations { get; set; }
+
+    [ObservableProperty]
+    public partial bool HasSelectedBreadthContributors { get; set; }
+
+    [ObservableProperty]
+    public partial bool HasSelectedBreadthLimitations { get; set; }
 
     [ObservableProperty]
     public partial bool HasStructuredSummaryJson { get; set; }
@@ -256,11 +276,18 @@ public partial class OfzActivityViewModel(OfzActivityService activityService) : 
 
     partial void OnSelectedSummaryFindingChanged(OfzSummaryFinding? value)
     {
+        ClearSelectedBreadthDay();
         SelectedSummaryEvidenceText = FormatSummaryEvidence(value);
 
         if (value is null)
         {
             return;
+        }
+
+        if (value.DrillDown?.Target == OfzSummaryDrillDownTarget.MarketBreadthDay &&
+            value.DrillDown.TradeDate is DateTime breadthDate)
+        {
+            FocusMarketBreadthDay(breadthDate, value);
         }
 
         if (value.DrillDown?.Target == OfzSummaryDrillDownTarget.SegmentDetail &&
@@ -325,6 +352,7 @@ public partial class OfzActivityViewModel(OfzActivityService activityService) : 
         SummaryFindings.Clear();
         SegmentSummaries.Clear();
         SummaryLimitations.Clear();
+        ClearSelectedBreadthDay();
         MarketSummary = null;
         StructuredSummaryJson = string.Empty;
         SelectedSummaryFinding = null;
@@ -344,6 +372,8 @@ public partial class OfzActivityViewModel(OfzActivityService activityService) : 
         HasMarketSummary = false;
         HasSegmentSummaries = false;
         HasSummaryLimitations = false;
+        HasSelectedBreadthContributors = false;
+        HasSelectedBreadthLimitations = false;
         HasStructuredSummaryJson = false;
         CopySummaryJsonCommand.NotifyCanExecuteChanged();
         HasActivityIndex = false;
@@ -371,22 +401,25 @@ public partial class OfzActivityViewModel(OfzActivityService activityService) : 
             _currentResult.StartDate,
             _currentResult.EndDate);
         var liquidityMetrics = GetFilteredLiquidityMetrics(_currentResult, issues);
+        var trades = GetFilteredTrades(_currentResult, issues);
         var signalLiquidityMetrics = GetSignalLiquidityMetrics(liquidityMetrics);
         var insightMetrics = GetInsightMetrics(signalMetrics, _currentResult);
         var insightLiquidityMetrics = GetInsightLiquidityMetrics(signalLiquidityMetrics, _currentResult);
-        var insightTrades = GetInsightTrades(GetSignalTrades(GetFilteredTrades(_currentResult, issues)), _currentResult);
+        var insightRange = GetInsightDateRange(_currentResult);
         var marketSummary = OfzMarketSummaryBuilder.Build(new OfzMarketSummaryInput
         {
             StartDate = _currentResult.StartDate,
             EndDate = _currentResult.EndDate,
+            InsightStartDate = insightRange.StartDate,
+            InsightEndDate = insightRange.EndDate,
             CouponTypeFilter = SelectedCouponTypeFilter?.CouponType,
             SignalScope = SelectedSignalScopeFilter?.LastAvailableDayOnly == true
                 ? OfzSummarySignalScope.LastAvailableDay
                 : OfzSummarySignalScope.AllDays,
             Issues = issues,
-            Trades = insightTrades,
-            ActivityMetrics = insightMetrics,
-            LiquidityMetrics = insightLiquidityMetrics
+            Trades = trades,
+            ActivityMetrics = metrics,
+            LiquidityMetrics = liquidityMetrics
         });
         var insights = OfzActivityAnalyzer.BuildActivityInsights(insightMetrics, issues)
             .Concat(OfzActivityAnalyzer.BuildLiquidityInsights(insightLiquidityMetrics, issues))
@@ -419,7 +452,7 @@ public partial class OfzActivityViewModel(OfzActivityService activityService) : 
         var insightPeriodLabel = SelectedInsightPeriodFilter?.DisplayName ?? "Весь диапазон";
         var signalScopeLabel = SelectedSignalScopeFilter?.DisplayName ?? "Все дни";
         StatusMessage = HasAnomalies || HasHeatmap || HasMarketSummary || HasActivityIndex || HasDurationYieldScatter
-            ? $"Найдено всплесков: {TopAnomalies.Count}; weak liquidity: {WeakLiquidityItems.Count}; heatmap: {HeatmapRows.Count} выпусков; выводов: {SummaryFindings.Count}; index: {ActivityIndex.Count}; scatter: {DurationYieldScatterPoints.Count}; тип: {filterLabel}; сигналы: {signalScopeLabel}; период выводов: {insightPeriodLabel}"
+            ? $"Найдено всплесков: {TopAnomalies.Count}; weak liquidity: {WeakLiquidityItems.Count}; heatmap: {HeatmapRows.Count} выпусков; выводов: {SummaryFindings.Count}; дней breadth в выводах: {marketSummary.BreadthDays.Count}; index: {ActivityIndex.Count}; scatter: {DurationYieldScatterPoints.Count}; тип: {filterLabel}; сигналы: {signalScopeLabel}; период выводов: {insightPeriodLabel}"
             : $"Нет записей с достаточной baseline; тип: {filterLabel}; сигналы: {signalScopeLabel}; период выводов: {insightPeriodLabel}";
     }
 
@@ -530,80 +563,38 @@ public partial class OfzActivityViewModel(OfzActivityService activityService) : 
             .ToList();
     }
 
-    private IReadOnlyList<OfzDailyTrade> GetSignalTrades(IReadOnlyList<OfzDailyTrade> trades)
+    private (DateTime StartDate, DateTime EndDate) GetInsightDateRange(OfzActivityLoadResult result)
     {
-        if (SelectedSignalScopeFilter?.LastAvailableDayOnly != true)
+        var startDate = result.StartDate.Date;
+        var endDate = result.EndDate.Date;
+        if (startDate > endDate)
         {
-            return trades;
+            (startDate, endDate) = (endDate, startDate);
         }
 
-        var lastDate = trades
-            .Select(trade => trade.TradeDate.Date)
-            .DefaultIfEmpty()
-            .Max();
-        if (lastDate == default)
+        var days = SelectedInsightPeriodFilter?.Days;
+        if (!days.HasValue)
         {
-            return [];
+            return (startDate, endDate);
         }
 
-        return trades
-            .Where(trade => trade.TradeDate.Date == lastDate)
-            .ToList();
+        var insightStartDate = endDate.AddDays(-(days.Value - 1));
+        if (insightStartDate < startDate)
+        {
+            insightStartDate = startDate;
+        }
+
+        return (insightStartDate, endDate);
     }
 
     private IReadOnlyList<OfzActivityMetric> GetInsightMetrics(
         IReadOnlyList<OfzActivityMetric> metrics,
         OfzActivityLoadResult result)
     {
-        var days = SelectedInsightPeriodFilter?.Days;
-        if (!days.HasValue)
-        {
-            return metrics;
-        }
-
-        var startDate = result.StartDate.Date;
-        var endDate = result.EndDate.Date;
-        if (startDate > endDate)
-        {
-            (startDate, endDate) = (endDate, startDate);
-        }
-
-        var insightStartDate = endDate.AddDays(-(days.Value - 1));
-        if (insightStartDate < startDate)
-        {
-            insightStartDate = startDate;
-        }
+        var (insightStartDate, insightEndDate) = GetInsightDateRange(result);
 
         return metrics
-            .Where(metric => metric.TradeDate.Date >= insightStartDate && metric.TradeDate.Date <= endDate)
-            .ToList();
-    }
-
-    private IReadOnlyList<OfzDailyTrade> GetInsightTrades(
-        IReadOnlyList<OfzDailyTrade> trades,
-        OfzActivityLoadResult result)
-    {
-        var days = SelectedInsightPeriodFilter?.Days;
-        if (!days.HasValue)
-        {
-            return trades;
-        }
-
-        var startDate = result.StartDate.Date;
-        var endDate = result.EndDate.Date;
-        if (startDate > endDate)
-        {
-            (startDate, endDate) = (endDate, startDate);
-        }
-
-        var insightStartDate = endDate.AddDays(-(days.Value - 1));
-        if (insightStartDate < startDate)
-        {
-            insightStartDate = startDate;
-        }
-
-        return trades
-            .Where(trade => trade.TradeDate.Date >= insightStartDate && trade.TradeDate.Date <= endDate)
+            .Where(metric => metric.TradeDate.Date >= insightStartDate && metric.TradeDate.Date <= insightEndDate)
             .ToList();
     }
 
@@ -611,27 +602,10 @@ public partial class OfzActivityViewModel(OfzActivityService activityService) : 
         IReadOnlyList<OfzLiquidityMetric> metrics,
         OfzActivityLoadResult result)
     {
-        var days = SelectedInsightPeriodFilter?.Days;
-        if (!days.HasValue)
-        {
-            return metrics;
-        }
-
-        var startDate = result.StartDate.Date;
-        var endDate = result.EndDate.Date;
-        if (startDate > endDate)
-        {
-            (startDate, endDate) = (endDate, startDate);
-        }
-
-        var insightStartDate = endDate.AddDays(-(days.Value - 1));
-        if (insightStartDate < startDate)
-        {
-            insightStartDate = startDate;
-        }
+        var (insightStartDate, insightEndDate) = GetInsightDateRange(result);
 
         return metrics
-            .Where(metric => metric.TradeDate.Date >= insightStartDate && metric.TradeDate.Date <= endDate)
+            .Where(metric => metric.TradeDate.Date >= insightStartDate && metric.TradeDate.Date <= insightEndDate)
             .ToList();
     }
 
@@ -710,6 +684,68 @@ public partial class OfzActivityViewModel(OfzActivityService activityService) : 
         {
             SelectedCouponTypeFilter = filter;
         }
+    }
+
+    partial void OnSelectedBreadthDayChanged(MarketBreadthDay? value)
+    {
+        ClearSelectedBreadthDayDetails();
+
+        if (value is not null)
+        {
+            ApplySelectedBreadthDay(value);
+        }
+    }
+
+    private void FocusMarketBreadthDay(DateTime tradeDate, OfzSummaryFinding finding)
+    {
+        var day = MarketSummary?.BreadthDays.FirstOrDefault(item => item.TradeDate.Date == tradeDate.Date);
+        if (day is null)
+        {
+            SelectedBreadthDaySummary = $"{tradeDate:yyyy-MM-dd}: {finding.Text}";
+            return;
+        }
+
+        ApplySelectedBreadthDay(day);
+    }
+
+    private void ApplySelectedBreadthDay(MarketBreadthDay day)
+    {
+        SelectedBreadthDaySummary =
+            $"{day.TradeDate:yyyy-MM-dd}: активных {day.ActiveIssueCount}/{day.IssueCount}, " +
+            $"сравнимых {day.ComparableIssueCount}, up {day.Direction.YieldUpCount}, " +
+            $"down {day.Direction.YieldDownCount}, flat {day.Direction.UnchangedCount}, " +
+            $"top-5 {FormatPercent(day.Concentration.Top5Share)}";
+
+        foreach (var contributor in day.TopContributors
+            .OrderByDescending(item => item.Value ?? 0)
+            .ThenBy(item => item.ShortName, StringComparer.CurrentCulture)
+            .ThenBy(item => item.SecId, StringComparer.Ordinal))
+        {
+            SelectedBreadthContributors.Add(contributor);
+        }
+
+        foreach (var limitation in day.Limitations)
+        {
+            SelectedBreadthLimitations.Add(limitation);
+        }
+
+        HasSelectedBreadthContributors = SelectedBreadthContributors.Count > 0;
+        HasSelectedBreadthLimitations = SelectedBreadthLimitations.Count > 0;
+    }
+
+    private void ClearSelectedBreadthDay()
+    {
+        SelectedBreadthDay = null;
+        ClearSelectedBreadthDayDetails();
+    }
+
+    private void ClearSelectedBreadthDayDetails()
+    {
+        SelectedBreadthContributors.Clear();
+        SelectedBreadthLimitations.Clear();
+        SelectedBreadthDaySummary = BreadthDayPlaceholder;
+        HasSelectedBreadthContributors = false;
+        HasSelectedBreadthLimitations = false;
     }
 
     private void ApplyActivityIndex(IReadOnlyList<OfzActivityIndexPoint> points)
@@ -880,10 +916,29 @@ public partial class OfzActivityViewModel(OfzActivityService activityService) : 
             ? "дат активности"
             : "выпусков";
         AddNumber(parts, activeIssueCountLabel, evidence.ActiveIssueCount, "N0");
+        AddNumber(parts, "сравнимых выпусков", evidence.ComparableIssueCount, "N0");
+        AddNumber(parts, "без пары доходности", evidence.NotComparableIssueCount, "N0");
         AddNumber(parts, "оборот", evidence.TotalValue ?? evidence.Value, "N0");
         AddNumber(parts, "сделок", evidence.TotalNumTrades ?? evidence.NumTrades, "N0");
+        AddPercent(parts, "доля активных", evidence.ActiveIssueShare);
         AddNumber(parts, "score", evidence.ActivityScore ?? evidence.MaxActivityScore ?? evidence.MedianActivityScore, "N2");
         AddNumber(parts, "yield Δ", evidence.YieldMove, "N2");
+        AddNumber(parts, "yield up", evidence.YieldUpCount, "N0");
+        AddNumber(parts, "yield down", evidence.YieldDownCount, "N0");
+        AddNumber(parts, "yield flat", evidence.UnchangedCount, "N0");
+
+        if (evidence.DominantDirection.HasValue)
+        {
+            parts.Add($"dominant {evidence.DominantDirection.Value}");
+        }
+
+        AddPercent(parts, "dominant share", evidence.DominantDirectionShare);
+        AddNumber(parts, "median yield Δ", evidence.MedianYieldMove, "N2");
+        AddNumber(parts, "turnover base", evidence.IssueBaseCount, "N0");
+        AddPercent(parts, "top-5 share", evidence.Top5Share);
+        AddPercent(parts, "top-10 share", evidence.Top10Share);
+        AddPercent(parts, "type share", evidence.ValueShare);
+        AddNumber(parts, "unknown type", evidence.MissingTypeCount, "N0");
         AddNumber(parts, "spread", evidence.Spread, "N3");
         AddNumber(parts, "liquidity", evidence.LiquidityScore, "N2");
 
@@ -929,6 +984,19 @@ public partial class OfzActivityViewModel(OfzActivityService activityService) : 
         {
             parts.Add($"{label} {value.Value.ToString(format)}");
         }
+    }
+
+    private static void AddPercent(List<string> parts, string label, double? value)
+    {
+        if (value.HasValue)
+        {
+            parts.Add($"{label} {value.Value:P0}");
+        }
+    }
+
+    private static string FormatPercent(double? value)
+    {
+        return value.HasValue ? value.Value.ToString("P0") : "n/a";
     }
 
     private static IEnumerable<OfzCouponTypeFilter> CreateCouponTypeFilters()

@@ -232,7 +232,7 @@ public class OfzMarketSummaryBuilderTests
         using var document = JsonDocument.Parse(json);
         var root = document.RootElement;
 
-        Assert.Equal("1.0", root.GetProperty("schemaVersion").GetString());
+        Assert.Equal("1.1", root.GetProperty("schemaVersion").GetString());
         AssertJsonDateOnly(root.GetProperty("startDate"));
         AssertJsonDateOnly(root.GetProperty("endDate"));
         AssertJsonDateOnly(root.GetProperty("insightStartDate"));
@@ -240,8 +240,21 @@ public class OfzMarketSummaryBuilderTests
         Assert.Contains("T", root.GetProperty("generatedAt").GetString());
         Assert.True(root.TryGetProperty("findings", out _));
         Assert.True(root.TryGetProperty("segments", out _));
+        Assert.True(root.TryGetProperty("breadthDays", out _));
         Assert.True(root.TryGetProperty("limitations", out _));
         Assert.True(root.TryGetProperty("sourceCounts", out _));
+        Assert.NotEmpty(root.GetProperty("breadthDays").EnumerateArray());
+
+        var breadthDay = root.GetProperty("breadthDays").EnumerateArray().First();
+        Assert.True(breadthDay.TryGetProperty("direction", out var direction));
+        Assert.True(direction.TryGetProperty("yieldUpCount", out _));
+        Assert.True(direction.TryGetProperty("yieldDownCount", out _));
+        Assert.True(direction.TryGetProperty("notComparableCount", out _));
+        Assert.True(breadthDay.TryGetProperty("concentration", out var concentration));
+        Assert.True(concentration.TryGetProperty("top5Share", out _));
+        Assert.True(concentration.TryGetProperty("top10Share", out _));
+        Assert.True(breadthDay.TryGetProperty("typeShares", out _));
+        Assert.True(breadthDay.TryGetProperty("topContributors", out _));
 
         var finding = root.GetProperty("findings").EnumerateArray().First();
         Assert.True(finding.TryGetProperty("id", out _));
@@ -264,6 +277,395 @@ public class OfzMarketSummaryBuilderTests
                 AssertJsonDateOnly(tradeDate);
             }
         }
+    }
+
+    [Fact]
+    public void BuildMarketSummary_ClassifiesBreadthDirectionWithoutLookAhead()
+    {
+        var startDate = new DateTime(2026, 04, 01);
+        var day2 = startDate.AddDays(1);
+        var day3 = startDate.AddDays(2);
+        var issue = Issue("SU26238RMFS4", "ОФЗ 26238", "Фикс с известным купоном");
+        var input = new OfzMarketSummaryInput
+        {
+            StartDate = startDate,
+            EndDate = day3,
+            Issues = [issue],
+            Trades =
+            [
+                Trade(issue.SecId, startDate, 100_000_000, 10, 13.00, 800),
+                Trade(issue.SecId, day2, 110_000_000, 11, 13.10, 800),
+                Trade(issue.SecId, day3, 120_000_000, 12, 12.90, 800)
+            ],
+            ActivityMetrics = [],
+            LiquidityMetrics = []
+        };
+
+        var summary = BuildMarketSummary(input);
+
+        Assert.Equal(OfzYieldDirection.NotComparable, DirectionFor(summary, startDate, issue.SecId));
+        Assert.Equal(OfzYieldDirection.Up, DirectionFor(summary, day2, issue.SecId));
+        Assert.Equal(OfzYieldDirection.Down, DirectionFor(summary, day3, issue.SecId));
+
+        var withoutFuture = BuildMarketSummary(new OfzMarketSummaryInput
+        {
+            StartDate = startDate,
+            EndDate = day2,
+            Issues = input.Issues,
+            Trades = input.Trades.Take(2),
+            ActivityMetrics = input.ActivityMetrics,
+            LiquidityMetrics = input.LiquidityMetrics
+        });
+        Assert.Equal(OfzYieldDirection.Up, DirectionFor(withoutFuture, day2, issue.SecId));
+    }
+
+    [Fact]
+    public void BuildMarketSummary_UsesEarlierHistoryForFirstInsightBreadthDay()
+    {
+        var startDate = new DateTime(2026, 04, 01);
+        var insightStartDate = startDate.AddDays(2);
+        var issue = Issue("SU26238RMFS4", "ОФЗ 26238", "Фикс с известным купоном");
+
+        var summary = BuildMarketSummary(new OfzMarketSummaryInput
+        {
+            StartDate = startDate,
+            EndDate = insightStartDate,
+            InsightStartDate = insightStartDate,
+            InsightEndDate = insightStartDate,
+            Issues = [issue],
+            Trades =
+            [
+                Trade(issue.SecId, startDate, 100_000_000, 10, 13.00, 800),
+                Trade(issue.SecId, insightStartDate, 120_000_000, 12, 13.20, 800)
+            ],
+            ActivityMetrics = [],
+            LiquidityMetrics = []
+        });
+
+        var day = Assert.Single(summary.BreadthDays);
+        Assert.Equal(insightStartDate, day.TradeDate);
+        Assert.Equal(1, day.ComparableIssueCount);
+        Assert.Equal(0, day.NotComparableIssueCount);
+        Assert.Equal(1, day.Direction.YieldUpCount);
+        Assert.Equal(OfzYieldDirection.Up, DirectionFor(summary, insightStartDate, issue.SecId));
+    }
+
+    [Fact]
+    public void BuildMarketSummary_BuildsDirectionCountsAndComparableBase()
+    {
+        var startDate = new DateTime(2026, 04, 01);
+        var tradeDate = startDate.AddDays(1);
+        var issues = new[]
+        {
+            Issue("SU26238RMFS4", "ОФЗ 26238", "Фикс с известным купоном"),
+            Issue("SU26239RMFS2", "ОФЗ 26239", "Фикс с известным купоном"),
+            Issue("SU29019RMFS0", "ОФЗ 29019", "Флоатер")
+        };
+        var input = new OfzMarketSummaryInput
+        {
+            StartDate = startDate,
+            EndDate = tradeDate,
+            Issues = issues,
+            Trades =
+            [
+                Trade(issues[0].SecId, startDate, 100_000_000, 10, 13.00, 800),
+                Trade(issues[1].SecId, startDate, 100_000_000, 10, 13.00, 800),
+                Trade(issues[2].SecId, startDate, 100_000_000, 10, 13.00, 800),
+                Trade(issues[0].SecId, tradeDate, 100_000_000, 10, 13.20, 800),
+                Trade(issues[1].SecId, tradeDate, 100_000_000, 10, 12.80, 800),
+                Trade(issues[2].SecId, tradeDate, 100_000_000, 10, 13.005, 800)
+            ],
+            ActivityMetrics = [],
+            LiquidityMetrics = []
+        };
+
+        var day = BuildMarketSummary(input).BreadthDays.Single(item => item.TradeDate == tradeDate);
+
+        Assert.Equal(3, day.ComparableIssueCount);
+        Assert.Equal(0, day.NotComparableIssueCount);
+        Assert.Equal(1, day.Direction.YieldUpCount);
+        Assert.Equal(1, day.Direction.YieldDownCount);
+        Assert.Equal(1, day.Direction.UnchangedCount);
+        Assert.Equal(OfzDominantYieldDirection.Mixed, day.Direction.DominantDirection);
+    }
+
+    [Fact]
+    public void BuildMarketSummary_DoesNotTreatMissingPreviousYieldAsUnchanged()
+    {
+        var startDate = new DateTime(2026, 04, 01);
+        var tradeDate = startDate.AddDays(1);
+        var issueWithPrevious = Issue("SU26238RMFS4", "ОФЗ 26238", "Фикс с известным купоном");
+        var issueWithoutPrevious = Issue("SU26239RMFS2", "ОФЗ 26239", "Фикс с известным купоном");
+        var input = new OfzMarketSummaryInput
+        {
+            StartDate = startDate,
+            EndDate = tradeDate,
+            Issues = [issueWithPrevious, issueWithoutPrevious],
+            Trades =
+            [
+                Trade(issueWithPrevious.SecId, startDate, 100_000_000, 10, 13.00, 800),
+                Trade(issueWithPrevious.SecId, tradeDate, 100_000_000, 10, 13.005, 800),
+                Trade(issueWithoutPrevious.SecId, tradeDate, 100_000_000, 10, 12.50, 800)
+            ],
+            ActivityMetrics = [],
+            LiquidityMetrics = []
+        };
+
+        var day = BuildMarketSummary(input).BreadthDays.Single(item => item.TradeDate == tradeDate);
+
+        Assert.Equal(1, day.ComparableIssueCount);
+        Assert.Equal(1, day.NotComparableIssueCount);
+        Assert.Equal(1, day.Direction.UnchangedCount);
+        Assert.Equal(1, day.Direction.NotComparableCount);
+    }
+
+    [Fact]
+    public void BuildMarketSummary_BuildsTopTurnoverConcentration()
+    {
+        var startDate = new DateTime(2026, 04, 01);
+        var tradeDate = startDate.AddDays(1);
+        var issues = Enumerable.Range(0, 6)
+            .Select(index => Issue($"SU2623{index}RMFS{index}", $"ОФЗ 2623{index}", "Фикс с известным купоном"))
+            .ToArray();
+        var values = new[] { 50_000_000d, 20_000_000d, 10_000_000d, 10_000_000d, 5_000_000d, 5_000_000d };
+        var trades = issues
+            .Select(issue => Trade(issue.SecId, startDate, 1_000_000, 1, 13.00, 800))
+            .Concat(issues.Select((issue, index) => Trade(issue.SecId, tradeDate, values[index], 10 + index, 13.10 + index * 0.01, 800)))
+            .ToArray();
+
+        var day = BuildMarketSummary(new OfzMarketSummaryInput
+        {
+            StartDate = startDate,
+            EndDate = tradeDate,
+            Issues = issues,
+            Trades = trades,
+            ActivityMetrics = [],
+            LiquidityMetrics = []
+        }).BreadthDays.Single(item => item.TradeDate == tradeDate);
+
+        Assert.Equal(6, day.Concentration.IssueBaseCount);
+        Assert.Equal(95_000_000, day.Concentration.Top5Value);
+        Assert.Equal(0.95, day.Concentration.Top5Share!.Value, 3);
+        Assert.Equal(100_000_000, day.Concentration.Top10Value);
+        Assert.Equal(1.0, day.Concentration.Top10Share!.Value, 3);
+        Assert.True(day.Concentration.IsHighConcentration);
+        Assert.Equal(6, day.Concentration.TopIssues.Count);
+    }
+
+    [Fact]
+    public void BuildMarketSummary_ExcludesMissingTurnoverFromConcentrationBase()
+    {
+        var startDate = new DateTime(2026, 04, 01);
+        var tradeDate = startDate.AddDays(1);
+        var issues = new[]
+        {
+            Issue("SU26238RMFS4", "ОФЗ 26238", "Фикс с известным купоном"),
+            Issue("SU26239RMFS2", "ОФЗ 26239", "Фикс с известным купоном")
+        };
+
+        var day = BuildMarketSummary(new OfzMarketSummaryInput
+        {
+            StartDate = startDate,
+            EndDate = tradeDate,
+            Issues = issues,
+            Trades =
+            [
+                Trade(issues[0].SecId, startDate, 1_000_000, 1, 13.00, 800),
+                Trade(issues[1].SecId, startDate, 1_000_000, 1, 13.00, 800),
+                Trade(issues[0].SecId, tradeDate, 10_000_000, 10, 13.20, 800),
+                new OfzDailyTrade
+                {
+                    SecId = issues[1].SecId,
+                    TradeDate = tradeDate,
+                    Value = null,
+                    NumTrades = 10,
+                    YieldAtWeightedAveragePrice = 13.20,
+                    Duration = 800
+                }
+            ],
+            ActivityMetrics = [],
+            LiquidityMetrics = []
+        }).BreadthDays.Single(item => item.TradeDate == tradeDate);
+
+        Assert.Equal(1, day.Concentration.IssueBaseCount);
+        Assert.Single(day.Concentration.TopIssues);
+        Assert.Equal(issues[0].SecId, day.Concentration.TopIssues[0].SecId);
+    }
+
+    [Fact]
+    public void BuildMarketSummary_BuildsBreadthDayDrillDownContributorsAndLimitations()
+    {
+        var startDate = new DateTime(2026, 04, 01);
+        var tradeDate = startDate.AddDays(1);
+        var leadingIssue = Issue("SU26238RMFS4", "ОФЗ 26238", "Фикс с известным купоном");
+        var unknownIssue = Issue("RUUNKNOWN", "Неизвестный выпуск", "Bond type n/a", faceUnit: null, currencyId: null);
+
+        var summary = BuildMarketSummary(new OfzMarketSummaryInput
+        {
+            StartDate = startDate,
+            EndDate = tradeDate,
+            Issues = [leadingIssue, unknownIssue],
+            Trades =
+            [
+                Trade(leadingIssue.SecId, startDate, 1_000_000, 1, 13.00, 800),
+                Trade(unknownIssue.SecId, startDate, 1_000_000, 1, 13.00, 800),
+                Trade(leadingIssue.SecId, tradeDate, 90_000_000, 90, 13.20, 800),
+                Trade(unknownIssue.SecId, tradeDate, 10_000_000, 10, 12.80, 800)
+            ],
+            ActivityMetrics = [],
+            LiquidityMetrics =
+            [
+                LiquidityMetric(
+                    leadingIssue.SecId,
+                    tradeDate,
+                    spread: 0.08,
+                    OfzSpreadSource.Provided,
+                    OfzLiquidityBucket.Good,
+                    OfzLiquidityMetricStatus.SnapshotOnly,
+                    value: 90_000_000,
+                    numTrades: 90,
+                    isSnapshot: true,
+                    isProvisional: true)
+            ]
+        });
+
+        var day = summary.BreadthDays.Single(item => item.TradeDate == tradeDate);
+        var leadingContributor = day.TopContributors.Single(item => item.SecId == leadingIssue.SecId);
+        var unknownContributor = day.TopContributors.Single(item => item.SecId == unknownIssue.SecId);
+
+        Assert.Equal(2, day.TopContributors.Count);
+        Assert.Equal(0.90, leadingContributor.ValueShare!.Value, 3);
+        Assert.Equal(OfzYieldDirection.Up, leadingContributor.YieldDirection);
+        Assert.Equal(MarketBreadthContributorReason.YieldUp, leadingContributor.Reason);
+        Assert.Equal(OfzYieldDirection.Down, unknownContributor.YieldDirection);
+        Assert.Equal(OfzCouponType.Unknown, unknownContributor.CouponType);
+        Assert.Contains(day.Limitations, limitation => limitation.Kind == OfzDataLimitationKind.UnknownCouponType);
+        Assert.Contains(day.Limitations, limitation => limitation.Kind == OfzDataLimitationKind.SnapshotOnly);
+        Assert.Contains(day.Limitations, limitation => limitation.Kind == OfzDataLimitationKind.Provisional);
+    }
+
+    [Fact]
+    public void BuildMarketSummary_BuildsTypeSharesAndHonorsCouponFilter()
+    {
+        var startDate = new DateTime(2026, 04, 01);
+        var tradeDate = startDate.AddDays(1);
+        var fixedIssue = Issue("SU26238RMFS4", "ОФЗ 26238", "Фикс с известным купоном");
+        var floatingIssue = Issue("SU29019RMFS0", "ОФЗ 29019", "Флоатер");
+        var currencyIssue = Issue("RU000A0ZZZ99", "ОФЗ USD", "Валютная", faceUnit: "USD", currencyId: "USD");
+        var trades = new[]
+        {
+            Trade(fixedIssue.SecId, startDate, 1_000_000, 1, 13.00, 800),
+            Trade(floatingIssue.SecId, startDate, 1_000_000, 1, 13.00, 800),
+            Trade(currencyIssue.SecId, startDate, 1_000_000, 1, 13.00, 800),
+            Trade(fixedIssue.SecId, tradeDate, 60_000_000, 60, 13.10, 800),
+            Trade(floatingIssue.SecId, tradeDate, 30_000_000, 30, 13.20, 800),
+            Trade(currencyIssue.SecId, tradeDate, 10_000_000, 10, 13.30, 800)
+        };
+
+        var summary = BuildMarketSummary(new OfzMarketSummaryInput
+        {
+            StartDate = startDate,
+            EndDate = tradeDate,
+            Issues = [fixedIssue, floatingIssue, currencyIssue],
+            Trades = trades,
+            ActivityMetrics = [],
+            LiquidityMetrics = []
+        });
+        var day = summary.BreadthDays.Single(item => item.TradeDate == tradeDate);
+
+        Assert.Equal(0.60, day.TypeShares.Single(share => share.CouponType == OfzCouponType.Fixed).ValueShare!.Value, 2);
+        Assert.Equal(0.30, day.TypeShares.Single(share => share.CouponType == OfzCouponType.Floating).ValueShare!.Value, 2);
+        Assert.Contains(day.Limitations, limitation => limitation.Kind == OfzDataLimitationKind.CurrencyMixed);
+
+        var filtered = BuildMarketSummary(new OfzMarketSummaryInput
+        {
+            StartDate = startDate,
+            EndDate = tradeDate,
+            CouponTypeFilter = OfzCouponType.Floating,
+            Issues = [fixedIssue, floatingIssue, currencyIssue],
+            Trades = trades,
+            ActivityMetrics = [],
+            LiquidityMetrics = []
+        });
+
+        var filteredDay = filtered.BreadthDays.Single(item => item.TradeDate == tradeDate);
+        Assert.Single(filteredDay.TypeShares);
+        Assert.Equal(OfzCouponType.Floating, filteredDay.TypeShares[0].CouponType);
+        Assert.Equal(1.0, filteredDay.TypeShares[0].ValueShare!.Value, 3);
+    }
+
+    [Fact]
+    public void BuildMarketSummary_KeepsUnknownCouponTypeVisible()
+    {
+        var startDate = new DateTime(2026, 04, 01);
+        var tradeDate = startDate.AddDays(1);
+        var issue = Issue("RUUNKNOWN", "Неизвестный выпуск", "Bond type n/a", faceUnit: null, currencyId: null);
+
+        var day = BuildMarketSummary(new OfzMarketSummaryInput
+        {
+            StartDate = startDate,
+            EndDate = tradeDate,
+            Issues = [issue],
+            Trades =
+            [
+                Trade(issue.SecId, startDate, 1_000_000, 1, 13.00, 800),
+                Trade(issue.SecId, tradeDate, 2_000_000, 2, 13.10, 800)
+            ],
+            ActivityMetrics = [],
+            LiquidityMetrics = []
+        }).BreadthDays.Single(item => item.TradeDate == tradeDate);
+
+        var share = Assert.Single(day.TypeShares);
+        Assert.Equal(OfzCouponType.Unknown, share.CouponType);
+        Assert.Equal(1, share.MissingTypeCount);
+        Assert.Contains(day.Limitations, limitation => limitation.Kind == OfzDataLimitationKind.UnknownCouponType);
+    }
+
+    [Fact]
+    public void BuildMarketSummary_MarksBreadthDaySnapshotAndProvisional()
+    {
+        var startDate = new DateTime(2026, 04, 01);
+        var tradeDate = startDate.AddDays(1);
+        var issue = Issue("SU26238RMFS4", "ОФЗ 26238", "Фикс с известным купоном");
+
+        var summary = BuildMarketSummary(new OfzMarketSummaryInput
+        {
+            StartDate = startDate,
+            EndDate = tradeDate,
+            Issues = [issue],
+            Trades =
+            [
+                Trade(issue.SecId, startDate, 1_000_000, 1, 13.00, 800),
+                Trade(issue.SecId, tradeDate, 2_000_000, 2, 13.20, 800)
+            ],
+            ActivityMetrics = [],
+            LiquidityMetrics =
+            [
+                LiquidityMetric(
+                    issue.SecId,
+                    tradeDate,
+                    spread: 0.2,
+                    OfzSpreadSource.Provided,
+                    OfzLiquidityBucket.Normal,
+                    OfzLiquidityMetricStatus.SnapshotOnly,
+                    value: 2_000_000,
+                    numTrades: 2,
+                    isSnapshot: true,
+                    isProvisional: true)
+            ]
+        }, new OfzMarketSummaryOptions
+        {
+            Breadth = new OfzMarketBreadthOptions { MinimumComparableIssuesForBroadMove = 1 }
+        });
+
+        var day = summary.BreadthDays.Single(item => item.TradeDate == tradeDate);
+        Assert.True(day.IsProvisional);
+        Assert.Contains(day.Limitations, limitation => limitation.Kind == OfzDataLimitationKind.SnapshotOnly);
+        Assert.Contains(day.Limitations, limitation => limitation.Kind == OfzDataLimitationKind.Provisional);
+
+        var finding = Assert.Single(summary.Findings, finding => finding.Kind == OfzSummaryFindingKind.MarketBreadth);
+        Assert.Equal(OfzSummaryDrillDownTarget.MarketBreadthDay, finding.DrillDown?.Target);
+        Assert.True(finding.Evidence.IsProvisional);
     }
 
     [Fact]
@@ -299,10 +701,10 @@ public class OfzMarketSummaryBuilderTests
     }
 
     [Fact]
-    public void BuildMarketSummary_CompletesLightweightPerfSmokeForNinetyDaysAndHundredIssues()
+    public void BuildMarketSummary_CompletesLightweightPerfSmokeForTradingYearAndHundredIssues()
     {
         var startDate = new DateTime(2026, 01, 01);
-        var dates = Enumerable.Range(0, 90).Select(offset => startDate.AddDays(offset)).ToArray();
+        var dates = Enumerable.Range(0, 365).Select(offset => startDate.AddDays(offset)).ToArray();
         var issues = Enumerable.Range(0, 100)
             .Select(index => Issue($"SU262{index:00}RMFS{index % 10}", $"ОФЗ 262{index:00}", "Фикс с известным купоном"))
             .ToArray();
@@ -349,9 +751,10 @@ public class OfzMarketSummaryBuilderTests
         Assert.True(stopwatch.Elapsed < TimeSpan.FromSeconds(10), stopwatch.Elapsed.ToString());
         Assert.NotEmpty(summary.Findings);
         Assert.NotEmpty(summary.Segments);
+        Assert.Equal(365, summary.BreadthDays.Count);
         Assert.Equal(100, summary.SourceCounts.Issues);
-        Assert.Equal(9_000, summary.SourceCounts.ActivityMetrics);
-        Assert.Equal(9_000, summary.SourceCounts.LiquidityMetrics);
+        Assert.Equal(36_500, summary.SourceCounts.ActivityMetrics);
+        Assert.Equal(36_500, summary.SourceCounts.LiquidityMetrics);
     }
 
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
@@ -377,6 +780,15 @@ public class OfzMarketSummaryBuilderTests
         return OfzMarketSummaryBuilder.Build(
             NormalizeInput(input),
             options);
+    }
+
+    private static OfzYieldDirection DirectionFor(OfzMarketSummary summary, DateTime tradeDate, string secId)
+    {
+        return summary.BreadthDays
+            .Single(day => day.TradeDate == tradeDate.Date)
+            .TopContributors
+            .Single(contributor => contributor.SecId == secId)
+            .YieldDirection;
     }
 
     private static OfzMarketSummaryInput NormalizeInput(OfzMarketSummaryInput input)
@@ -462,8 +874,8 @@ public class OfzMarketSummaryBuilderTests
         string secId,
         string shortName,
         string bondType,
-        string faceUnit = "SUR",
-        string currencyId = "SUR")
+        string? faceUnit = "SUR",
+        string? currencyId = "SUR")
     {
         return new OfzIssue
         {
