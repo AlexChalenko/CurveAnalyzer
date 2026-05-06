@@ -8,23 +8,39 @@ public partial class OfzActivityControl : UserControl
     public OfzActivityControl()
     {
         InitializeComponent();
-        SetDetailContent(showIssue: false);
+        SetActivityContent(ActivitySection.Overview);
     }
 
-    private void DetailMode_Checked(object sender, RoutedEventArgs e)
+    private void ActivityMode_Checked(object sender, RoutedEventArgs e)
     {
-        if (DetailContentHost is null)
+        if (ActivityContentHost is null)
         {
             return;
         }
 
-        SetDetailContent(IssueDetailToggle?.IsChecked == true);
+        var section = DetailModeToggle?.IsChecked == true
+            ? ActivitySection.Detail
+            : SignalsModeToggle?.IsChecked == true
+                ? ActivitySection.Signals
+                : ActivitySection.Overview;
+
+        SetActivityContent(section);
     }
 
-    private void SetDetailContent(bool showIssue)
+    private void SetActivityContent(ActivitySection section)
     {
-        DetailContentHost.Content = showIssue
-            ? new OfzActivityIssueDetailControl()
-            : new OfzActivitySegmentsDetailControl();
+        ActivityContentHost.Content = section switch
+        {
+            ActivitySection.Signals => new OfzActivitySignalsControl(),
+            ActivitySection.Detail => new OfzActivityDetailControl(),
+            _ => new OfzActivityOverviewControl()
+        };
+    }
+
+    private enum ActivitySection
+    {
+        Overview,
+        Signals,
+        Detail
     }
 }

@@ -1,0 +1,150 @@
+<UserControl
+    x:Class="CurveAnalyzer.Presentation.WPF.Views.OfzActivitySignalsControl"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:converters="clr-namespace:CurveAnalyzer.Presentation.WPF.Converters"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:viewmodels="clr-namespace:CurveAnalyzer.Presentation.WPF.ViewModels"
+    d:DataContext="{d:DesignInstance Type=viewmodels:OfzActivityViewModel}"
+    d:DesignHeight="450"
+    d:DesignWidth="900"
+    mc:Ignorable="d">
+    <UserControl.Resources>
+        <converters:OfzLiquidityMetricValueConverter x:Key="OfzLiquidityMetricValueConverter" />
+    </UserControl.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*" />
+            <RowDefinition Height="6" />
+            <RowDefinition Height="220" />
+        </Grid.RowDefinitions>
+
+        <GroupBox Grid.Row="0" Header="Всплески активности">
+            <DataGrid
+                AutoGenerateColumns="False"
+                CanUserAddRows="False"
+                IsReadOnly="True"
+                ItemsSource="{Binding TopAnomalies}"
+                SelectedItem="{Binding SelectedTopAnomaly, Mode=TwoWay}">
+                <DataGrid.Columns>
+                    <DataGridTextColumn
+                        Width="50"
+                        Binding="{Binding Rank}"
+                        Header="#" />
+                    <DataGridTextColumn
+                        Width="95"
+                        Binding="{Binding TradeDate, StringFormat={}{0:yyyy-MM-dd}}"
+                        Header="Дата" />
+                    <DataGridTextColumn
+                        Width="110"
+                        Binding="{Binding SecId}"
+                        Header="SECID" />
+                    <DataGridTextColumn
+                        Width="150"
+                        Binding="{Binding ShortName}"
+                        Header="Выпуск" />
+                    <DataGridTextColumn
+                        Width="130"
+                        Binding="{Binding DisplayMarker}"
+                        Header="Маркер" />
+                    <DataGridTextColumn
+                        Width="80"
+                        Binding="{Binding CouponTypeMarker}"
+                        Header="Тип" />
+                    <DataGridTextColumn
+                        Width="110"
+                        Binding="{Binding Value, StringFormat={}{0:N0}}"
+                        Header="Оборот" />
+                    <DataGridTextColumn
+                        Width="80"
+                        Binding="{Binding NumTrades}"
+                        Header="Сделки" />
+                    <DataGridTextColumn
+                        Width="90"
+                        Binding="{Binding ActivityScore, StringFormat={}{0:N2}}"
+                        Header="Score" />
+                    <DataGridTextColumn
+                        Width="90"
+                        Binding="{Binding BaselineMedianValue, StringFormat={}{0:N0}}"
+                        Header="Base" />
+                    <DataGridTextColumn
+                        Width="70"
+                        Binding="{Binding BaselineDays}"
+                        Header="Days" />
+                    <DataGridTextColumn
+                        Width="90"
+                        Binding="{Binding YieldMove, StringFormat={}{0:N2}, TargetNullValue=n/a}"
+                        Header="Yield Δ" />
+                    <DataGridTextColumn
+                        Width="90"
+                        Binding="{Binding Duration, StringFormat={}{0:N0}, TargetNullValue=n/a}"
+                        Header="Duration" />
+                </DataGrid.Columns>
+            </DataGrid>
+        </GroupBox>
+
+        <GridSplitter
+            Grid.Row="1"
+            Height="4"
+            HorizontalAlignment="Stretch"
+            Background="LightGray" />
+
+        <GroupBox Grid.Row="2" Header="Слабая ликвидность">
+            <DataGrid
+                AutoGenerateColumns="False"
+                CanUserAddRows="False"
+                IsReadOnly="True"
+                ItemsSource="{Binding WeakLiquidityItems}"
+                SelectedItem="{Binding SelectedWeakLiquidityItem, Mode=TwoWay}">
+                <DataGrid.Columns>
+                    <DataGridTextColumn
+                        Width="45"
+                        Binding="{Binding Rank}"
+                        Header="#" />
+                    <DataGridTextColumn
+                        Width="85"
+                        Binding="{Binding TradeDate, StringFormat={}{0:yyyy-MM-dd}}"
+                        Header="Дата" />
+                    <DataGridTextColumn
+                        Width="105"
+                        Binding="{Binding SecId}"
+                        Header="SECID" />
+                    <DataGridTextColumn
+                        Width="120"
+                        Binding="{Binding ShortName}"
+                        Header="Выпуск" />
+                    <DataGridTextColumn
+                        Width="70"
+                        Binding="{Binding CouponTypeMarker}"
+                        Header="Тип" />
+                    <DataGridTextColumn
+                        Width="75"
+                        Binding="{Binding Spread, StringFormat={}{0:N3}, TargetNullValue=n/a}"
+                        Header="Spread" />
+                    <DataGridTextColumn
+                        Width="75"
+                        Binding="{Binding LiquidityScore, StringFormat={}{0:N2}, TargetNullValue=n/a}"
+                        Header="Score" />
+                    <DataGridTextColumn
+                        Width="95"
+                        Binding="{Binding LiquidityBucket, Converter={StaticResource OfzLiquidityMetricValueConverter}, ConverterParameter=Bucket}"
+                        Header="Bucket" />
+                    <DataGridTextColumn
+                        Width="110"
+                        Binding="{Binding Status, Converter={StaticResource OfzLiquidityMetricValueConverter}, ConverterParameter=Status}"
+                        Header="Status" />
+                    <DataGridTextColumn
+                        Width="110"
+                        Binding="{Binding Value, StringFormat={}{0:N0}, TargetNullValue=n/a}"
+                        Header="Оборот" />
+                    <DataGridTextColumn
+                        Width="75"
+                        Binding="{Binding NumTrades, TargetNullValue=n/a}"
+                        Header="Сделки" />
+                </DataGrid.Columns>
+            </DataGrid>
+        </GroupBox>
+    </Grid>
+</UserControl>
