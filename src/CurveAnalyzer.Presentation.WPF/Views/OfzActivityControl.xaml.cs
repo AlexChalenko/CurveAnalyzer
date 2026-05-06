@@ -1,8 +1,5 @@
+using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Data;
-using System.Windows.Threading;
-using LiveChartsCore.Kernel;
-using LiveChartsCore.SkiaSharpView.WPF;
 
 namespace CurveAnalyzer.Presentation.WPF.Views;
 
@@ -11,42 +8,39 @@ public partial class OfzActivityControl : UserControl
     public OfzActivityControl()
     {
         InitializeComponent();
+        SetActivityContent(ActivitySection.Overview);
     }
 
-    private void DetailChart_Loaded(object sender, System.Windows.RoutedEventArgs e)
+    private void ActivityMode_Checked(object sender, RoutedEventArgs e)
     {
-        if (sender is CartesianChart chart)
-        {
-            ScheduleChartRefresh(chart);
-        }
-    }
-
-    private void DetailChart_TargetUpdated(object sender, DataTransferEventArgs e)
-    {
-        if (sender is CartesianChart chart)
-        {
-            ScheduleChartRefresh(chart);
-        }
-    }
-
-    private void ScheduleChartRefresh(CartesianChart chart)
-    {
-        Dispatcher.BeginInvoke(() => RefreshChart(chart), DispatcherPriority.Render);
-        Dispatcher.BeginInvoke(() => RefreshChart(chart), DispatcherPriority.ContextIdle);
-    }
-
-    private static void RefreshChart(CartesianChart chart)
-    {
-        if (chart.ActualWidth <= 0 || chart.ActualHeight <= 0)
+        if (ActivityContentHost is null)
         {
             return;
         }
 
-        chart.UpdateLayout();
-        chart.CoreChart.Update(new ChartUpdateParams
+        var section = DetailModeToggle?.IsChecked == true
+            ? ActivitySection.Detail
+            : SignalsModeToggle?.IsChecked == true
+                ? ActivitySection.Signals
+                : ActivitySection.Overview;
+
+        SetActivityContent(section);
+    }
+
+    private void SetActivityContent(ActivitySection section)
+    {
+        ActivityContentHost.Content = section switch
         {
-            IsAutomaticUpdate = true,
-            Throttling = false
-        });
+            ActivitySection.Signals => new OfzActivitySignalsControl(),
+            ActivitySection.Detail => new OfzActivityDetailControl(),
+            _ => new OfzActivityOverviewControl()
+        };
+    }
+
+    private enum ActivitySection
+    {
+        Overview,
+        Signals,
+        Detail
     }
 }

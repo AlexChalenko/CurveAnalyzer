@@ -1,0 +1,652 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://curve-analyzer.local/contracts/ofz/market-summary.schema.json",
+  "title": "OfzMarketSummary",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "startDate",
+    "endDate",
+    "generatedAt",
+    "findings",
+    "segments",
+    "limitations",
+    "sourceCounts"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "type": "string",
+      "const": "1.0"
+    },
+    "startDate": {
+      "type": "string",
+      "format": "date"
+    },
+    "endDate": {
+      "type": "string",
+      "format": "date"
+    },
+    "generatedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "couponTypeFilter": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "enum": [
+        "Fixed",
+        "Floating",
+        "InflationLinked",
+        "Amortized",
+        "Currency",
+        "Unknown",
+        null
+      ]
+    },
+    "couponTypeMarker": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "signalScope": {
+      "type": "string",
+      "enum": [
+        "AllDays",
+        "LastAvailableDay"
+      ]
+    },
+    "insightStartDate": {
+      "type": "string",
+      "format": "date"
+    },
+    "insightEndDate": {
+      "type": "string",
+      "format": "date"
+    },
+    "findings": {
+      "type": "array",
+      "maxItems": 7,
+      "items": {
+        "$ref": "#/$defs/finding"
+      }
+    },
+    "segments": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/segment"
+      }
+    },
+    "limitations": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/limitation"
+      }
+    },
+    "sourceCounts": {
+      "$ref": "#/$defs/sourceCounts"
+    }
+  },
+  "$defs": {
+    "finding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "kind",
+        "priority",
+        "scope",
+        "title",
+        "text",
+        "evidence",
+        "limitations"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "kind": {
+          "$ref": "#/$defs/findingKind"
+        },
+        "priority": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "scope": {
+          "$ref": "#/$defs/scope"
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1
+        },
+        "text": {
+          "type": "string",
+          "minLength": 1
+        },
+        "evidence": {
+          "$ref": "#/$defs/evidence"
+        },
+        "limitations": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/limitation"
+          }
+        },
+        "drillDown": {
+          "$ref": "#/$defs/drillDown"
+        }
+      }
+    },
+    "findingKind": {
+      "type": "string",
+      "enum": [
+        "MarketActivity",
+        "SegmentConcentration",
+        "RepeatedIssue",
+        "YieldMove",
+        "WeakLiquidity",
+        "SpreadSignal",
+        "DataQuality"
+      ]
+    },
+    "scope": {
+      "type": "string",
+      "enum": [
+        "Market",
+        "Segment",
+        "Issue",
+        "Date",
+        "Liquidity",
+        "Spread",
+        "DataQuality"
+      ]
+    },
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "tradeDate": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date"
+        },
+        "secId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "shortName": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "couponType": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "couponTypeMarker": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "issueCount": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "activeIssueCount": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "rankableIssueCount": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "totalValue": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "value": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "totalNumTrades": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "numTrades": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "activityScore": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "medianActivityScore": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "maxActivityScore": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "yieldMove": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "yieldValue": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "duration": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "spread": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "spreadSource": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            "Missing",
+            "Provided",
+            "CalculatedFromBidOffer",
+            null
+          ]
+        },
+        "liquidityScore": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "liquidityBucket": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "liquidityStatus": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "zSpread": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "zSpreadBp": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "gSpreadBp": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "isSnapshot": {
+          "type": "boolean"
+        },
+        "isProvisional": {
+          "type": "boolean"
+        }
+      }
+    },
+    "segment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "couponType",
+        "couponTypeMarker",
+        "issueCount",
+        "activeIssueCount",
+        "totalValue",
+        "totalNumTrades",
+        "topIssues",
+        "limitations"
+      ],
+      "properties": {
+        "couponType": {
+          "type": "string"
+        },
+        "couponTypeMarker": {
+          "type": "string"
+        },
+        "issueCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "activeIssueCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "rankableIssueCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "totalValue": {
+          "type": "number"
+        },
+        "totalNumTrades": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "medianActivityScore": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "maxActivityScore": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "weakLiquidityCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "missingQuotesCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "snapshotOnlyCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "topIssues": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/issueFocus"
+          }
+        },
+        "limitations": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/limitation"
+          }
+        }
+      }
+    },
+    "issueFocus": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "secId",
+        "shortName",
+        "reason"
+      ],
+      "properties": {
+        "secId": {
+          "type": "string"
+        },
+        "shortName": {
+          "type": "string"
+        },
+        "couponTypeMarker": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "displayMarker": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "tradeDate": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date"
+        },
+        "value": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "numTrades": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "activityScore": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "yieldMove": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "duration": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "spread": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "liquidityScore": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "liquidityBucket": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "liquidityStatus": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "isSnapshot": {
+          "type": "boolean"
+        },
+        "reason": {
+          "type": "string",
+          "enum": [
+            "TopValue",
+            "TopScore",
+            "WeakLiquidity",
+            "YieldMove",
+            "RepeatedActivity"
+          ]
+        }
+      }
+    },
+    "limitation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "scope",
+        "text"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "NoData",
+            "InsufficientBaseline",
+            "MissingSpread",
+            "MissingQuotes",
+            "SnapshotOnly",
+            "Provisional",
+            "CurrencyMixed",
+            "ShortRange"
+          ]
+        },
+        "scope": {
+          "$ref": "#/$defs/scope"
+        },
+        "text": {
+          "type": "string"
+        },
+        "secId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "tradeDate": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date"
+        },
+        "couponType": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "drillDown": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "target": {
+          "type": "string",
+          "enum": [
+            "HeatmapDate",
+            "IssueDetail",
+            "SegmentDetail",
+            "WeakLiquidityTable",
+            "ActivityTable"
+          ]
+        },
+        "secId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "tradeDate": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date"
+        },
+        "couponType": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "sourceCounts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "issues",
+        "trades",
+        "activityMetrics",
+        "liquidityMetrics",
+        "snapshotLiquidityMetrics",
+        "dates"
+      ],
+      "properties": {
+        "issues": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "trades": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "activityMetrics": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "liquidityMetrics": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "snapshotLiquidityMetrics": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "dates": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    }
+  }
+}

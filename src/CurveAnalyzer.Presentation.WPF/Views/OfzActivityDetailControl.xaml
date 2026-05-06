@@ -1,0 +1,43 @@
+<UserControl
+    x:Class="CurveAnalyzer.Presentation.WPF.Views.OfzActivityDetailControl"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:viewmodels="clr-namespace:CurveAnalyzer.Presentation.WPF.ViewModels"
+    d:DataContext="{d:DesignInstance Type=viewmodels:OfzActivityViewModel}"
+    d:DesignHeight="450"
+    d:DesignWidth="900"
+    mc:Ignorable="d">
+    <GroupBox
+        ClipToBounds="True"
+        Header="Детализация выпуска">
+        <DockPanel ClipToBounds="True">
+            <StackPanel
+                Margin="0,0,0,2"
+                DockPanel.Dock="Top"
+                Orientation="Horizontal">
+                <RadioButton
+                    x:Name="SegmentsDetailToggle"
+                    Padding="8,3"
+                    VerticalContentAlignment="Center"
+                    Checked="DetailMode_Checked"
+                    Content="Сегменты"
+                    GroupName="OfzDetailTabs"
+                    IsChecked="True" />
+                <RadioButton
+                    x:Name="IssueDetailToggle"
+                    Margin="4,0,0,0"
+                    Padding="8,3"
+                    VerticalContentAlignment="Center"
+                    Checked="DetailMode_Checked"
+                    Content="Выпуск"
+                    GroupName="OfzDetailTabs" />
+            </StackPanel>
+
+            <ContentControl
+                x:Name="DetailContentHost"
+                ClipToBounds="True" />
+        </DockPanel>
+    </GroupBox>
+</UserControl>

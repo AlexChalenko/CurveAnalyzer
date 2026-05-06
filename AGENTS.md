@@ -2,7 +2,7 @@
 
 <!-- SPECKIT START -->
 Для текущей feature сначала читай активный план:
-`specs/004-ofz-liquidity-spread/plan.md`.
+`specs/005-ofz-analytics-summary/plan.md`.
 <!-- SPECKIT END -->
 
 ## Язык документации

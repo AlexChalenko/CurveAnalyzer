@@ -1,0 +1,164 @@
+<UserControl
+    x:Class="CurveAnalyzer.Presentation.WPF.Views.OfzActivitySegmentsDetailControl"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:converters="clr-namespace:CurveAnalyzer.Presentation.WPF.Converters"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:lvc="clr-namespace:LiveChartsCore.SkiaSharpView.WPF;assembly=LiveChartsCore.SkiaSharpView.WPF"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:viewmodels="clr-namespace:CurveAnalyzer.Presentation.WPF.ViewModels"
+    d:DataContext="{d:DesignInstance Type=viewmodels:OfzActivityViewModel}"
+    d:DesignHeight="450"
+    d:DesignWidth="900"
+    ClipToBounds="True"
+    mc:Ignorable="d">
+    <UserControl.Resources>
+        <converters:OfzActivityIndexSeriesConverter x:Key="OfzActivityIndexSeriesConverter" />
+        <converters:OfzActivityIndexXAxisConverter x:Key="OfzActivityIndexXAxisConverter" />
+        <converters:OfzActivityIndexYAxisConverter x:Key="OfzActivityIndexYAxisConverter" />
+        <converters:OfzDurationYieldScatterSeriesConverter x:Key="OfzDurationYieldScatterSeriesConverter" />
+        <converters:OfzDurationYieldScatterXAxisConverter x:Key="OfzDurationYieldScatterXAxisConverter" />
+        <converters:OfzDurationYieldScatterYAxisConverter x:Key="OfzDurationYieldScatterYAxisConverter" />
+    </UserControl.Resources>
+
+    <Grid
+        MinWidth="0"
+        MinHeight="0"
+        ClipToBounds="True">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <StackPanel Grid.Row="0" Margin="6,0,0,0">
+            <TextBlock
+                FontSize="11"
+                FontWeight="SemiBold"
+                Text="Индекс активности" />
+            <TextBlock
+                FontSize="10"
+                Foreground="DimGray"
+                Text="{Binding ActivityIndexStatusMessage}"
+                TextWrapping="Wrap" />
+        </StackPanel>
+
+        <lvc:CartesianChart
+            Grid.Row="1"
+            MinWidth="0"
+            MinHeight="0"
+            Margin="0,0,4,4"
+            HorizontalAlignment="Stretch"
+            VerticalAlignment="Stretch"
+            AnimationsSpeed="0:0:0"
+            Background="White"
+            ClipToBounds="True"
+            Loaded="DetailChart_Loaded"
+            Series="{Binding ActivityIndex, Converter={StaticResource OfzActivityIndexSeriesConverter}, NotifyOnTargetUpdated=True}"
+            TargetUpdated="DetailChart_TargetUpdated"
+            TooltipTextSize="10"
+            XAxes="{Binding ActivityIndex, Converter={StaticResource OfzActivityIndexXAxisConverter}, NotifyOnTargetUpdated=True}"
+            YAxes="{Binding ActivityIndex, Converter={StaticResource OfzActivityIndexYAxisConverter}, NotifyOnTargetUpdated=True}"
+            ZoomMode="None" />
+
+        <StackPanel Grid.Row="2" Margin="6,4,0,0">
+            <TextBlock
+                FontSize="11"
+                FontWeight="SemiBold"
+                Text="Дюрация / доходность" />
+            <TextBlock
+                FontSize="10"
+                Foreground="DimGray"
+                Text="{Binding DurationYieldScatterStatusMessage}"
+                TextWrapping="Wrap" />
+            <WrapPanel Margin="0,2,0,0">
+                <StackPanel Margin="0,0,10,1" Orientation="Horizontal">
+                    <Ellipse
+                        Width="6"
+                        Height="6"
+                        VerticalAlignment="Center"
+                        Fill="#64B5F6"
+                        Stroke="#1E88E5"
+                        StrokeThickness="0.5" />
+                    <TextBlock
+                        Margin="3,0,0,0"
+                        FontSize="9"
+                        Foreground="DimGray"
+                        Text="score &lt; 1" />
+                </StackPanel>
+                <StackPanel Margin="0,0,10,1" Orientation="Horizontal">
+                    <Ellipse
+                        Width="8"
+                        Height="8"
+                        VerticalAlignment="Center"
+                        Fill="#81C784"
+                        Stroke="#43A047"
+                        StrokeThickness="0.5" />
+                    <TextBlock
+                        Margin="3,0,0,0"
+                        FontSize="9"
+                        Foreground="DimGray"
+                        Text="score &gt;= 1" />
+                </StackPanel>
+                <StackPanel Margin="0,0,10,1" Orientation="Horizontal">
+                    <Ellipse
+                        Width="10"
+                        Height="10"
+                        VerticalAlignment="Center"
+                        Fill="#FFD54F"
+                        Stroke="#F57C00"
+                        StrokeThickness="0.5" />
+                    <TextBlock
+                        Margin="3,0,0,0"
+                        FontSize="9"
+                        Foreground="DimGray"
+                        Text="score &gt;= 2" />
+                </StackPanel>
+                <StackPanel Margin="0,0,10,1" Orientation="Horizontal">
+                    <Ellipse
+                        Width="13"
+                        Height="13"
+                        VerticalAlignment="Center"
+                        Fill="#FFB74D"
+                        Stroke="#EF6C00"
+                        StrokeThickness="0.5" />
+                    <TextBlock
+                        Margin="3,0,0,0"
+                        FontSize="9"
+                        Foreground="DimGray"
+                        Text="score &gt;= 5" />
+                </StackPanel>
+                <StackPanel Margin="0,0,10,1" Orientation="Horizontal">
+                    <Ellipse
+                        Width="16"
+                        Height="16"
+                        VerticalAlignment="Center"
+                        Fill="#E57373"
+                        Stroke="#C62828"
+                        StrokeThickness="0.5" />
+                    <TextBlock
+                        Margin="3,0,0,0"
+                        FontSize="9"
+                        Foreground="DimGray"
+                        Text="score &gt;= 10" />
+                </StackPanel>
+            </WrapPanel>
+        </StackPanel>
+
+        <lvc:CartesianChart
+            Grid.Row="3"
+            MinWidth="0"
+            MinHeight="0"
+            Margin="0,0,4,0"
+            Background="White"
+            ClipToBounds="True"
+            Loaded="DetailChart_Loaded"
+            Series="{Binding DurationYieldScatterPoints, Converter={StaticResource OfzDurationYieldScatterSeriesConverter}, NotifyOnTargetUpdated=True}"
+            TargetUpdated="DetailChart_TargetUpdated"
+            TooltipTextSize="10"
+            XAxes="{Binding DurationYieldScatterPoints, Converter={StaticResource OfzDurationYieldScatterXAxisConverter}, NotifyOnTargetUpdated=True}"
+            YAxes="{Binding DurationYieldScatterPoints, Converter={StaticResource OfzDurationYieldScatterYAxisConverter}, NotifyOnTargetUpdated=True}"
+            ZoomMode="None" />
+    </Grid>
+</UserControl>

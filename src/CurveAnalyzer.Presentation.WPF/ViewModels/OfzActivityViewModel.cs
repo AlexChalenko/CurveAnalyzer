@@ -1,4 +1,7 @@
 using System.Collections.ObjectModel;
+using System.Text.Json;
+using System.Text.Json.Serialization;
+using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using CurveAnalyzer.Application;
@@ -11,6 +14,11 @@ public partial class OfzActivityViewModel(OfzActivityService activityService) : 
     private bool _initialized;
     private int _detailSelectionVersion;
     private OfzActivityLoadResult? _currentResult;
+    private static readonly JsonSerializerOptions SummaryJsonOptions = new(JsonSerializerDefaults.Web)
+    {
+        WriteIndented = true,
+        Converters = { new JsonStringEnumConverter() }
+    };
 
     [ObservableProperty]
     public partial DateTime? StartDate { get; set; }
@@ -56,6 +64,27 @@ public partial class OfzActivityViewModel(OfzActivityService activityService) : 
 
     [ObservableProperty]
     public partial ObservableCollection<OfzActivityInsight> Insights { get; set; } = [];
+
+    [ObservableProperty]
+    public partial OfzMarketSummary? MarketSummary { get; set; }
+
+    [ObservableProperty]
+    public partial ObservableCollection<OfzSummaryFinding> SummaryFindings { get; set; } = [];
+
+    [ObservableProperty]
+    public partial OfzSummaryFinding? SelectedSummaryFinding { get; set; }
+
+    [ObservableProperty]
+    public partial ObservableCollection<OfzSegmentSummary> SegmentSummaries { get; set; } = [];
+
+    [ObservableProperty]
+    public partial ObservableCollection<OfzDataLimitation> SummaryLimitations { get; set; } = [];
+
+    [ObservableProperty]
+    public partial string StructuredSummaryJson { get; set; } = string.Empty;
+
+    [ObservableProperty]
+    public partial string SelectedSummaryEvidenceText { get; set; } = "Вывод не выбран";
 
     [ObservableProperty]
     public partial ObservableCollection<OfzActivityIndexPoint> ActivityIndex { get; set; } = [];
@@ -104,6 +133,18 @@ public partial class OfzActivityViewModel(OfzActivityService activityService) : 
 
     [ObservableProperty]
     public partial bool HasInsights { get; set; }
+
+    [ObservableProperty]
+    public partial bool HasMarketSummary { get; set; }
+
+    [ObservableProperty]
+    public partial bool HasSegmentSummaries { get; set; }
+
+    [ObservableProperty]
+    public partial bool HasSummaryLimitations { get; set; }
+
+    [ObservableProperty]
+    public partial bool HasStructuredSummaryJson { get; set; }
 
     [ObservableProperty]
     public partial bool HasActivityIndex { get; set; }
@@ -168,6 +209,18 @@ public partial class OfzActivityViewModel(OfzActivityService activityService) : 
             updateRows: true);
     }
 
+    [RelayCommand(CanExecute = nameof(CanCopySummaryJson))]
+    private void CopySummaryJson()
+    {
+        if (string.IsNullOrWhiteSpace(StructuredSummaryJson))
+        {
+            return;
+        }
+
+        Clipboard.SetText(StructuredSummaryJson);
+        StatusMessage = "Structured summary JSON скопирован";
+    }
+
     [RelayCommand]
     private void SelectHeatmapCell(OfzActivityHeatmapCell? cell)
     {
@@ -199,6 +252,33 @@ public partial class OfzActivityViewModel(OfzActivityService activityService) : 
         }
 
         _ = LoadIssueDetailsAsync(value.SecId);
+    }
+
+    partial void OnSelectedSummaryFindingChanged(OfzSummaryFinding? value)
+    {
+        SelectedSummaryEvidenceText = FormatSummaryEvidence(value);
+
+        if (value is null)
+        {
+            return;
+        }
+
+        if (value.DrillDown?.Target == OfzSummaryDrillDownTarget.SegmentDetail &&
+            value.DrillDown.CouponType is OfzCouponType couponType)
+        {
+            FocusSegment(couponType, value);
+        }
+
+        var secId = value.DrillDown?.SecId ?? value.Evidence.SecId;
+        if (!string.IsNullOrWhiteSpace(secId))
+        {
+            _ = LoadIssueDetailsAsync(secId);
+        }
+
+        if (value.DrillDown?.TradeDate is DateTime tradeDate)
+        {
+            SelectedHeatmapSummary = $"{tradeDate:yyyy-MM-dd}: {value.Title}. {value.Text}";
+        }
     }
 
     partial void OnSelectedCouponTypeFilterChanged(OfzCouponTypeFilter? value)
@@ -242,6 +322,13 @@ public partial class OfzActivityViewModel(OfzActivityService activityService) : 
         TopAnomalies.Clear();
         WeakLiquidityItems.Clear();
         Insights.Clear();
+        SummaryFindings.Clear();
+        SegmentSummaries.Clear();
+        SummaryLimitations.Clear();
+        MarketSummary = null;
+        StructuredSummaryJson = string.Empty;
+        SelectedSummaryFinding = null;
+        SelectedSummaryEvidenceText = "Вывод не выбран";
         ActivityIndex = [];
         DurationYieldScatterPoints = [];
         SelectedTopAnomaly = null;
@@ -254,6 +341,11 @@ public partial class OfzActivityViewModel(OfzActivityService activityService) : 
         HasWeakLiquidity = false;
         HasHeatmap = false;
         HasInsights = false;
+        HasMarketSummary = false;
+        HasSegmentSummaries = false;
+        HasSummaryLimitations = false;
+        HasStructuredSummaryJson = false;
+        CopySummaryJsonCommand.NotifyCanExecuteChanged();
         HasActivityIndex = false;
         HasDurationYieldScatter = false;
         ActivityIndexStatusMessage = "Индекс не рассчитан";
@@ -282,6 +374,20 @@ public partial class OfzActivityViewModel(OfzActivityService activityService) : 
         var signalLiquidityMetrics = GetSignalLiquidityMetrics(liquidityMetrics);
         var insightMetrics = GetInsightMetrics(signalMetrics, _currentResult);
         var insightLiquidityMetrics = GetInsightLiquidityMetrics(signalLiquidityMetrics, _currentResult);
+        var insightTrades = GetInsightTrades(GetSignalTrades(GetFilteredTrades(_currentResult, issues)), _currentResult);
+        var marketSummary = OfzMarketSummaryBuilder.Build(new OfzMarketSummaryInput
+        {
+            StartDate = _currentResult.StartDate,
+            EndDate = _currentResult.EndDate,
+            CouponTypeFilter = SelectedCouponTypeFilter?.CouponType,
+            SignalScope = SelectedSignalScopeFilter?.LastAvailableDayOnly == true
+                ? OfzSummarySignalScope.LastAvailableDay
+                : OfzSummarySignalScope.AllDays,
+            Issues = issues,
+            Trades = insightTrades,
+            ActivityMetrics = insightMetrics,
+            LiquidityMetrics = insightLiquidityMetrics
+        });
         var insights = OfzActivityAnalyzer.BuildActivityInsights(insightMetrics, issues)
             .Concat(OfzActivityAnalyzer.BuildLiquidityInsights(insightLiquidityMetrics, issues))
             .OrderByDescending(insight => insight.Severity)
@@ -303,6 +409,7 @@ public partial class OfzActivityViewModel(OfzActivityService activityService) : 
 
         ApplyHeatmap(heatmapCells);
         ApplyInsights(insights);
+        ApplyMarketSummary(marketSummary);
         ApplyActivityIndex(activityIndex);
         ApplyDurationYieldScatter(scatterPoints);
 
@@ -311,8 +418,8 @@ public partial class OfzActivityViewModel(OfzActivityService activityService) : 
         var filterLabel = SelectedCouponTypeFilter?.DisplayName ?? "Все";
         var insightPeriodLabel = SelectedInsightPeriodFilter?.DisplayName ?? "Весь диапазон";
         var signalScopeLabel = SelectedSignalScopeFilter?.DisplayName ?? "Все дни";
-        StatusMessage = HasAnomalies || HasHeatmap || HasInsights || HasActivityIndex || HasDurationYieldScatter
-            ? $"Найдено всплесков: {TopAnomalies.Count}; weak liquidity: {WeakLiquidityItems.Count}; heatmap: {HeatmapRows.Count} выпусков; выводов: {Insights.Count}; index: {ActivityIndex.Count}; scatter: {DurationYieldScatterPoints.Count}; тип: {filterLabel}; сигналы: {signalScopeLabel}; период выводов: {insightPeriodLabel}"
+        StatusMessage = HasAnomalies || HasHeatmap || HasMarketSummary || HasActivityIndex || HasDurationYieldScatter
+            ? $"Найдено всплесков: {TopAnomalies.Count}; weak liquidity: {WeakLiquidityItems.Count}; heatmap: {HeatmapRows.Count} выпусков; выводов: {SummaryFindings.Count}; index: {ActivityIndex.Count}; scatter: {DurationYieldScatterPoints.Count}; тип: {filterLabel}; сигналы: {signalScopeLabel}; период выводов: {insightPeriodLabel}"
             : $"Нет записей с достаточной baseline; тип: {filterLabel}; сигналы: {signalScopeLabel}; период выводов: {insightPeriodLabel}";
     }
 
@@ -361,6 +468,26 @@ public partial class OfzActivityViewModel(OfzActivityService activityService) : 
             .ToList();
     }
 
+    private IReadOnlyList<OfzDailyTrade> GetFilteredTrades(
+        OfzActivityLoadResult result,
+        IReadOnlyList<OfzIssue> issues)
+    {
+        var selectedType = SelectedCouponTypeFilter?.CouponType;
+        if (!selectedType.HasValue)
+        {
+            return result.Trades;
+        }
+
+        var secIds = issues
+            .Select(issue => issue.SecId)
+            .Where(secId => !string.IsNullOrWhiteSpace(secId))
+            .ToHashSet(StringComparer.Ordinal);
+
+        return result.Trades
+            .Where(trade => secIds.Contains(trade.SecId))
+            .ToList();
+    }
+
     private IReadOnlyList<OfzActivityMetric> GetSignalMetrics(IReadOnlyList<OfzActivityMetric> metrics)
     {
         if (SelectedSignalScopeFilter?.LastAvailableDayOnly != true)
@@ -403,6 +530,27 @@ public partial class OfzActivityViewModel(OfzActivityService activityService) : 
             .ToList();
     }
 
+    private IReadOnlyList<OfzDailyTrade> GetSignalTrades(IReadOnlyList<OfzDailyTrade> trades)
+    {
+        if (SelectedSignalScopeFilter?.LastAvailableDayOnly != true)
+        {
+            return trades;
+        }
+
+        var lastDate = trades
+            .Select(trade => trade.TradeDate.Date)
+            .DefaultIfEmpty()
+            .Max();
+        if (lastDate == default)
+        {
+            return [];
+        }
+
+        return trades
+            .Where(trade => trade.TradeDate.Date == lastDate)
+            .ToList();
+    }
+
     private IReadOnlyList<OfzActivityMetric> GetInsightMetrics(
         IReadOnlyList<OfzActivityMetric> metrics,
         OfzActivityLoadResult result)
@@ -428,6 +576,34 @@ public partial class OfzActivityViewModel(OfzActivityService activityService) : 
 
         return metrics
             .Where(metric => metric.TradeDate.Date >= insightStartDate && metric.TradeDate.Date <= endDate)
+            .ToList();
+    }
+
+    private IReadOnlyList<OfzDailyTrade> GetInsightTrades(
+        IReadOnlyList<OfzDailyTrade> trades,
+        OfzActivityLoadResult result)
+    {
+        var days = SelectedInsightPeriodFilter?.Days;
+        if (!days.HasValue)
+        {
+            return trades;
+        }
+
+        var startDate = result.StartDate.Date;
+        var endDate = result.EndDate.Date;
+        if (startDate > endDate)
+        {
+            (startDate, endDate) = (endDate, startDate);
+        }
+
+        var insightStartDate = endDate.AddDays(-(days.Value - 1));
+        if (insightStartDate < startDate)
+        {
+            insightStartDate = startDate;
+        }
+
+        return trades
+            .Where(trade => trade.TradeDate.Date >= insightStartDate && trade.TradeDate.Date <= endDate)
             .ToList();
     }
 
@@ -491,6 +667,49 @@ public partial class OfzActivityViewModel(OfzActivityService activityService) : 
         }
 
         HasInsights = Insights.Count > 0;
+    }
+
+    private void ApplyMarketSummary(OfzMarketSummary summary)
+    {
+        MarketSummary = summary;
+
+        foreach (var finding in summary.Findings)
+        {
+            SummaryFindings.Add(finding);
+        }
+
+        foreach (var segment in summary.Segments)
+        {
+            SegmentSummaries.Add(segment);
+        }
+
+        foreach (var limitation in summary.Limitations)
+        {
+            SummaryLimitations.Add(limitation);
+        }
+
+        StructuredSummaryJson = JsonSerializer.Serialize(summary, SummaryJsonOptions);
+        HasStructuredSummaryJson = !string.IsNullOrWhiteSpace(StructuredSummaryJson);
+        HasMarketSummary = SummaryFindings.Count > 0 || summary.Limitations.Count > 0;
+        HasSegmentSummaries = SegmentSummaries.Count > 0;
+        HasSummaryLimitations = SummaryLimitations.Count > 0;
+        SelectedSummaryFinding = SummaryFindings.FirstOrDefault();
+        CopySummaryJsonCommand.NotifyCanExecuteChanged();
+    }
+
+    private void FocusSegment(OfzCouponType couponType, OfzSummaryFinding finding)
+    {
+        var segment = SegmentSummaries.FirstOrDefault(item => item.CouponType == couponType);
+        var marker = segment?.CouponTypeMarker ?? finding.Evidence.CouponTypeMarker ?? couponType.ToString();
+        SelectedHeatmapSummary = segment is null
+            ? $"Сегмент {marker}: {finding.Text}"
+            : $"Сегмент {marker}: активных {segment.ActiveIssueCount}, оборот {segment.TotalValue:N0} {segment.TotalValueUnitMarker}, weak liquidity {segment.WeakLiquidityCount}";
+
+        var filter = CouponTypeFilters.FirstOrDefault(item => item.CouponType == couponType);
+        if (filter is not null && SelectedCouponTypeFilter?.CouponType != filter.CouponType)
+        {
+            SelectedCouponTypeFilter = filter;
+        }
     }
 
     private void ApplyActivityIndex(IReadOnlyList<OfzActivityIndexPoint> points)
@@ -573,6 +792,11 @@ public partial class OfzActivityViewModel(OfzActivityService activityService) : 
         IssueDetailStatusMessage = "Выпуск не выбран";
     }
 
+    private bool CanCopySummaryJson()
+    {
+        return HasStructuredSummaryJson;
+    }
+
     private async Task RunWithProgressAsync(
         string operationName,
         Func<IProgress<SyncProgress>, CancellationToken, Task> operation,
@@ -625,6 +849,86 @@ public partial class OfzActivityViewModel(OfzActivityService activityService) : 
         var yieldMove = cell.YieldMove.HasValue ? $"{cell.YieldMove.Value:N2}" : "n/a";
 
         return $"{cell.TradeDate:yyyy-MM-dd} {cell.ShortName} ({cell.SecId}): score {score}, оборот {value}, yield Δ {yieldMove}, {cell.Status}";
+    }
+
+    private static string FormatSummaryEvidence(OfzSummaryFinding? finding)
+    {
+        if (finding is null)
+        {
+            return "Вывод не выбран";
+        }
+
+        var evidence = finding.Evidence;
+        List<string> parts = [];
+
+        if (evidence.TradeDate.HasValue)
+        {
+            parts.Add($"дата {evidence.TradeDate:yyyy-MM-dd}");
+        }
+
+        if (!string.IsNullOrWhiteSpace(evidence.ShortName) || !string.IsNullOrWhiteSpace(evidence.SecId))
+        {
+            parts.Add($"{evidence.ShortName ?? evidence.SecId} ({evidence.SecId ?? "secid n/a"})");
+        }
+
+        if (!string.IsNullOrWhiteSpace(evidence.CouponTypeMarker))
+        {
+            parts.Add(evidence.CouponTypeMarker);
+        }
+
+        var activeIssueCountLabel = finding.Kind == OfzSummaryFindingKind.RepeatedIssue
+            ? "дат активности"
+            : "выпусков";
+        AddNumber(parts, activeIssueCountLabel, evidence.ActiveIssueCount, "N0");
+        AddNumber(parts, "оборот", evidence.TotalValue ?? evidence.Value, "N0");
+        AddNumber(parts, "сделок", evidence.TotalNumTrades ?? evidence.NumTrades, "N0");
+        AddNumber(parts, "score", evidence.ActivityScore ?? evidence.MaxActivityScore ?? evidence.MedianActivityScore, "N2");
+        AddNumber(parts, "yield Δ", evidence.YieldMove, "N2");
+        AddNumber(parts, "spread", evidence.Spread, "N3");
+        AddNumber(parts, "liquidity", evidence.LiquidityScore, "N2");
+
+        if (evidence.LiquidityBucket.HasValue)
+        {
+            parts.Add($"bucket {evidence.LiquidityBucket.Value}");
+        }
+
+        if (evidence.LiquidityStatus.HasValue)
+        {
+            parts.Add($"status {evidence.LiquidityStatus.Value}");
+        }
+
+        if (evidence.IsSnapshot)
+        {
+            parts.Add("snapshot");
+        }
+
+        if (evidence.IsProvisional)
+        {
+            parts.Add("предварительно");
+        }
+
+        if (finding.Limitations.Count > 0)
+        {
+            parts.Add("ограничения: " + string.Join("; ", finding.Limitations.Select(limitation => limitation.Text)));
+        }
+
+        return parts.Count == 0 ? finding.Text : string.Join("; ", parts);
+    }
+
+    private static void AddNumber(List<string> parts, string label, double? value, string format)
+    {
+        if (value.HasValue)
+        {
+            parts.Add($"{label} {value.Value.ToString(format)}");
+        }
+    }
+
+    private static void AddNumber(List<string> parts, string label, int? value, string format)
+    {
+        if (value.HasValue)
+        {
+            parts.Add($"{label} {value.Value.ToString(format)}");
+        }
     }
 
     private static IEnumerable<OfzCouponTypeFilter> CreateCouponTypeFilters()
