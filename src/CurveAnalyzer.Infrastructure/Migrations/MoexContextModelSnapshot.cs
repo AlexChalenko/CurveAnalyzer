@@ -262,6 +262,21 @@ partial class MoexContextModelSnapshot : ModelSnapshot
                 .HasMaxLength(64)
                 .HasColumnType("TEXT");
 
+            b.Property(e => e.ClassificationEvidence)
+                .HasMaxLength(1024)
+                .HasColumnType("TEXT");
+
+            b.Property(e => e.ClassificationLoadedAt)
+                .HasColumnType("TEXT");
+
+            b.Property(e => e.ClassificationReliability)
+                .HasMaxLength(32)
+                .HasColumnType("TEXT");
+
+            b.Property(e => e.ClassificationSource)
+                .HasMaxLength(32)
+                .HasColumnType("TEXT");
+
             b.Property(e => e.CouponPercent)
                 .HasColumnType("REAL");
 
@@ -284,6 +299,12 @@ partial class MoexContextModelSnapshot : ModelSnapshot
 
             b.Property(e => e.InitialFaceValue)
                 .HasColumnType("REAL");
+
+            b.Property(e => e.IsAmortizing)
+                .HasColumnType("INTEGER");
+
+            b.Property(e => e.IsIndexedNominal)
+                .HasColumnType("INTEGER");
 
             b.Property(e => e.IssueName)
                 .HasMaxLength(512)
@@ -309,6 +330,18 @@ partial class MoexContextModelSnapshot : ModelSnapshot
                 .HasColumnType("TEXT");
 
             b.Property(e => e.NextCouponDate)
+                .HasColumnType("TEXT");
+
+            b.Property(e => e.NominalCurrency)
+                .HasMaxLength(16)
+                .HasColumnType("TEXT");
+
+            b.Property(e => e.NormalizedCouponType)
+                .HasMaxLength(32)
+                .HasColumnType("TEXT");
+
+            b.Property(e => e.NormalizedTypeMarker)
+                .HasMaxLength(32)
                 .HasColumnType("TEXT");
 
             b.Property(e => e.SecName)

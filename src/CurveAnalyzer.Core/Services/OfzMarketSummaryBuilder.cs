@@ -1507,15 +1507,7 @@ public static class OfzMarketSummaryBuilder
 
     private static string GetCouponTypeMarker(OfzCouponType couponType)
     {
-        return couponType switch
-        {
-            OfzCouponType.Fixed => "ОФЗ-ПД",
-            OfzCouponType.Floating => "ОФЗ-ПК",
-            OfzCouponType.InflationLinked => "ОФЗ-ИН",
-            OfzCouponType.Amortized => "ОФЗ-АД",
-            OfzCouponType.Currency => "Валютная",
-            _ => "Тип n/a"
-        };
+        return OfzIssueClassifier.GetCouponTypeMarker(couponType);
     }
 
     private static double? Median(double[] values)

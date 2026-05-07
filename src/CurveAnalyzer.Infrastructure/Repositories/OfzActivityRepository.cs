@@ -215,23 +215,123 @@ public sealed class OfzActivityRepository(IDbContextFactory<MoexContext> context
         }
 
         var secIds = distinctIssues.Select(issue => issue.SecId).ToList();
-        var existingIssueIds = await context.OfzIssues
+        var existingIssues = await context.OfzIssues
             .Where(issue => secIds.Contains(issue.SecId))
-            .Select(issue => issue.SecId)
-            .ToListAsync(cancellationToken);
-        var existingIssueIdSet = existingIssueIds.ToHashSet(StringComparer.Ordinal);
+            .ToDictionaryAsync(issue => issue.SecId, StringComparer.Ordinal, cancellationToken)
+            .ConfigureAwait(false);
 
         foreach (var issue in distinctIssues)
         {
-            if (existingIssueIdSet.Contains(issue.SecId))
+            EnsureClassificationSource(issue);
+            var classification = OfzIssueClassifier.Classify(issue, issue.ClassificationSource);
+            var loadedAt = issue.MetadataLoadedAt ?? DateTime.UtcNow;
+
+            if (existingIssues.TryGetValue(issue.SecId, out var existingIssue))
             {
-                context.OfzIssues.Update(issue);
+                MergeIssueMetadata(existingIssue, issue);
+                var hasIncomingClassification = classification.Reliability != OfzClassificationReliability.Unknown;
+                var hasStoredClassification =
+                    existingIssue.NormalizedCouponType.HasValue ||
+                    existingIssue.ClassificationReliability.HasValue;
+
+                if (hasIncomingClassification && ShouldReplaceClassification(existingIssue, classification))
+                {
+                    existingIssue.ApplyClassification(classification, loadedAt);
+                }
+                else if (!hasStoredClassification)
+                {
+                    var existingClassification = OfzIssueClassifier.Classify(
+                        existingIssue,
+                        existingIssue.ClassificationSource);
+
+                    if (ShouldReplaceClassification(existingIssue, existingClassification))
+                    {
+                        existingIssue.ApplyClassification(existingClassification, loadedAt);
+                    }
+                }
             }
             else
             {
+                issue.ApplyClassification(classification, loadedAt);
                 await context.OfzIssues.AddAsync(issue, cancellationToken).ConfigureAwait(false);
             }
         }
+    }
+
+    private static void EnsureClassificationSource(OfzIssue issue)
+    {
+        if (string.IsNullOrWhiteSpace(issue.ClassificationSource))
+        {
+            issue.ClassificationSource = OfzIssueClassificationSources.Unknown;
+        }
+    }
+
+    private static void MergeIssueMetadata(OfzIssue target, OfzIssue incoming)
+    {
+        target.ShortName = MergeRequiredText(target.ShortName, incoming.ShortName, incoming.SecId);
+        target.SecName = MergeText(target.SecName, incoming.SecName);
+        target.IssueName = MergeText(target.IssueName, incoming.IssueName);
+        target.Isin = MergeText(target.Isin, incoming.Isin);
+        target.MatDate = incoming.MatDate ?? target.MatDate;
+        target.FaceValue = incoming.FaceValue ?? target.FaceValue;
+        target.InitialFaceValue = incoming.InitialFaceValue ?? target.InitialFaceValue;
+        target.FaceUnit = MergeText(target.FaceUnit, incoming.FaceUnit);
+        target.CurrencyId = MergeText(target.CurrencyId, incoming.CurrencyId);
+        target.CouponPercent = incoming.CouponPercent ?? target.CouponPercent;
+        target.CouponValue = incoming.CouponValue ?? target.CouponValue;
+        target.CouponPeriod = incoming.CouponPeriod ?? target.CouponPeriod;
+        target.NextCouponDate = incoming.NextCouponDate ?? target.NextCouponDate;
+        target.ListLevel = incoming.ListLevel ?? target.ListLevel;
+        target.IssueSize = incoming.IssueSize ?? target.IssueSize;
+        target.IssueSizePlaced = incoming.IssueSizePlaced ?? target.IssueSizePlaced;
+        target.MetadataLoadedAt = incoming.MetadataLoadedAt ?? target.MetadataLoadedAt;
+        target.BondType = MergeText(target.BondType, incoming.BondType);
+        target.BondSubType = MergeText(target.BondSubType, incoming.BondSubType);
+    }
+
+    private static bool ShouldReplaceClassification(OfzIssue existingIssue, OfzIssueClassification classification)
+    {
+        var existingRank = GetReliabilityRank(existingIssue.ClassificationReliability);
+        var newRank = GetReliabilityRank(classification.Reliability);
+
+        return newRank > existingRank ||
+            (newRank == existingRank && classification.Reliability != OfzClassificationReliability.Unknown) ||
+            !existingIssue.NormalizedCouponType.HasValue && !existingIssue.ClassificationReliability.HasValue;
+    }
+
+    private static int GetReliabilityRank(OfzClassificationReliability? reliability)
+    {
+        return reliability switch
+        {
+            OfzClassificationReliability.Reliable => 4,
+            OfzClassificationReliability.Inferred => 3,
+            OfzClassificationReliability.Conflict => 2,
+            OfzClassificationReliability.Unknown => 1,
+            _ => 0
+        };
+    }
+
+    private static string MergeRequiredText(string current, string incoming, string fallbackValue)
+    {
+        if (string.IsNullOrWhiteSpace(incoming))
+        {
+            return current;
+        }
+
+        var trimmed = incoming.Trim();
+        if (trimmed.Equals(fallbackValue, StringComparison.Ordinal) &&
+            !string.IsNullOrWhiteSpace(current) &&
+            !current.Equals(fallbackValue, StringComparison.Ordinal))
+        {
+            return current;
+        }
+
+        return trimmed;
+    }
+
+    private static string? MergeText(string? current, string? incoming)
+    {
+        return string.IsNullOrWhiteSpace(incoming) ? current : incoming.Trim();
     }
 
     private static async Task SaveLiquiditySnapshotsAsync(

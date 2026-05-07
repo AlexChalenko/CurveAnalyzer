@@ -38,6 +38,16 @@ public class MoexContext : DbContext
         issue.Property(i => i.CurrencyId).HasMaxLength(16);
         issue.Property(i => i.BondType).HasMaxLength(64);
         issue.Property(i => i.BondSubType).HasMaxLength(64);
+        issue.Property(i => i.NormalizedCouponType)
+            .HasConversion<string>()
+            .HasMaxLength(32);
+        issue.Property(i => i.NormalizedTypeMarker).HasMaxLength(32);
+        issue.Property(i => i.ClassificationReliability)
+            .HasConversion<string>()
+            .HasMaxLength(32);
+        issue.Property(i => i.ClassificationSource).HasMaxLength(32);
+        issue.Property(i => i.ClassificationEvidence).HasMaxLength(1024);
+        issue.Property(i => i.NominalCurrency).HasMaxLength(16);
         issue.Ignore(i => i.IsRub);
         issue.Ignore(i => i.IsStandardOfz);
         issue.Ignore(i => i.CouponType);

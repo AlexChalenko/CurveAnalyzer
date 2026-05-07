@@ -60,6 +60,65 @@
                     <TextBlock
                         FontSize="11"
                         FontWeight="SemiBold"
+                        Text="Классификация" />
+                    <TextBlock
+                        Margin="12,0,0,0"
+                        FontSize="10"
+                        Foreground="DimGray"
+                        Text="{Binding SelectedIssueDetail.ClassificationLoadedAtText}" />
+                </DockPanel>
+                <WrapPanel Margin="0,3,0,0">
+                    <StackPanel Margin="0,0,18,2">
+                        <TextBlock FontSize="10" Foreground="DimGray" Text="Тип" />
+                        <TextBlock Text="{Binding SelectedIssueDetail.CouponTypeMarker}" />
+                    </StackPanel>
+                    <StackPanel Margin="0,0,18,2">
+                        <TextBlock FontSize="10" Foreground="DimGray" Text="Надежность" />
+                        <TextBlock Text="{Binding SelectedIssueDetail.ClassificationReliabilityText}" />
+                    </StackPanel>
+                    <StackPanel Margin="0,0,18,2">
+                        <TextBlock FontSize="10" Foreground="DimGray" Text="Источник" />
+                        <TextBlock Text="{Binding SelectedIssueDetail.ClassificationSource}" />
+                    </StackPanel>
+                    <StackPanel Margin="0,0,18,2">
+                        <TextBlock FontSize="10" Foreground="DimGray" Text="Валюта номинала" />
+                        <TextBlock Text="{Binding SelectedIssueDetail.NominalCurrency}" />
+                    </StackPanel>
+                    <StackPanel Margin="0,0,18,2">
+                        <TextBlock FontSize="10" Foreground="DimGray" Text="Индексация" />
+                        <TextBlock Text="{Binding SelectedIssueDetail.IndexedNominalText}" />
+                    </StackPanel>
+                    <StackPanel Margin="0,0,18,2">
+                        <TextBlock FontSize="10" Foreground="DimGray" Text="Амортизация" />
+                        <TextBlock Text="{Binding SelectedIssueDetail.AmortizingText}" />
+                    </StackPanel>
+                </WrapPanel>
+                <TextBlock
+                    Margin="0,1,0,0"
+                    FontSize="10"
+                    Foreground="DimGray"
+                    Text="{Binding SelectedIssueDetail.ClassificationEvidence}"
+                    TextTrimming="CharacterEllipsis"
+                    Visibility="{Binding SelectedIssueDetail.HasClassificationEvidence, Converter={StaticResource BoolToVis}}" />
+                <ItemsControl
+                    Margin="0,1,0,0"
+                    ItemsSource="{Binding SelectedIssueDetail.ClassificationLimitations}"
+                    Visibility="{Binding SelectedIssueDetail.HasClassificationLimitations, Converter={StaticResource BoolToVis}}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <TextBlock
+                                FontSize="10"
+                                Foreground="DimGray"
+                                Text="{Binding}"
+                                TextTrimming="CharacterEllipsis" />
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+                <Separator Margin="0,4,0,4" />
+                <DockPanel>
+                    <TextBlock
+                        FontSize="11"
+                        FontWeight="SemiBold"
                         Text="Ликвидность" />
                     <TextBlock
                         Margin="12,0,0,0"

@@ -564,6 +564,77 @@ public class OfzActivityAnalyzerTests
     }
 
     [Fact]
+    public void BuildIssueDetail_ProjectsStoredClassificationMetadata()
+    {
+        var loadedAt = new DateTime(2026, 05, 06, 9, 0, 0, DateTimeKind.Utc);
+        var issue = new OfzIssue
+        {
+            SecId = "SU29019RMFS5",
+            ShortName = "ОФЗ 29019",
+            FaceUnit = "SUR",
+            CurrencyId = "SUR",
+            BondType = "Флоатер"
+        };
+        issue.ApplyClassification(
+            new OfzIssueClassification
+            {
+                CouponType = OfzCouponType.Floating,
+                CouponTypeMarker = "ОФЗ-ПК",
+                Reliability = OfzClassificationReliability.Reliable,
+                Source = OfzIssueClassificationSources.History,
+                Evidence = "source=history; rules=source-floating",
+                IsIndexedNominal = false,
+                IsAmortizing = false,
+                NominalCurrency = "RUB"
+            },
+            loadedAt);
+
+        var detail = OfzActivityAnalyzer.BuildIssueDetail(
+            "SU29019RMFS5",
+            [Trade("SU29019RMFS5", new DateTime(2026, 05, 06), 100_000_000, 13.2)],
+            issue);
+
+        Assert.Equal(OfzCouponType.Floating, detail.CouponType);
+        Assert.Equal("ОФЗ-ПК", detail.CouponTypeMarker);
+        Assert.Equal(OfzClassificationReliability.Reliable, detail.ClassificationReliability);
+        Assert.Equal("надежная", detail.ClassificationReliabilityText);
+        Assert.Equal(OfzIssueClassificationSources.History, detail.ClassificationSource);
+        Assert.Equal("source=history; rules=source-floating", detail.ClassificationEvidence);
+        Assert.Equal(loadedAt, detail.ClassificationLoadedAt);
+        Assert.Equal("RUB", detail.NominalCurrency);
+        Assert.Equal("нет", detail.IndexedNominalText);
+        Assert.Equal("нет", detail.AmortizingText);
+        Assert.True(detail.HasClassificationEvidence);
+    }
+
+    [Fact]
+    public void BuildIssueDetail_RecomputesStaleUnknownClassificationSourceForDisplay()
+    {
+        var issue = new OfzIssue
+        {
+            SecId = "SU26212RMFS9",
+            ShortName = "ОФЗ-ПД 26212",
+            FaceUnit = "SUR",
+            NormalizedCouponType = OfzCouponType.Fixed,
+            NormalizedTypeMarker = "ОФЗ-ПД",
+            ClassificationReliability = OfzClassificationReliability.Reliable,
+            ClassificationSource = OfzIssueClassificationSources.Unknown,
+            ClassificationEvidence = "source=unknown; rules=source-fixed"
+        };
+
+        var detail = OfzActivityAnalyzer.BuildIssueDetail(
+            "SU26212RMFS9",
+            [Trade("SU26212RMFS9", new DateTime(2026, 05, 06), 100_000_000, 13.2)],
+            issue);
+
+        Assert.Equal(OfzCouponType.Fixed, detail.CouponType);
+        Assert.Equal("ОФЗ-ПД", detail.CouponTypeMarker);
+        Assert.Equal(OfzClassificationReliability.Reliable, detail.ClassificationReliability);
+        Assert.Equal(OfzIssueClassificationSources.MetadataFields, detail.ClassificationSource);
+        Assert.Contains("source=metadata-fields", detail.ClassificationEvidence, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void BuildActivityIndex_AggregatesActiveMetricsByDate()
     {
         var date1 = new DateTime(2026, 04, 20);

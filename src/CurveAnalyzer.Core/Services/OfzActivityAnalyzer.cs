@@ -341,12 +341,32 @@ public static class OfzActivityAnalyzer
             string.Equals(currentSnapshot.SecId, secId, StringComparison.Ordinal)
                 ? CreateLiquidityMetric(currentSnapshot)
                 : null;
+        var classification = issue is null
+            ? null
+            : OfzIssueClassifier.Classify(issue, issue.ClassificationSource);
+        var hasStoredClassification = HasStoredClassification(issue);
 
         return new OfzIssueDetail
         {
             SecId = secId,
             ShortName = string.IsNullOrWhiteSpace(issue?.ShortName) ? secId : issue.ShortName,
             DisplayMarker = issue?.DisplayMarker ?? string.Empty,
+            CouponType = hasStoredClassification ? issue!.CouponType : classification?.CouponType ?? OfzCouponType.Unknown,
+            CouponTypeMarker = hasStoredClassification ? issue!.CouponTypeMarker : classification?.CouponTypeMarker ?? OfzIssueClassifier.GetCouponTypeMarker(OfzCouponType.Unknown),
+            ClassificationReliability = issue?.ClassificationReliability ?? classification?.Reliability ?? OfzClassificationReliability.Unknown,
+            ClassificationSource = IsKnownClassificationSource(issue?.ClassificationSource)
+                ? issue!.ClassificationSource!
+                : classification?.Source ?? OfzIssueClassificationSources.Unknown,
+            ClassificationEvidence = IsKnownClassificationEvidence(issue?.ClassificationEvidence)
+                ? issue!.ClassificationEvidence
+                : classification?.Evidence,
+            ClassificationLoadedAt = issue?.ClassificationLoadedAt,
+            ClassificationLimitations = classification?.Limitations ?? [],
+            IsIndexedNominal = issue?.IsIndexedNominal ?? classification?.IsIndexedNominal,
+            IsAmortizing = issue?.IsAmortizing ?? classification?.IsAmortizing,
+            NominalCurrency = !string.IsNullOrWhiteSpace(issue?.NominalCurrency)
+                ? issue.NominalCurrency
+                : classification?.NominalCurrency ?? "Unknown",
             MatDate = issue?.MatDate,
             Points = points,
             LiquidityMetrics = liquidityMetrics.Values
@@ -354,6 +374,26 @@ public static class OfzActivityAnalyzer
                 .ToList(),
             CurrentLiquiditySnapshot = snapshotMetric
         };
+    }
+
+    private static bool HasStoredClassification(OfzIssue? issue)
+    {
+        return issue is not null &&
+            (issue.NormalizedCouponType.HasValue ||
+             issue.ClassificationReliability.HasValue ||
+             !string.IsNullOrWhiteSpace(issue.NormalizedTypeMarker));
+    }
+
+    private static bool IsKnownClassificationSource(string? source)
+    {
+        return !string.IsNullOrWhiteSpace(source) &&
+            !source.Equals(OfzIssueClassificationSources.Unknown, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsKnownClassificationEvidence(string? evidence)
+    {
+        return !string.IsNullOrWhiteSpace(evidence) &&
+            !evidence.Contains("source=unknown", StringComparison.OrdinalIgnoreCase);
     }
 
     public static IReadOnlyList<OfzActivityIndexPoint> BuildActivityIndex(
