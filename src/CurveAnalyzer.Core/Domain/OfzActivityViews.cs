@@ -55,6 +55,16 @@ public class OfzIssueDetail
     public string SecId { get; init; } = string.Empty;
     public string ShortName { get; init; } = string.Empty;
     public string DisplayMarker { get; init; } = string.Empty;
+    public OfzCouponType CouponType { get; init; } = OfzCouponType.Unknown;
+    public string CouponTypeMarker { get; init; } = OfzIssueClassifier.GetCouponTypeMarker(OfzCouponType.Unknown);
+    public OfzClassificationReliability ClassificationReliability { get; init; } = OfzClassificationReliability.Unknown;
+    public string ClassificationSource { get; init; } = OfzIssueClassificationSources.Unknown;
+    public string? ClassificationEvidence { get; init; }
+    public DateTime? ClassificationLoadedAt { get; init; }
+    public IReadOnlyList<string> ClassificationLimitations { get; init; } = [];
+    public bool? IsIndexedNominal { get; init; }
+    public bool? IsAmortizing { get; init; }
+    public string NominalCurrency { get; init; } = "Unknown";
     public DateTime? MatDate { get; init; }
     public IReadOnlyList<OfzIssueDetailPoint> Points { get; init; } = [];
     public IReadOnlyList<OfzLiquidityMetric> LiquidityMetrics { get; init; } = [];
@@ -65,6 +75,35 @@ public class OfzIssueDetail
     public bool HasPrice => Points.Any(point => point.Price.HasValue);
     public bool HasSpread => Points.Any(point => point.Spread.HasValue) || LiquidityMetrics.Any(metric => metric.Spread.HasValue);
     public bool HasCurrentLiquiditySnapshot => CurrentLiquiditySnapshot is not null;
+    public bool HasClassificationEvidence => !string.IsNullOrWhiteSpace(ClassificationEvidence);
+    public bool HasClassificationLimitations => ClassificationLimitations.Count > 0;
+
+    public string ClassificationReliabilityText => ClassificationReliability switch
+    {
+        OfzClassificationReliability.Reliable => "надежная",
+        OfzClassificationReliability.Inferred => "эвристика",
+        OfzClassificationReliability.Conflict => "конфликт",
+        _ => "unknown"
+    };
+
+    public string IndexedNominalText => IsIndexedNominal switch
+    {
+        true => "да",
+        false => "нет",
+        _ => "n/a"
+    };
+
+    public string AmortizingText => IsAmortizing switch
+    {
+        true => "да",
+        false => "нет",
+        _ => "n/a"
+    };
+
+    public string ClassificationLoadedAtText =>
+        ClassificationLoadedAt.HasValue
+            ? ClassificationLoadedAt.Value.ToLocalTime().ToString("dd.MM.yyyy HH:mm")
+            : "n/a";
 }
 
 public class OfzIssueDetailPoint

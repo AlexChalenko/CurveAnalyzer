@@ -115,7 +115,13 @@ public sealed class OfzActivityOnlineDataService(HttpClient httpClient) : IOfzAc
 
                 if (!issuesBySecId.ContainsKey(secId))
                 {
-                    issuesBySecId[secId] = new OfzIssue { SecId = secId, ShortName = secId };
+                    issuesBySecId[secId] = new OfzIssue
+                    {
+                        SecId = secId,
+                        ShortName = secId,
+                        MetadataLoadedAt = loadedAt,
+                        ClassificationSource = OfzIssueClassificationSources.Snapshot
+                    };
                 }
 
                 trades.Add(MapTradeFromMarketData(marketData, row, secId, tradeDate, loadedAt));
@@ -174,6 +180,7 @@ public sealed class OfzActivityOnlineDataService(HttpClient httpClient) : IOfzAc
             IssueSize = table.GetDouble(row, "ISSUESIZE"),
             IssueSizePlaced = table.GetDouble(row, "ISSUESIZEPLACED"),
             MetadataLoadedAt = loadedAt,
+            ClassificationSource = OfzIssueClassificationSources.History,
             BondType = table.GetString(row, "BONDTYPE"),
             BondSubType = table.GetString(row, "BONDSUBTYPE")
         };
@@ -201,6 +208,7 @@ public sealed class OfzActivityOnlineDataService(HttpClient httpClient) : IOfzAc
             IssueSize = table.GetDouble(row, "ISSUESIZE"),
             IssueSizePlaced = table.GetDouble(row, "ISSUESIZEPLACED"),
             MetadataLoadedAt = loadedAt,
+            ClassificationSource = OfzIssueClassificationSources.Snapshot,
             BondType = table.GetString(row, "BONDTYPE"),
             BondSubType = table.GetString(row, "BONDSUBTYPE")
         };

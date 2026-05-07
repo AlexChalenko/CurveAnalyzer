@@ -390,6 +390,7 @@ public partial class OfzActivityViewModel(OfzActivityService activityService) : 
             return;
         }
 
+        var selectedSecId = GetSelectedIssueSecId();
         ClearViewResults();
 
         var (issues, metrics) = GetFilteredActivityData(_currentResult);
@@ -445,6 +446,7 @@ public partial class OfzActivityViewModel(OfzActivityService activityService) : 
         ApplyMarketSummary(marketSummary);
         ApplyActivityIndex(activityIndex);
         ApplyDurationYieldScatter(scatterPoints);
+        RestoreIssueSelection(selectedSecId);
 
         HasAnomalies = TopAnomalies.Count > 0;
         HasWeakLiquidity = WeakLiquidityItems.Count > 0;
@@ -454,6 +456,61 @@ public partial class OfzActivityViewModel(OfzActivityService activityService) : 
         StatusMessage = HasAnomalies || HasHeatmap || HasMarketSummary || HasActivityIndex || HasDurationYieldScatter
             ? $"Найдено всплесков: {TopAnomalies.Count}; weak liquidity: {WeakLiquidityItems.Count}; heatmap: {HeatmapRows.Count} выпусков; выводов: {SummaryFindings.Count}; дней breadth в выводах: {marketSummary.BreadthDays.Count}; index: {ActivityIndex.Count}; scatter: {DurationYieldScatterPoints.Count}; тип: {filterLabel}; сигналы: {signalScopeLabel}; период выводов: {insightPeriodLabel}"
             : $"Нет записей с достаточной baseline; тип: {filterLabel}; сигналы: {signalScopeLabel}; период выводов: {insightPeriodLabel}";
+    }
+
+    private string? GetSelectedIssueSecId()
+    {
+        if (!string.IsNullOrWhiteSpace(SelectedIssueDetail?.SecId))
+        {
+            return SelectedIssueDetail.SecId;
+        }
+
+        if (!string.IsNullOrWhiteSpace(SelectedTopAnomaly?.SecId))
+        {
+            return SelectedTopAnomaly.SecId;
+        }
+
+        if (!string.IsNullOrWhiteSpace(SelectedWeakLiquidityItem?.SecId))
+        {
+            return SelectedWeakLiquidityItem.SecId;
+        }
+
+        return !string.IsNullOrWhiteSpace(SelectedHeatmapCell?.SecId)
+            ? SelectedHeatmapCell.SecId
+            : null;
+    }
+
+    private void RestoreIssueSelection(string? preferredSecId)
+    {
+        if (!string.IsNullOrWhiteSpace(preferredSecId))
+        {
+            var matchingAnomaly = TopAnomalies.FirstOrDefault(item =>
+                string.Equals(item.SecId, preferredSecId, StringComparison.Ordinal));
+            if (matchingAnomaly is not null)
+            {
+                SelectedTopAnomaly = matchingAnomaly;
+                return;
+            }
+
+            var matchingWeakLiquidity = WeakLiquidityItems.FirstOrDefault(item =>
+                string.Equals(item.SecId, preferredSecId, StringComparison.Ordinal));
+            if (matchingWeakLiquidity is not null)
+            {
+                SelectedWeakLiquidityItem = matchingWeakLiquidity;
+                return;
+            }
+        }
+
+        if (TopAnomalies.FirstOrDefault() is { } firstAnomaly)
+        {
+            SelectedTopAnomaly = firstAnomaly;
+            return;
+        }
+
+        if (WeakLiquidityItems.FirstOrDefault() is { } firstWeakLiquidity)
+        {
+            SelectedWeakLiquidityItem = firstWeakLiquidity;
+        }
     }
 
     private (IReadOnlyList<OfzIssue> Issues, IReadOnlyList<OfzActivityMetric> Metrics) GetFilteredActivityData(
@@ -1007,7 +1064,7 @@ public partial class OfzActivityViewModel(OfzActivityService activityService) : 
         yield return new OfzCouponTypeFilter("ОФЗ-ИН", OfzCouponType.InflationLinked);
         yield return new OfzCouponTypeFilter("ОФЗ-АД", OfzCouponType.Amortized);
         yield return new OfzCouponTypeFilter("Валютные", OfzCouponType.Currency);
-        yield return new OfzCouponTypeFilter("Тип n/a", OfzCouponType.Unknown);
+        yield return new OfzCouponTypeFilter("Unknown", OfzCouponType.Unknown);
     }
 
     private static IEnumerable<OfzInsightPeriodFilter> CreateInsightPeriodFilters()

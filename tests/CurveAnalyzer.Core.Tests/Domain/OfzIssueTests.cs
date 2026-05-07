@@ -97,4 +97,22 @@ public class OfzIssueTests
         Assert.Equal(expectedType, issue.CouponType);
         Assert.Equal(expectedMarker, issue.CouponTypeMarker);
     }
+
+    [Fact]
+    public void CouponType_UsesStoredClassificationBeforeSeriesFallback()
+    {
+        var issue = new OfzIssue
+        {
+            SecId = "SU26238RMFS4",
+            ShortName = "ОФЗ 26238",
+            FaceUnit = "SUR",
+            NormalizedCouponType = OfzCouponType.Floating,
+            NormalizedTypeMarker = "ОФЗ-ПК",
+            ClassificationReliability = OfzClassificationReliability.Reliable
+        };
+
+        Assert.Equal(OfzCouponType.Floating, issue.CouponType);
+        Assert.Equal("ОФЗ-ПК", issue.CouponTypeMarker);
+        Assert.Equal("RUB / ОФЗ-ПК", issue.DisplayMarker);
+    }
 }

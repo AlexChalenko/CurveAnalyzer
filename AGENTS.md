@@ -2,7 +2,7 @@
 
 <!-- SPECKIT START -->
 Для текущей feature сначала читай активный план:
-`specs/006-ofz-market-breadth/plan.md`.
+`specs/007-ofz-floaters-linkers/plan.md`.
 <!-- SPECKIT END -->
 
 ## Язык документации

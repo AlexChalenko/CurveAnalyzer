@@ -34,8 +34,17 @@ public class OfzIssue
     public DateTime? MetadataLoadedAt { get; set; }
     public string? BondType { get; set; }
     public string? BondSubType { get; set; }
+    public OfzCouponType? NormalizedCouponType { get; set; }
+    public string? NormalizedTypeMarker { get; set; }
+    public OfzClassificationReliability? ClassificationReliability { get; set; }
+    public string? ClassificationSource { get; set; }
+    public string? ClassificationEvidence { get; set; }
+    public DateTime? ClassificationLoadedAt { get; set; }
+    public bool? IsIndexedNominal { get; set; }
+    public bool? IsAmortizing { get; set; }
+    public string? NominalCurrency { get; set; }
 
-    public bool IsRub => IsRubleCode(FaceUnit) || IsRubleCode(CurrencyId);
+    public bool IsRub => IsRubleCode(NominalCurrency) || IsRubleCode(FaceUnit) || IsRubleCode(CurrencyId);
 
     public bool IsStandardOfz =>
         IsRub &&
@@ -47,6 +56,13 @@ public class OfzIssue
     {
         get
         {
+            var normalizedCurrency = FirstNonEmpty(NominalCurrency);
+            if (!string.IsNullOrWhiteSpace(normalizedCurrency) &&
+                !normalizedCurrency.Equals("Unknown", StringComparison.OrdinalIgnoreCase))
+            {
+                return normalizedCurrency;
+            }
+
             var faceUnit = FirstNonEmpty(FaceUnit);
             if (!string.IsNullOrWhiteSpace(faceUnit) && !IsRubleCode(faceUnit))
             {
@@ -68,23 +84,26 @@ public class OfzIssue
         }
     }
 
-    public OfzCouponType CouponType => ClassifyCouponType();
+    public OfzCouponType CouponType =>
+        HasStoredClassification
+            ? NormalizedCouponType ?? OfzCouponType.Unknown
+            : OfzIssueClassifier.Classify(this).CouponType;
 
-    public string CouponTypeMarker => CouponType switch
-    {
-        OfzCouponType.Fixed => "ОФЗ-ПД",
-        OfzCouponType.Floating => "ОФЗ-ПК",
-        OfzCouponType.InflationLinked => "ОФЗ-ИН",
-        OfzCouponType.Amortized => "ОФЗ-АД",
-        OfzCouponType.Currency => "Валютная",
-        _ => "Тип n/a"
-    };
+    public string CouponTypeMarker =>
+        HasStoredClassification && !string.IsNullOrWhiteSpace(NormalizedTypeMarker)
+            ? NormalizedTypeMarker
+            : OfzIssueClassifier.GetCouponTypeMarker(CouponType);
 
     public string TypeMarker
     {
         get
         {
             if (CouponType != OfzCouponType.Unknown)
+            {
+                return CouponTypeMarker;
+            }
+
+            if (HasStoredClassification)
             {
                 return CouponTypeMarker;
             }
@@ -99,6 +118,26 @@ public class OfzIssue
     }
 
     public string DisplayMarker => $"{CurrencyMarker} / {TypeMarker}";
+
+    public void ApplyClassification(OfzIssueClassification classification, DateTime? loadedAt = null)
+    {
+        ArgumentNullException.ThrowIfNull(classification);
+
+        NormalizedCouponType = classification.CouponType;
+        NormalizedTypeMarker = classification.CouponTypeMarker;
+        ClassificationReliability = classification.Reliability;
+        ClassificationSource = classification.Source;
+        ClassificationEvidence = classification.Evidence;
+        ClassificationLoadedAt = loadedAt ?? DateTime.UtcNow;
+        IsIndexedNominal = classification.IsIndexedNominal;
+        IsAmortizing = classification.IsAmortizing;
+        NominalCurrency = classification.NominalCurrency;
+    }
+
+    private bool HasStoredClassification =>
+        NormalizedCouponType.HasValue ||
+        ClassificationReliability.HasValue ||
+        !string.IsNullOrWhiteSpace(NormalizedTypeMarker);
 
     private static bool IsRubleCode(string? value)
     {
@@ -123,67 +162,6 @@ public class OfzIssue
         return value.Contains("USD", StringComparison.OrdinalIgnoreCase) ||
             value.Contains("EUR", StringComparison.OrdinalIgnoreCase) ||
             value.Contains("вал", StringComparison.OrdinalIgnoreCase);
-    }
-
-    private OfzCouponType ClassifyCouponType()
-    {
-        var text = string.Join(
-            ' ',
-            new[] { SecId, BondType, BondSubType, ShortName, SecName, IssueName, FaceUnit, CurrencyId }
-                .Where(value => !string.IsNullOrWhiteSpace(value)));
-
-        if (ContainsAny(text, "валют", "cny", "usd", "eur") ||
-            (!IsRub && FirstNonEmpty(FaceUnit, CurrencyId) is not null))
-        {
-            return OfzCouponType.Currency;
-        }
-
-        if (ContainsAny(text, "линкер", "индексируем", "офз-ин", "ОФЗ-ИН"))
-        {
-            return OfzCouponType.InflationLinked;
-        }
-
-        if (ContainsAny(text, "амортиз", "офз-ад", "ОФЗ-АД"))
-        {
-            return OfzCouponType.Amortized;
-        }
-
-        if (ContainsAny(text, "флоат", "переменн", "офз-пк", "ОФЗ-ПК"))
-        {
-            return OfzCouponType.Floating;
-        }
-
-        if (ContainsAny(text, "фикс", "постоянн", "офз-пд", "ОФЗ-ПД"))
-        {
-            return OfzCouponType.Fixed;
-        }
-
-        if (ContainsAny(text, "SU520", "ОФЗ 520", "OFZ 520"))
-        {
-            return OfzCouponType.InflationLinked;
-        }
-
-        if (ContainsAny(text, "SU460", "ОФЗ 460", "OFZ 460"))
-        {
-            return OfzCouponType.Amortized;
-        }
-
-        if (ContainsAny(text, "SU290", "ОФЗ 290", "OFZ 290"))
-        {
-            return OfzCouponType.Floating;
-        }
-
-        if (ContainsAny(text, "SU262", "ОФЗ 262", "OFZ 262"))
-        {
-            return OfzCouponType.Fixed;
-        }
-
-        return OfzCouponType.Unknown;
-    }
-
-    private static bool ContainsAny(string text, params string[] values)
-    {
-        return values.Any(value => text.Contains(value, StringComparison.OrdinalIgnoreCase));
     }
 
     private static string? FirstNonEmpty(params string?[] values)
