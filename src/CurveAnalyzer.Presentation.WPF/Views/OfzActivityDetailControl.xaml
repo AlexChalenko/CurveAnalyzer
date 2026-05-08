@@ -23,8 +23,7 @@
                     VerticalContentAlignment="Center"
                     Checked="DetailMode_Checked"
                     Content="Сегменты"
-                    GroupName="OfzDetailTabs"
-                    IsChecked="True" />
+                    GroupName="OfzDetailTabs" />
                 <RadioButton
                     x:Name="IssueDetailToggle"
                     Margin="4,0,0,0"
@@ -32,7 +31,8 @@
                     VerticalContentAlignment="Center"
                     Checked="DetailMode_Checked"
                     Content="Выпуск"
-                    GroupName="OfzDetailTabs" />
+                    GroupName="OfzDetailTabs"
+                    IsChecked="True" />
             </StackPanel>
 
             <ContentControl

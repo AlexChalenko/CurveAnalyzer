@@ -49,4 +49,13 @@ public interface IOfzActivityRepository
     Task<IReadOnlyList<OfzIssue>> GetIssuesAsync(
         IReadOnlyCollection<string> secIds,
         CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<CbrKeyRate>> GetCbrKeyRatesAsync(
+        DateTime startDate,
+        DateTime endDate,
+        CancellationToken cancellationToken = default);
+
+    Task SaveCbrKeyRatesAsync(
+        IEnumerable<CbrKeyRate> keyRates,
+        CancellationToken cancellationToken = default);
 }

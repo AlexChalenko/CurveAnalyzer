@@ -12,6 +12,7 @@ public sealed class OfzMarketSummaryInput
     public IEnumerable<OfzDailyTrade> Trades { get; init; } = [];
     public IEnumerable<OfzActivityMetric> ActivityMetrics { get; init; } = [];
     public IEnumerable<OfzLiquidityMetric> LiquidityMetrics { get; init; } = [];
+    public IEnumerable<CbrKeyRate> CbrKeyRates { get; init; } = [];
 }
 
 public sealed class OfzMarketSummaryOptions
@@ -70,12 +71,16 @@ public static class OfzMarketSummaryBuilder
         var signalBreadthDays = ApplySignalScope(outputBreadthDays, input.SignalScope).ToList();
         var signalStartDate = GetMinDate(signalMetrics, signalLiquidityMetrics, signalBreadthDays, outputStartDate);
         var signalEndDate = GetMaxDate(signalMetrics, signalLiquidityMetrics, signalBreadthDays, outputEndDate);
-        var limitations = BuildMarketLimitations(signalTrades, signalMetrics, signalLiquidityMetrics, signalStartDate, signalEndDate);
+        var specialMetrics = BuildSpecialMetrics(signalTrades, input.CouponTypeFilter, input.CbrKeyRates);
+        var limitations = BuildMarketLimitations(signalTrades, signalMetrics, signalLiquidityMetrics, signalStartDate, signalEndDate)
+            .Concat(BuildSpecialMetricLimitations(specialMetrics, input.CouponTypeFilter))
+            .ToList();
         var segments = BuildSegments(signalMetrics, signalLiquidityMetrics, issuesBySecId, options);
         var findings = BuildFindings(
                 signalMetrics,
                 signalLiquidityMetrics,
                 signalBreadthDays,
+                specialMetrics,
                 segments,
                 limitations,
                 issuesBySecId,
@@ -101,8 +106,9 @@ public static class OfzMarketSummaryBuilder
             Findings = findings,
             Segments = segments,
             BreadthDays = signalBreadthDays,
+            SpecialMetrics = specialMetrics,
             Limitations = limitations,
-            SourceCounts = BuildSourceCounts(signalTrades, signalMetrics, signalLiquidityMetrics, issuesBySecId, input.CouponTypeFilter)
+            SourceCounts = BuildSourceCounts(signalTrades, signalMetrics, signalLiquidityMetrics, specialMetrics, issuesBySecId, input.CouponTypeFilter)
         };
     }
 
@@ -110,6 +116,7 @@ public static class OfzMarketSummaryBuilder
         IReadOnlyCollection<OfzActivityMetric> metrics,
         IReadOnlyCollection<OfzLiquidityMetric> liquidityMetrics,
         IReadOnlyCollection<MarketBreadthDay> breadthDays,
+        IReadOnlyCollection<OfzSpecialSummaryMetric> specialMetrics,
         IReadOnlyCollection<OfzSegmentSummary> segments,
         IReadOnlyList<OfzDataLimitation> marketLimitations,
         IReadOnlyDictionary<string, OfzIssue> issuesBySecId,
@@ -126,6 +133,7 @@ public static class OfzMarketSummaryBuilder
         AddTurnoverConcentrationFinding(findings, breadthDays);
         AddTypeShareFinding(findings, breadthDays, couponTypeFilter, options.Breadth);
         AddWeakLiquidityFinding(findings, liquidityMetrics, issuesBySecId);
+        AddSpecialMetricFinding(findings, specialMetrics, couponTypeFilter);
         AddDataQualityFinding(findings, metrics, liquidityMetrics, marketLimitations);
 
         return findings;
@@ -585,6 +593,352 @@ public static class OfzMarketSummaryBuilder
                 CouponType = topType.CouponType
             }
         });
+    }
+
+    private static void AddSpecialMetricFinding(
+        ICollection<OfzSummaryFinding> findings,
+        IReadOnlyCollection<OfzSpecialSummaryMetric> specialMetrics,
+        OfzCouponType? couponTypeFilter)
+    {
+        if (couponTypeFilter == OfzCouponType.Floating)
+        {
+            var floatingRate = FindSpecialMetric(specialMetrics, OfzSpecialMetricKind.ImpliedFloatingRate);
+            var cbrRate = FindSpecialMetric(specialMetrics, OfzSpecialMetricKind.ImpliedCbrRate);
+            var spread = FindSpecialMetric(specialMetrics, OfzSpecialMetricKind.ImpliedFloatingRateSpread);
+            var observedAt = MaxObservedAt(floatingRate, cbrRate, spread);
+
+            if (floatingRate?.HasValue != true && cbrRate?.HasValue != true && spread?.HasValue != true)
+            {
+                return;
+            }
+
+            findings.Add(new OfzSummaryFinding
+            {
+                Id = "special-floating-metrics",
+                Kind = OfzSummaryFindingKind.SpecialMetric,
+                Priority = 690,
+                Scope = OfzSummaryScope.SpecialMetric,
+                Title = "Спецметрики ОФЗ-ПК",
+                Text = $"ОФЗ-ПК: ожидаемая ставка купона {FormatSpecialPercent(floatingRate?.Value)}, ключевая ставка {FormatSpecialPercent(cbrRate?.Value)}, спред {FormatSpecialPoints(spread?.Value)} на {FormatSpecialDate(observedAt)}.",
+                Evidence = new OfzFindingEvidence
+                {
+                    TradeDate = observedAt,
+                    CouponType = OfzCouponType.Floating,
+                    CouponTypeMarker = GetCouponTypeMarker(OfzCouponType.Floating),
+                    SpecialMetricKind = OfzSpecialMetricKind.ImpliedFloatingRate,
+                    SpecialMetricCode = floatingRate?.Code,
+                    SpecialMetricCount = specialMetrics.Count(metric => metric.HasValue),
+                    ImpliedFloatingRate = floatingRate?.Value,
+                    ImpliedCbrRate = cbrRate?.Value,
+                    ImpliedFloatingRateSpread = spread?.Value,
+                    SpecialMetricAvailability = GetWorstSpecialAvailability(specialMetrics)
+                },
+                Limitations = BuildSpecialMetricLimitations(specialMetrics, couponTypeFilter),
+                DrillDown = new OfzSummaryDrillDown
+                {
+                    Target = OfzSummaryDrillDownTarget.SegmentDetail,
+                    CouponType = OfzCouponType.Floating
+                }
+            });
+            return;
+        }
+
+        if (couponTypeFilter == OfzCouponType.InflationLinked)
+        {
+            var inflation = FindSpecialMetric(specialMetrics, OfzSpecialMetricKind.ImpliedInflation);
+            if (inflation?.HasValue != true)
+            {
+                return;
+            }
+
+            findings.Add(new OfzSummaryFinding
+            {
+                Id = "special-inflation-metrics",
+                Kind = OfzSummaryFindingKind.SpecialMetric,
+                Priority = 690,
+                Scope = OfzSummaryScope.SpecialMetric,
+                Title = "Спецметрика ОФЗ-ИН",
+                Text = $"ОФЗ-ИН: ожидаемая инфляция {FormatSpecialPercent(inflation.Value)} на {FormatSpecialDate(inflation.ObservedAt)}.",
+                Evidence = new OfzFindingEvidence
+                {
+                    TradeDate = inflation.ObservedAt,
+                    CouponType = OfzCouponType.InflationLinked,
+                    CouponTypeMarker = GetCouponTypeMarker(OfzCouponType.InflationLinked),
+                    SpecialMetricKind = OfzSpecialMetricKind.ImpliedInflation,
+                    SpecialMetricCode = inflation.Code,
+                    SpecialMetricCount = specialMetrics.Count(metric => metric.HasValue),
+                    ImpliedInflation = inflation.Value,
+                    SpecialMetricAvailability = GetWorstSpecialAvailability(specialMetrics)
+                },
+                Limitations = BuildSpecialMetricLimitations(specialMetrics, couponTypeFilter),
+                DrillDown = new OfzSummaryDrillDown
+                {
+                    Target = OfzSummaryDrillDownTarget.SegmentDetail,
+                    CouponType = OfzCouponType.InflationLinked
+                }
+            });
+        }
+    }
+
+    private static IReadOnlyList<OfzSpecialSummaryMetric> BuildSpecialMetrics(
+        IReadOnlyCollection<OfzDailyTrade> trades,
+        OfzCouponType? couponTypeFilter,
+        IEnumerable<CbrKeyRate>? cbrKeyRates)
+    {
+        var cbrKeyRateLookup = CbrKeyRateLookup.Create(cbrKeyRates);
+
+        if (couponTypeFilter == OfzCouponType.Floating)
+        {
+            return
+            [
+                BuildSpecialMetric(
+                    OfzSpecialMetricKind.ImpliedFloatingRate,
+                    "implied_floating_rate",
+                    "Ожидаемая ставка купона",
+                    "%",
+                    trades,
+                    trade => FromSpecialHistory(trade.TradeDate, trade.ImpliedFloatingRate, OfzSpecialMetricSource.History)),
+                BuildSpecialMetric(
+                    OfzSpecialMetricKind.ImpliedCbrRate,
+                    "implied_cbr_rate",
+                    "Ключевая ставка",
+                    "%",
+                    trades,
+                    trade => GetSpecialCbrObservation(trade, cbrKeyRateLookup)),
+                BuildSpecialMetric(
+                    OfzSpecialMetricKind.ImpliedFloatingRateSpread,
+                    "implied_floating_rate_spread",
+                    "Спред к ключевой ставке",
+                    "п.п.",
+                    trades,
+                    trade =>
+                    {
+                        var cbrRate = GetSpecialCbrRateValue(trade, cbrKeyRateLookup);
+                        return trade.ImpliedFloatingRate.HasValue &&
+                            double.IsFinite(trade.ImpliedFloatingRate.Value) &&
+                            cbrRate.HasValue &&
+                            double.IsFinite(cbrRate.Value)
+                                ? new SpecialSummaryObservation(
+                                    trade.TradeDate.Date,
+                                    trade.ImpliedFloatingRate.Value - cbrRate.Value,
+                                    OfzSpecialMetricSource.Derived)
+                                : null;
+                    })
+            ];
+        }
+
+        if (couponTypeFilter == OfzCouponType.InflationLinked)
+        {
+            return
+            [
+                BuildSpecialMetric(
+                    OfzSpecialMetricKind.ImpliedInflation,
+                    "implied_inflation",
+                    "Ожидаемая инфляция",
+                    "%",
+                    trades,
+                    trade => FromSpecialHistory(trade.TradeDate, trade.ImpliedInflation, OfzSpecialMetricSource.History))
+            ];
+        }
+
+        return [];
+    }
+
+    private static OfzSpecialSummaryMetric BuildSpecialMetric(
+        OfzSpecialMetricKind kind,
+        string code,
+        string label,
+        string unit,
+        IEnumerable<OfzDailyTrade> trades,
+        Func<OfzDailyTrade, SpecialSummaryObservation?> selector)
+    {
+        var observations = trades
+            .Select(selector)
+            .Where(item => item.HasValue && double.IsFinite(item.Value.Value))
+            .Select(item => item!.Value)
+            .OrderBy(item => item.TradeDate)
+            .ToArray();
+        var latest = observations.LastOrDefault();
+
+        return new OfzSpecialSummaryMetric
+        {
+            Kind = kind,
+            Code = code,
+            Label = label,
+            Unit = unit,
+            Value = observations.Length == 0 ? null : latest.Value,
+            ObservedAt = observations.Length == 0 ? null : latest.TradeDate,
+            Source = observations.Length == 0 ? OfzSpecialMetricSource.Missing : latest.Source,
+            Availability = GetSpecialAvailability(observations.Length),
+            HistoricalPointCount = observations.Length
+        };
+    }
+
+    private static IReadOnlyList<OfzDataLimitation> BuildSpecialMetricLimitations(
+        IReadOnlyCollection<OfzSpecialSummaryMetric> specialMetrics,
+        OfzCouponType? couponTypeFilter)
+    {
+        if (couponTypeFilter is not (OfzCouponType.Floating or OfzCouponType.InflationLinked) ||
+            specialMetrics.Count == 0)
+        {
+            return [];
+        }
+
+        List<OfzDataLimitation> limitations = [];
+        if (specialMetrics.Any(metric => metric.Source == OfzSpecialMetricSource.CbrKeyRate))
+        {
+            limitations.Add(new OfzDataLimitation
+            {
+                Kind = OfzDataLimitationKind.CbrKeyRateFallback,
+                Scope = OfzSummaryScope.SpecialMetric,
+                CouponType = couponTypeFilter,
+                Text = "Ключевая ставка для части дат взята из официального сервиса ЦБ, потому что CBRCLOSE отсутствует."
+            });
+        }
+
+        if (specialMetrics.Any(metric => metric.Availability == OfzSpecialMetricAvailability.Missing))
+        {
+            limitations.Add(new OfzDataLimitation
+            {
+                Kind = OfzDataLimitationKind.MissingSpecialMetric,
+                Scope = OfzSummaryScope.SpecialMetric,
+                CouponType = couponTypeFilter,
+                Text = "Часть специальных ISS-полей отсутствует и не заменяется нулем."
+            });
+        }
+
+        if (specialMetrics.Any(metric => metric.Availability == OfzSpecialMetricAvailability.InsufficientHistory))
+        {
+            limitations.Add(new OfzDataLimitation
+            {
+                Kind = OfzDataLimitationKind.InsufficientSpecialMetricHistory,
+                Scope = OfzSummaryScope.SpecialMetric,
+                CouponType = couponTypeFilter,
+                Text = "Для части специальных ISS-полей меньше двух исторических наблюдений."
+            });
+        }
+
+        if (specialMetrics.Any(metric => metric.IsProvisional))
+        {
+            limitations.Add(new OfzDataLimitation
+            {
+                Kind = OfzDataLimitationKind.Provisional,
+                Scope = OfzSummaryScope.SpecialMetric,
+                CouponType = couponTypeFilter,
+                Text = "Часть специальных значений предварительная для текущей даты."
+            });
+        }
+
+        return limitations;
+    }
+
+    private static OfzSpecialMetricAvailability GetSpecialAvailability(int observationsCount)
+    {
+        return observationsCount switch
+        {
+            0 => OfzSpecialMetricAvailability.Missing,
+            1 => OfzSpecialMetricAvailability.InsufficientHistory,
+            _ => OfzSpecialMetricAvailability.Historical
+        };
+    }
+
+    private static SpecialSummaryObservation? FromSpecialHistory(
+        DateTime tradeDate,
+        double? value,
+        OfzSpecialMetricSource source)
+    {
+        return value.HasValue && double.IsFinite(value.Value)
+            ? new SpecialSummaryObservation(tradeDate.Date, value.Value, source)
+            : null;
+    }
+
+    private static SpecialSummaryObservation? GetSpecialCbrObservation(
+        OfzDailyTrade trade,
+        CbrKeyRateLookup cbrKeyRateLookup)
+    {
+        if (trade.ImpliedCbrRate.HasValue && double.IsFinite(trade.ImpliedCbrRate.Value))
+        {
+            return new SpecialSummaryObservation(
+                trade.TradeDate.Date,
+                trade.ImpliedCbrRate.Value,
+                OfzSpecialMetricSource.History);
+        }
+
+        var cbrRate = cbrKeyRateLookup.GetLatestOnOrBefore(trade.TradeDate);
+        return cbrRate is null
+            ? null
+            : new SpecialSummaryObservation(
+                trade.TradeDate.Date,
+                cbrRate.Rate,
+                OfzSpecialMetricSource.CbrKeyRate);
+    }
+
+    private static double? GetSpecialCbrRateValue(
+        OfzDailyTrade trade,
+        CbrKeyRateLookup cbrKeyRateLookup)
+    {
+        return trade.ImpliedCbrRate.HasValue && double.IsFinite(trade.ImpliedCbrRate.Value)
+            ? trade.ImpliedCbrRate.Value
+            : cbrKeyRateLookup.GetLatestOnOrBefore(trade.TradeDate)?.Rate;
+    }
+
+    private static OfzSpecialSummaryMetric? FindSpecialMetric(
+        IEnumerable<OfzSpecialSummaryMetric> specialMetrics,
+        OfzSpecialMetricKind kind)
+    {
+        return specialMetrics.FirstOrDefault(metric => metric.Kind == kind);
+    }
+
+    private static DateTime? MaxObservedAt(params OfzSpecialSummaryMetric?[] metrics)
+    {
+        var observedDates = metrics
+            .Where(metric => metric?.ObservedAt.HasValue == true)
+            .Select(metric => metric!.ObservedAt!.Value.Date)
+            .ToArray();
+
+        return observedDates.Length == 0 ? null : observedDates.Max();
+    }
+
+    private static OfzSpecialMetricAvailability? GetWorstSpecialAvailability(
+        IReadOnlyCollection<OfzSpecialSummaryMetric> specialMetrics)
+    {
+        if (specialMetrics.Count == 0)
+        {
+            return null;
+        }
+
+        return specialMetrics
+            .OrderByDescending(metric => GetSpecialAvailabilityRank(metric.Availability))
+            .First()
+            .Availability;
+    }
+
+    private static int GetSpecialAvailabilityRank(OfzSpecialMetricAvailability availability)
+    {
+        return availability switch
+        {
+            OfzSpecialMetricAvailability.Missing => 5,
+            OfzSpecialMetricAvailability.InsufficientHistory => 4,
+            OfzSpecialMetricAvailability.Provisional => 3,
+            OfzSpecialMetricAvailability.SnapshotOnly => 2,
+            OfzSpecialMetricAvailability.Historical => 1,
+            _ => 0
+        };
+    }
+
+    private static string FormatSpecialPercent(double? value)
+    {
+        return value.HasValue ? $"{value.Value:N2}%" : "n/a";
+    }
+
+    private static string FormatSpecialPoints(double? value)
+    {
+        return value.HasValue ? $"{value.Value:N2} п.п." : "n/a";
+    }
+
+    private static string FormatSpecialDate(DateTime? value)
+    {
+        return value.HasValue ? value.Value.ToString("dd.MM.yyyy") : "n/a";
     }
 
     private static IReadOnlyList<MarketBreadthDay> BuildBreadthDays(
@@ -1305,6 +1659,7 @@ public static class OfzMarketSummaryBuilder
         IReadOnlyCollection<OfzDailyTrade> trades,
         IReadOnlyCollection<OfzActivityMetric> metrics,
         IReadOnlyCollection<OfzLiquidityMetric> liquidityMetrics,
+        IReadOnlyCollection<OfzSpecialSummaryMetric> specialMetrics,
         IReadOnlyDictionary<string, OfzIssue> issuesBySecId,
         OfzCouponType? couponTypeFilter)
     {
@@ -1321,6 +1676,8 @@ public static class OfzMarketSummaryBuilder
             ActivityMetrics = metrics.Count,
             LiquidityMetrics = liquidityMetrics.Count(metric => !metric.IsSnapshot),
             SnapshotLiquidityMetrics = liquidityMetrics.Count(metric => metric.IsSnapshot),
+            SpecialMetricObservations = specialMetrics.Sum(metric => metric.HistoricalPointCount),
+            SpecialMetricSeries = specialMetrics.Count(metric => metric.HasValue),
             Dates = dates
         };
     }
@@ -1555,6 +1912,11 @@ public static class OfzMarketSummaryBuilder
     {
         return string.IsNullOrWhiteSpace(value) ? "unknown" : value.Trim().ToLowerInvariant();
     }
+
+    private readonly record struct SpecialSummaryObservation(
+        DateTime TradeDate,
+        double Value,
+        OfzSpecialMetricSource Source);
 
     private sealed record BreadthObservation(
         string SecId,

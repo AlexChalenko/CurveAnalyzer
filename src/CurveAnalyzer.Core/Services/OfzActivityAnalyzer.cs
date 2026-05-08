@@ -292,7 +292,8 @@ public static class OfzActivityAnalyzer
         string secId,
         IEnumerable<OfzDailyTrade> trades,
         OfzIssue? issue = null,
-        OfzLiquiditySnapshot? currentSnapshot = null)
+        OfzLiquiditySnapshot? currentSnapshot = null,
+        IEnumerable<CbrKeyRate>? cbrKeyRates = null)
     {
         if (string.IsNullOrWhiteSpace(secId))
         {
@@ -329,6 +330,9 @@ public static class OfzActivityAnalyzer
                     Spread = liquidityMetric?.Spread,
                     ZSpread = trade.ZSpread,
                     ZSpreadAtWeightedAveragePrice = trade.ZSpreadAtWeightedAveragePrice,
+                    ImpliedFloatingRate = trade.ImpliedFloatingRate,
+                    ImpliedInflation = trade.ImpliedInflation,
+                    ImpliedCbrRate = trade.ImpliedCbrRate,
                     SpreadSource = liquidityMetric?.SpreadSource ?? OfzSpreadSource.Missing,
                     LiquidityScore = liquidityMetric?.LiquidityScore,
                     LiquidityBucket = liquidityMetric?.LiquidityBucket,
@@ -345,14 +349,18 @@ public static class OfzActivityAnalyzer
             ? null
             : OfzIssueClassifier.Classify(issue, issue.ClassificationSource);
         var hasStoredClassification = HasStoredClassification(issue);
+        var couponType = hasStoredClassification ? issue!.CouponType : classification?.CouponType ?? OfzCouponType.Unknown;
+        var couponTypeMarker = hasStoredClassification
+            ? issue!.CouponTypeMarker
+            : classification?.CouponTypeMarker ?? OfzIssueClassifier.GetCouponTypeMarker(OfzCouponType.Unknown);
 
         return new OfzIssueDetail
         {
             SecId = secId,
             ShortName = string.IsNullOrWhiteSpace(issue?.ShortName) ? secId : issue.ShortName,
             DisplayMarker = issue?.DisplayMarker ?? string.Empty,
-            CouponType = hasStoredClassification ? issue!.CouponType : classification?.CouponType ?? OfzCouponType.Unknown,
-            CouponTypeMarker = hasStoredClassification ? issue!.CouponTypeMarker : classification?.CouponTypeMarker ?? OfzIssueClassifier.GetCouponTypeMarker(OfzCouponType.Unknown),
+            CouponType = couponType,
+            CouponTypeMarker = couponTypeMarker,
             ClassificationReliability = issue?.ClassificationReliability ?? classification?.Reliability ?? OfzClassificationReliability.Unknown,
             ClassificationSource = IsKnownClassificationSource(issue?.ClassificationSource)
                 ? issue!.ClassificationSource!
@@ -372,7 +380,8 @@ public static class OfzActivityAnalyzer
             LiquidityMetrics = liquidityMetrics.Values
                 .OrderBy(metric => metric.TradeDate)
                 .ToList(),
-            CurrentLiquiditySnapshot = snapshotMetric
+            CurrentLiquiditySnapshot = snapshotMetric,
+            SpecialContext = OfzSpecialAnalyticsBuilder.Build(couponType, points, currentSnapshot, cbrKeyRates)
         };
     }
 

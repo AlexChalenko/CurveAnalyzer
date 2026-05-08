@@ -2,7 +2,7 @@
 
 <!-- SPECKIT START -->
 Для текущей feature сначала читай активный план:
-`specs/007-ofz-floaters-linkers/plan.md`.
+`specs/008-ofz-pk-in-analytics/plan.md`.
 <!-- SPECKIT END -->
 
 ## Язык документации

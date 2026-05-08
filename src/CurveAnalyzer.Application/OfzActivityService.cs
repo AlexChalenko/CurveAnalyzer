@@ -5,19 +5,26 @@ namespace CurveAnalyzer.Application;
 
 public sealed class OfzActivityService(
     IOfzActivityDataService dataService,
-    IOfzActivityRepository repository)
+    IOfzActivityRepository repository,
+    ICbrKeyRateDataService cbrKeyRateDataService)
 {
     private const string BoardId = "TQOB";
     private const int WarmUpTradingDays = 252;
     private const int BaselineCalendarLookbackDays = 60;
+    private const int CbrKeyRateCalendarLookbackDays = 370;
     private const int RefreshableRecentCalendarDays = 7;
 
-    public Task WarmUpRecentHistoryAsync(
+    public async Task WarmUpRecentHistoryAsync(
         IProgress<SyncProgress>? progress = null,
         CancellationToken cancellationToken = default)
     {
         var dates = GetRecentWeekdays(DateTime.Today, WarmUpTradingDays);
-        return EnsureDatesLoadedAsync(dates, progress, cancellationToken);
+        await EnsureDatesLoadedAsync(dates, progress, cancellationToken).ConfigureAwait(false);
+
+        if (dates.Count > 0)
+        {
+            await EnsureCbrKeyRatesLoadedAsync(dates.First(), dates.Last(), cancellationToken).ConfigureAwait(false);
+        }
     }
 
     public async Task<OfzActivityLoadResult> LoadActivityAsync(
@@ -40,6 +47,8 @@ public sealed class OfzActivityService(
             .ConfigureAwait(false);
         var liquiditySnapshots = await repository
             .GetLiquiditySnapshotsAsync(startDate, endDate, BoardId, cancellationToken)
+            .ConfigureAwait(false);
+        var cbrKeyRates = await EnsureCbrKeyRatesLoadedAsync(startDate, endDate, cancellationToken)
             .ConfigureAwait(false);
 
         var allTrades = baselineTrades
@@ -65,7 +74,8 @@ public sealed class OfzActivityService(
         {
             LiquiditySnapshots = liquiditySnapshots,
             LiquidityMetrics = liquidityMetrics,
-            SnapshotLiquidityMetrics = snapshotLiquidityMetrics
+            SnapshotLiquidityMetrics = snapshotLiquidityMetrics,
+            CbrKeyRates = cbrKeyRates
         };
     }
 
@@ -171,8 +181,10 @@ public sealed class OfzActivityService(
             .OrderByDescending(snapshot => snapshot.TradeDate)
             .ThenByDescending(snapshot => snapshot.ObservedAt)
             .FirstOrDefault();
+        var cbrKeyRates = await EnsureCbrKeyRatesLoadedAsync(startDate, endDate, cancellationToken)
+            .ConfigureAwait(false);
 
-        return OfzActivityAnalyzer.BuildIssueDetail(secId, trades, issues.FirstOrDefault(), currentSnapshot);
+        return OfzActivityAnalyzer.BuildIssueDetail(secId, trades, issues.FirstOrDefault(), currentSnapshot, cbrKeyRates);
     }
 
     public async Task<OfzIssueLiquidityProfile> GetIssueLiquidityProfileAsync(
@@ -270,6 +282,61 @@ public sealed class OfzActivityService(
         progress?.Report(SyncProgress.Completed);
     }
 
+    private async Task<IReadOnlyList<CbrKeyRate>> EnsureCbrKeyRatesLoadedAsync(
+        DateTime startDate,
+        DateTime endDate,
+        CancellationToken cancellationToken)
+    {
+        var keyRateStartDate = startDate.Date.AddDays(-CbrKeyRateCalendarLookbackDays);
+        var keyRateEndDate = endDate.Date;
+        var cachedRates = await repository
+            .GetCbrKeyRatesAsync(keyRateStartDate, keyRateEndDate, cancellationToken)
+            .ConfigureAwait(false);
+
+        if (!ShouldRefreshCbrKeyRates(cachedRates, keyRateStartDate, keyRateEndDate))
+        {
+            return cachedRates;
+        }
+
+        try
+        {
+            var loadedRates = await cbrKeyRateDataService
+                .GetKeyRatesAsync(keyRateStartDate, keyRateEndDate, cancellationToken)
+                .ConfigureAwait(false);
+
+            await repository.SaveCbrKeyRatesAsync(loadedRates, cancellationToken).ConfigureAwait(false);
+
+            return await repository
+                .GetCbrKeyRatesAsync(keyRateStartDate, keyRateEndDate, cancellationToken)
+                .ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch
+        {
+            return cachedRates;
+        }
+    }
+
+    private static bool ShouldRefreshCbrKeyRates(
+        IReadOnlyList<CbrKeyRate> cachedRates,
+        DateTime startDate,
+        DateTime endDate)
+    {
+        if (cachedRates.Count == 0)
+        {
+            return true;
+        }
+
+        var earliestLoaded = cachedRates.Min(rate => rate.Date.Date);
+        var latestLoaded = cachedRates.Max(rate => rate.Date.Date);
+        var latestRequired = GetLastWeekdayOnOrBefore(endDate.Date <= DateTime.Today ? endDate.Date : DateTime.Today);
+
+        return earliestLoaded > startDate.AddDays(7) || latestLoaded < latestRequired;
+    }
+
     private static (DateTime StartDate, DateTime EndDate) NormalizeRange(DateTime startDate, DateTime endDate)
     {
         startDate = startDate.Date;
@@ -317,6 +384,17 @@ public sealed class OfzActivityService(
     private static bool IsWeekday(DateTime date)
     {
         return date.DayOfWeek is not DayOfWeek.Saturday and not DayOfWeek.Sunday;
+    }
+
+    private static DateTime GetLastWeekdayOnOrBefore(DateTime date)
+    {
+        var candidate = date.Date;
+        while (!IsWeekday(candidate))
+        {
+            candidate = candidate.AddDays(-1);
+        }
+
+        return candidate;
     }
 
     private static bool IsRefreshableDate(DateTime date)

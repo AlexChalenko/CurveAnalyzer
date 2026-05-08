@@ -15,7 +15,8 @@ public enum OfzSummaryFindingKind
     DataQuality = 6,
     MarketBreadth = 7,
     TurnoverConcentration = 8,
-    TypeShare = 9
+    TypeShare = 9,
+    SpecialMetric = 10
 }
 
 public enum OfzSummaryScope
@@ -27,7 +28,8 @@ public enum OfzSummaryScope
     Liquidity = 4,
     Spread = 5,
     DataQuality = 6,
-    MarketBreadth = 7
+    MarketBreadth = 7,
+    SpecialMetric = 8
 }
 
 public enum OfzDataLimitationKind
@@ -40,7 +42,10 @@ public enum OfzDataLimitationKind
     Provisional = 5,
     CurrencyMixed = 6,
     ShortRange = 7,
-    UnknownCouponType = 8
+    UnknownCouponType = 8,
+    MissingSpecialMetric = 9,
+    InsufficientSpecialMetricHistory = 10,
+    CbrKeyRateFallback = 11
 }
 
 public enum OfzIssueFocusReason
@@ -70,7 +75,7 @@ public enum OfzSummaryDrillDownTarget
 
 public class OfzMarketSummary
 {
-    public const string CurrentSchemaVersion = "1.1";
+    public const string CurrentSchemaVersion = "1.2";
 
     public string SchemaVersion { get; init; } = CurrentSchemaVersion;
     [JsonConverter(typeof(OfzDateJsonConverter))]
@@ -88,6 +93,7 @@ public class OfzMarketSummary
     public IReadOnlyList<OfzSummaryFinding> Findings { get; init; } = [];
     public IReadOnlyList<OfzSegmentSummary> Segments { get; init; } = [];
     public IReadOnlyList<MarketBreadthDay> BreadthDays { get; init; } = [];
+    public IReadOnlyList<OfzSpecialSummaryMetric> SpecialMetrics { get; init; } = [];
     public IReadOnlyList<OfzDataLimitation> Limitations { get; init; } = [];
     public OfzSummarySourceCounts SourceCounts { get; init; } = new();
 }
@@ -150,8 +156,33 @@ public class OfzFindingEvidence
     public double? ZSpread { get; init; }
     public double? ZSpreadBp { get; init; }
     public double? GSpreadBp { get; init; }
+    public OfzSpecialMetricKind? SpecialMetricKind { get; init; }
+    public string? SpecialMetricCode { get; init; }
+    public int? SpecialMetricCount { get; init; }
+    public double? ImpliedFloatingRate { get; init; }
+    public double? ImpliedCbrRate { get; init; }
+    public double? ImpliedFloatingRateSpread { get; init; }
+    public double? ImpliedInflation { get; init; }
+    public OfzSpecialMetricAvailability? SpecialMetricAvailability { get; init; }
     public bool IsSnapshot { get; init; }
     public bool IsProvisional { get; init; }
+}
+
+public class OfzSpecialSummaryMetric
+{
+    public OfzSpecialMetricKind Kind { get; init; }
+    public string Code { get; init; } = string.Empty;
+    public string Label { get; init; } = string.Empty;
+    public string Unit { get; init; } = string.Empty;
+    public double? Value { get; init; }
+    [JsonConverter(typeof(OfzDateJsonConverter))]
+    public DateTime? ObservedAt { get; init; }
+    public OfzSpecialMetricSource Source { get; init; } = OfzSpecialMetricSource.Missing;
+    public OfzSpecialMetricAvailability Availability { get; init; } = OfzSpecialMetricAvailability.Missing;
+    public int HistoricalPointCount { get; init; }
+    public bool IsProvisional { get; init; }
+
+    public bool HasValue => Value.HasValue;
 }
 
 public class OfzSegmentSummary
@@ -223,6 +254,8 @@ public class OfzSummarySourceCounts
     public int ActivityMetrics { get; init; }
     public int LiquidityMetrics { get; init; }
     public int SnapshotLiquidityMetrics { get; init; }
+    public int SpecialMetricObservations { get; init; }
+    public int SpecialMetricSeries { get; init; }
     public int Dates { get; init; }
 }
 

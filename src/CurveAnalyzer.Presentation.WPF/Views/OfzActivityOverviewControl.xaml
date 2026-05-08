@@ -13,12 +13,14 @@
     <UserControl.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVis" />
         <converters:ActivityHeatmapColorConverter x:Key="ActivityHeatmapColorConverter" />
+        <converters:OfzSpecialSummaryMetricValueConverter x:Key="OfzSpecialSummaryMetricValueConverter" />
+        <converters:OfzBreadthContributorValueConverter x:Key="OfzBreadthContributorValueConverter" />
         <Style x:Key="HeatmapCellButtonStyle" TargetType="{x:Type Button}">
             <Setter Property="Width" Value="32" />
             <Setter Property="Height" Value="18" />
             <Setter Property="Margin" Value="0,1,1,1" />
             <Setter Property="Padding" Value="0" />
-            <Setter Property="Background" Value="{Binding Converter={StaticResource ActivityHeatmapColorConverter}}" />
+            <Setter Property="Background" Value="{Binding Path=., Converter={StaticResource ActivityHeatmapColorConverter}}" />
             <Setter Property="BorderBrush" Value="#B8B8B8" />
             <Setter Property="BorderThickness" Value="0.5" />
             <Setter Property="Focusable" Value="False" />
@@ -152,15 +154,15 @@
                                         <DataGridTextColumn
                                             Width="42"
                                             Binding="{Binding Direction.YieldUpCount, Mode=OneWay}"
-                                            Header="Up" />
+                                            Header="Рост" />
                                         <DataGridTextColumn
-                                            Width="42"
+                                            Width="50"
                                             Binding="{Binding Direction.YieldDownCount, Mode=OneWay}"
-                                            Header="Down" />
+                                            Header="Сниж." />
                                         <DataGridTextColumn
-                                            Width="44"
+                                            Width="58"
                                             Binding="{Binding Direction.UnchangedCount, Mode=OneWay}"
-                                            Header="Flat" />
+                                            Header="Без изм." />
                                         <DataGridTextColumn
                                             Width="46"
                                             Binding="{Binding NotComparableIssueCount, Mode=OneWay}"
@@ -222,6 +224,56 @@
                             </ScrollViewer>
                         </TabItem>
 
+                        <TabItem Header="Спец">
+                            <StackPanel Margin="0,4,0,0">
+                                <TextBlock
+                                    FontWeight="SemiBold"
+                                    Text="Специальные метрики" />
+                                <TextBlock
+                                    Margin="0,1,0,3"
+                                    FontSize="10"
+                                    Foreground="DimGray"
+                                    Text="для ОФЗ-ПК и ОФЗ-ИН: ожидаемые ставки/инфляция из ISS, без подстановки нулей"
+                                    TextWrapping="Wrap" />
+                                <DataGrid
+                                    MaxHeight="158"
+                                    AutoGenerateColumns="False"
+                                    CanUserAddRows="False"
+                                    HeadersVisibility="Column"
+                                    IsReadOnly="True"
+                                    ItemsSource="{Binding MarketSummary.SpecialMetrics}"
+                                    ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                                    ScrollViewer.VerticalScrollBarVisibility="Auto">
+                                    <DataGrid.Columns>
+                                        <DataGridTextColumn
+                                            Width="150"
+                                            Binding="{Binding Label, Mode=OneWay}"
+                                            Header="Метрика" />
+                                        <DataGridTextColumn
+                                            Width="78"
+                                            Binding="{Binding ., Mode=OneWay, Converter={StaticResource OfzSpecialSummaryMetricValueConverter}, ConverterParameter=Value}"
+                                            Header="Значение" />
+                                        <DataGridTextColumn
+                                            Width="78"
+                                            Binding="{Binding ., Mode=OneWay, Converter={StaticResource OfzSpecialSummaryMetricValueConverter}, ConverterParameter=ObservedAt}"
+                                            Header="Дата" />
+                                        <DataGridTextColumn
+                                            Width="88"
+                                            Binding="{Binding ., Mode=OneWay, Converter={StaticResource OfzSpecialSummaryMetricValueConverter}, ConverterParameter=Availability}"
+                                            Header="Статус" />
+                                        <DataGridTextColumn
+                                            Width="72"
+                                            Binding="{Binding ., Mode=OneWay, Converter={StaticResource OfzSpecialSummaryMetricValueConverter}, ConverterParameter=Source}"
+                                            Header="Источник" />
+                                        <DataGridTextColumn
+                                            Width="52"
+                                            Binding="{Binding HistoricalPointCount, Mode=OneWay}"
+                                            Header="Точек" />
+                                    </DataGrid.Columns>
+                                </DataGrid>
+                            </StackPanel>
+                        </TabItem>
+
                         <TabItem Header="Ограничения">
                             <ScrollViewer
                                 Margin="0,4,0,0"
@@ -273,9 +325,9 @@
                                             Binding="{Binding CouponTypeMarker, Mode=OneWay, TargetNullValue=n/a}"
                                             Header="Тип" />
                                         <DataGridTextColumn
-                                            Width="70"
-                                            Binding="{Binding YieldDirection, Mode=OneWay}"
-                                            Header="Yield" />
+                                            Width="76"
+                                            Binding="{Binding YieldDirection, Mode=OneWay, Converter={StaticResource OfzBreadthContributorValueConverter}}"
+                                            Header="Доходн." />
                                         <DataGridTextColumn
                                             Width="64"
                                             Binding="{Binding YieldMove, Mode=OneWay, StringFormat={}{0:N2}, TargetNullValue=n/a}"
@@ -289,8 +341,8 @@
                                             Binding="{Binding ValueShare, Mode=OneWay, StringFormat={}{0:P0}, TargetNullValue=n/a}"
                                             Header="Доля" />
                                         <DataGridTextColumn
-                                            Width="80"
-                                            Binding="{Binding Reason, Mode=OneWay}"
+                                            Width="118"
+                                            Binding="{Binding Reason, Mode=OneWay, Converter={StaticResource OfzBreadthContributorValueConverter}}"
                                             Header="Роль" />
                                     </DataGrid.Columns>
                                 </DataGrid>

@@ -10,6 +10,7 @@ public class MoexContext : DbContext
     public DbSet<OfzDailyTrade> OfzDailyTrades { get; set; }
     public DbSet<OfzLiquiditySnapshot> OfzLiquiditySnapshots { get; set; }
     public DbSet<OfzActivityLoadState> OfzActivityLoadStates { get; set; }
+    public DbSet<CbrKeyRate> CbrKeyRates { get; set; }
 
     public MoexContext(DbContextOptions<MoexContext> options) : base(options)
     {
@@ -89,5 +90,10 @@ public class MoexContext : DbContext
         loadState.Property(s => s.IsProvisional).HasDefaultValue(false);
         loadState.HasIndex(s => s.TradeDate)
             .HasDatabaseName("IX_OfzActivityLoadStates_TradeDate");
+
+        var cbrKeyRate = modelBuilder.Entity<CbrKeyRate>();
+        cbrKeyRate.HasKey(rate => rate.Date);
+        cbrKeyRate.HasIndex(rate => rate.Date)
+            .HasDatabaseName("IX_CbrKeyRates_Date");
     }
 }

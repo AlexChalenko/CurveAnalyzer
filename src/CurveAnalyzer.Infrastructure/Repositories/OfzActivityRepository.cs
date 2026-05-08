@@ -198,6 +198,66 @@ public sealed class OfzActivityRepository(IDbContextFactory<MoexContext> context
             .ToListAsync(cancellationToken);
     }
 
+    public async Task<IReadOnlyList<CbrKeyRate>> GetCbrKeyRatesAsync(
+        DateTime startDate,
+        DateTime endDate,
+        CancellationToken cancellationToken = default)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
+
+        return await context.CbrKeyRates
+            .AsNoTracking()
+            .Where(rate => rate.Date >= startDate.Date && rate.Date <= endDate.Date)
+            .OrderBy(rate => rate.Date)
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task SaveCbrKeyRatesAsync(
+        IEnumerable<CbrKeyRate> keyRates,
+        CancellationToken cancellationToken = default)
+    {
+        var distinctRates = keyRates
+            .Where(rate => double.IsFinite(rate.Rate))
+            .GroupBy(rate => rate.Date.Date)
+            .Select(group => group.OrderByDescending(rate => rate.LoadedAt).First())
+            .ToList();
+
+        if (distinctRates.Count == 0)
+        {
+            return;
+        }
+
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
+
+        var dates = distinctRates.Select(rate => rate.Date.Date).ToList();
+        var existingRates = await context.CbrKeyRates
+            .AsTracking()
+            .Where(rate => dates.Contains(rate.Date))
+            .ToDictionaryAsync(rate => rate.Date, cancellationToken)
+            .ConfigureAwait(false);
+
+        foreach (var rate in distinctRates)
+        {
+            var normalized = new CbrKeyRate
+            {
+                Date = rate.Date.Date,
+                Rate = rate.Rate,
+                LoadedAt = rate.LoadedAt
+            };
+
+            if (existingRates.TryGetValue(normalized.Date, out var existingRate))
+            {
+                context.Entry(existingRate).CurrentValues.SetValues(normalized);
+            }
+            else
+            {
+                await context.CbrKeyRates.AddAsync(normalized, cancellationToken).ConfigureAwait(false);
+            }
+        }
+
+        await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+    }
+
     private async Task SaveIssuesAsync(
         MoexContext context,
         IEnumerable<OfzIssue> issues,

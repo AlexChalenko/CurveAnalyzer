@@ -8,7 +8,7 @@ public partial class OfzActivityDetailControl : UserControl
     public OfzActivityDetailControl()
     {
         InitializeComponent();
-        SetDetailContent(showIssue: false);
+        SetDetailContent(showIssue: true);
     }
 
     private void DetailMode_Checked(object sender, RoutedEventArgs e)

@@ -420,7 +420,8 @@ public partial class OfzActivityViewModel(OfzActivityService activityService) : 
             Issues = issues,
             Trades = trades,
             ActivityMetrics = metrics,
-            LiquidityMetrics = liquidityMetrics
+            LiquidityMetrics = liquidityMetrics,
+            CbrKeyRates = _currentResult.CbrKeyRates
         });
         var insights = OfzActivityAnalyzer.BuildActivityInsights(insightMetrics, issues)
             .Concat(OfzActivityAnalyzer.BuildLiquidityInsights(insightLiquidityMetrics, issues))
@@ -446,7 +447,7 @@ public partial class OfzActivityViewModel(OfzActivityService activityService) : 
         ApplyMarketSummary(marketSummary);
         ApplyActivityIndex(activityIndex);
         ApplyDurationYieldScatter(scatterPoints);
-        RestoreIssueSelection(selectedSecId);
+        RestoreIssueSelection(selectedSecId, issues);
 
         HasAnomalies = TopAnomalies.Count > 0;
         HasWeakLiquidity = WeakLiquidityItems.Count > 0;
@@ -480,7 +481,7 @@ public partial class OfzActivityViewModel(OfzActivityService activityService) : 
             : null;
     }
 
-    private void RestoreIssueSelection(string? preferredSecId)
+    private void RestoreIssueSelection(string? preferredSecId, IReadOnlyList<OfzIssue> issues)
     {
         if (!string.IsNullOrWhiteSpace(preferredSecId))
         {
@@ -497,6 +498,14 @@ public partial class OfzActivityViewModel(OfzActivityService activityService) : 
             if (matchingWeakLiquidity is not null)
             {
                 SelectedWeakLiquidityItem = matchingWeakLiquidity;
+                return;
+            }
+
+            var matchingIssue = issues.FirstOrDefault(issue =>
+                string.Equals(issue.SecId, preferredSecId, StringComparison.Ordinal));
+            if (matchingIssue is not null)
+            {
+                _ = LoadIssueDetailsAsync(preferredSecId);
                 return;
             }
         }
@@ -769,8 +778,8 @@ public partial class OfzActivityViewModel(OfzActivityService activityService) : 
     {
         SelectedBreadthDaySummary =
             $"{day.TradeDate:yyyy-MM-dd}: активных {day.ActiveIssueCount}/{day.IssueCount}, " +
-            $"сравнимых {day.ComparableIssueCount}, up {day.Direction.YieldUpCount}, " +
-            $"down {day.Direction.YieldDownCount}, flat {day.Direction.UnchangedCount}, " +
+            $"сравнимых {day.ComparableIssueCount}, рост {day.Direction.YieldUpCount}, " +
+            $"снижение {day.Direction.YieldDownCount}, без изм. {day.Direction.UnchangedCount}, " +
             $"top-5 {FormatPercent(day.Concentration.Top5Share)}";
 
         foreach (var contributor in day.TopContributors

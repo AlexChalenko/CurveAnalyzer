@@ -518,3 +518,117 @@ public sealed class OfzLiquidityMetricValueConverter : IValueConverter
             : "n/a";
     }
 }
+
+public sealed class OfzSpecialSummaryMetricValueConverter : IValueConverter
+{
+    public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
+    {
+        if (value is null || value == System.Windows.DependencyProperty.UnsetValue)
+        {
+            return "n/a";
+        }
+
+        if (value is not OfzSpecialSummaryMetric metric)
+        {
+            return value.ToString() ?? "n/a";
+        }
+
+        return (parameter as string) switch
+        {
+            "Value" => FormatValue(metric, culture),
+            "ObservedAt" => metric.ObservedAt.HasValue
+                ? metric.ObservedAt.Value.ToString("dd.MM.yyyy", culture)
+                : "n/a",
+            "Availability" => FormatAvailability(metric.Availability),
+            "Source" => FormatSource(metric.Source),
+            "Kind" => FormatKind(metric.Kind),
+            _ => FormatValue(metric, culture)
+        };
+    }
+
+    public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
+    {
+        throw new NotSupportedException();
+    }
+
+    private static string FormatValue(OfzSpecialSummaryMetric metric, CultureInfo culture)
+    {
+        if (!metric.Value.HasValue || !double.IsFinite(metric.Value.Value))
+        {
+            return "n/a";
+        }
+
+        var formattedValue = metric.Value.Value.ToString("N2", culture);
+        return string.IsNullOrWhiteSpace(metric.Unit)
+            ? formattedValue
+            : $"{formattedValue} {metric.Unit}";
+    }
+
+    private static string FormatAvailability(OfzSpecialMetricAvailability availability)
+    {
+        return availability switch
+        {
+            OfzSpecialMetricAvailability.Historical => "история",
+            OfzSpecialMetricAvailability.SnapshotOnly => "snapshot",
+            OfzSpecialMetricAvailability.Provisional => "предварительно",
+            OfzSpecialMetricAvailability.InsufficientHistory => "мало истории",
+            OfzSpecialMetricAvailability.Missing => "нет данных",
+            _ => availability.ToString()
+        };
+    }
+
+    private static string FormatSource(OfzSpecialMetricSource source)
+    {
+        return source switch
+        {
+            OfzSpecialMetricSource.History => "история",
+            OfzSpecialMetricSource.Snapshot => "snapshot",
+            OfzSpecialMetricSource.Derived => "расчет",
+            OfzSpecialMetricSource.CbrKeyRate => "ЦБ",
+            OfzSpecialMetricSource.Missing => "n/a",
+            _ => source.ToString()
+        };
+    }
+
+    private static string FormatKind(OfzSpecialMetricKind kind)
+    {
+        return kind switch
+        {
+            OfzSpecialMetricKind.ImpliedFloatingRate => "Ожидаемая ставка купона",
+            OfzSpecialMetricKind.ImpliedCbrRate => "Ключевая ставка",
+            OfzSpecialMetricKind.ImpliedFloatingRateSpread => "Спред к ключевой",
+            OfzSpecialMetricKind.ImpliedInflation => "Ожидаемая инфляция",
+            _ => kind.ToString()
+        };
+    }
+}
+
+public sealed class OfzBreadthContributorValueConverter : IValueConverter
+{
+    public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
+    {
+        if (value is null || value == System.Windows.DependencyProperty.UnsetValue)
+        {
+            return "n/a";
+        }
+
+        return value switch
+        {
+            OfzYieldDirection.Up => "Рост",
+            OfzYieldDirection.Down => "Снижение",
+            OfzYieldDirection.Unchanged => "Без изм.",
+            OfzYieldDirection.NotComparable => "Нет пары",
+            MarketBreadthContributorReason.TopTurnover => "Оборот",
+            MarketBreadthContributorReason.YieldUp => "Рост доходности",
+            MarketBreadthContributorReason.YieldDown => "Снижение доходности",
+            MarketBreadthContributorReason.WeakLiquidity => "Слабая ликвидность",
+            MarketBreadthContributorReason.HighActivity => "Высокая активность",
+            _ => value.ToString() ?? "n/a"
+        };
+    }
+
+    public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
+    {
+        throw new NotSupportedException();
+    }
+}
