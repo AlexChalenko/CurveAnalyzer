@@ -15,6 +15,25 @@ partial class MoexContextModelSnapshot : ModelSnapshot
 #pragma warning disable 612, 618
         modelBuilder.HasAnnotation("ProductVersion", "10.0.7");
 
+        modelBuilder.Entity<CbrKeyRate>(b =>
+        {
+            b.Property(e => e.Date)
+                .HasColumnType("TEXT");
+
+            b.Property(e => e.LoadedAt)
+                .HasColumnType("TEXT");
+
+            b.Property(e => e.Rate)
+                .HasColumnType("REAL");
+
+            b.HasKey(e => e.Date);
+
+            b.HasIndex(e => e.Date)
+                .HasDatabaseName("IX_CbrKeyRates_Date");
+
+            b.ToTable("CbrKeyRates");
+        });
+
         modelBuilder.Entity<OfzActivityLoadState>(b =>
         {
             b.Property(e => e.BoardId)

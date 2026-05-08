@@ -23,6 +23,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\src\CurveAnalyzer.ApiServices\CurveAnalyzer.ApiServices.csproj" />
     <ProjectReference Include="..\..\src\CurveAnalyzer.Application\CurveAnalyzer.Application.csproj" />
     <ProjectReference Include="..\..\src\CurveAnalyzer.Infrastructure\CurveAnalyzer.Infrastructure.csproj" />
   </ItemGroup>

@@ -69,12 +69,14 @@ public class OfzIssueDetail
     public IReadOnlyList<OfzIssueDetailPoint> Points { get; init; } = [];
     public IReadOnlyList<OfzLiquidityMetric> LiquidityMetrics { get; init; } = [];
     public OfzLiquidityMetric? CurrentLiquiditySnapshot { get; init; }
+    public OfzSpecialIssueContext SpecialContext { get; init; } = OfzSpecialIssueContext.None;
 
     public bool HasPoints => Points.Count > 0;
     public bool HasYield => Points.Any(point => point.Yield.HasValue);
     public bool HasPrice => Points.Any(point => point.Price.HasValue);
     public bool HasSpread => Points.Any(point => point.Spread.HasValue) || LiquidityMetrics.Any(metric => metric.Spread.HasValue);
     public bool HasCurrentLiquiditySnapshot => CurrentLiquiditySnapshot is not null;
+    public bool HasSpecialContext => SpecialContext.HasContext;
     public bool HasClassificationEvidence => !string.IsNullOrWhiteSpace(ClassificationEvidence);
     public bool HasClassificationLimitations => ClassificationLimitations.Count > 0;
 
@@ -119,6 +121,9 @@ public class OfzIssueDetailPoint
     public double? Spread { get; init; }
     public double? ZSpread { get; init; }
     public double? ZSpreadAtWeightedAveragePrice { get; init; }
+    public double? ImpliedFloatingRate { get; init; }
+    public double? ImpliedInflation { get; init; }
+    public double? ImpliedCbrRate { get; init; }
     public OfzSpreadSource SpreadSource { get; init; }
     public double? LiquidityScore { get; init; }
     public OfzLiquidityBucket? LiquidityBucket { get; init; }

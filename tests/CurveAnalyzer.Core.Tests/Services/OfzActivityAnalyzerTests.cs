@@ -635,6 +635,266 @@ public class OfzActivityAnalyzerTests
     }
 
     [Fact]
+    public void BuildIssueDetail_AddsFloatingSpecialContextFromHistoryAndSnapshot()
+    {
+        OfzDailyTrade[] trades =
+        [
+            SpecialTrade("SU29019RMFS5", new DateTime(2026, 05, 05), 13.1, impliedCbrRate: 7.5),
+            SpecialTrade("SU29019RMFS5", new DateTime(2026, 05, 06), 13.3, impliedCbrRate: 7.6)
+        ];
+        var issue = new OfzIssue
+        {
+            SecId = "SU29019RMFS5",
+            ShortName = "ОФЗ 29019",
+            FaceUnit = "SUR"
+        };
+        issue.ApplyClassification(new OfzIssueClassification
+        {
+            CouponType = OfzCouponType.Floating,
+            CouponTypeMarker = "ОФЗ-ПК",
+            Reliability = OfzClassificationReliability.Reliable,
+            Source = OfzIssueClassificationSources.MetadataFields,
+            Evidence = "source=metadata-fields; rules=source-floating",
+            NominalCurrency = "RUB"
+        });
+        var snapshot = new OfzLiquiditySnapshot
+        {
+            SecId = "SU29019RMFS5",
+            TradeDate = new DateTime(2026, 05, 07),
+            ObservedAt = new DateTime(2026, 05, 07, 10, 0, 0, DateTimeKind.Utc),
+            ImpliedFloatingRate = 13.4,
+            ImpliedCbrRate = 7.75,
+            IsProvisional = true
+        };
+
+        var detail = OfzActivityAnalyzer.BuildIssueDetail("SU29019RMFS5", trades, issue, snapshot);
+
+        Assert.True(detail.HasSpecialContext);
+        Assert.Equal("Плавающий купон", detail.SpecialContext.Title);
+        Assert.All(detail.Points, point => Assert.NotNull(point.ImpliedFloatingRate));
+        Assert.Contains(detail.SpecialContext.Metrics, metric =>
+            metric.Code == "implied_floating_rate" &&
+            metric.Value == 13.4 &&
+            metric.Availability == OfzSpecialMetricAvailability.Provisional);
+        Assert.Contains(detail.SpecialContext.Metrics, metric =>
+            metric.Code == "implied_floating_rate_spread" &&
+            Math.Abs(metric.Value!.Value - 5.65) < 0.001 &&
+            metric.Source == OfzSpecialMetricSource.Derived);
+
+        var floatingSeries = Assert.Single(detail.SpecialContext.Series, series => series.Code == "implied_floating_rate");
+        Assert.True(floatingSeries.HasHistoricalSeries);
+        Assert.Equal(2, floatingSeries.Points.Count);
+    }
+
+    [Fact]
+    public void BuildIssueDetail_AddsInflationLinkedContextAndHidesSpecialContextForFixed()
+    {
+        var linkerIssue = new OfzIssue
+        {
+            SecId = "SU52002RMFS1",
+            ShortName = "ОФЗ 52002",
+            FaceUnit = "SUR"
+        };
+        linkerIssue.ApplyClassification(new OfzIssueClassification
+        {
+            CouponType = OfzCouponType.InflationLinked,
+            CouponTypeMarker = "ОФЗ-ИН",
+            Reliability = OfzClassificationReliability.Reliable,
+            Source = OfzIssueClassificationSources.MetadataFields,
+            Evidence = "source=metadata-fields; rules=source-linker",
+            NominalCurrency = "RUB",
+            IsIndexedNominal = true
+        });
+        OfzDailyTrade[] linkerTrades =
+        [
+            SpecialTrade("SU52002RMFS1", new DateTime(2026, 05, 05), impliedInflation: 5.1),
+            SpecialTrade("SU52002RMFS1", new DateTime(2026, 05, 06), impliedInflation: 5.2)
+        ];
+
+        var linkerDetail = OfzActivityAnalyzer.BuildIssueDetail("SU52002RMFS1", linkerTrades, linkerIssue);
+
+        Assert.True(linkerDetail.HasSpecialContext);
+        Assert.Equal("Индексация номинала", linkerDetail.SpecialContext.Title);
+        Assert.Contains(linkerDetail.SpecialContext.Metrics, metric =>
+            metric.Code == "implied_inflation" &&
+            metric.Value == 5.2 &&
+            metric.Availability == OfzSpecialMetricAvailability.Historical);
+
+        var fixedIssue = new OfzIssue
+        {
+            SecId = "SU26238RMFS4",
+            ShortName = "ОФЗ 26238",
+            FaceUnit = "SUR"
+        };
+        fixedIssue.ApplyClassification(new OfzIssueClassification
+        {
+            CouponType = OfzCouponType.Fixed,
+            CouponTypeMarker = "ОФЗ-ПД",
+            Reliability = OfzClassificationReliability.Reliable,
+            Source = OfzIssueClassificationSources.MetadataFields,
+            Evidence = "source=metadata-fields; rules=source-fixed",
+            NominalCurrency = "RUB"
+        });
+
+        var fixedDetail = OfzActivityAnalyzer.BuildIssueDetail(
+            "SU26238RMFS4",
+            [SpecialTrade("SU26238RMFS4", new DateTime(2026, 05, 06), 13.2, impliedInflation: 5.1)],
+            fixedIssue);
+
+        Assert.False(fixedDetail.HasSpecialContext);
+        Assert.False(fixedDetail.SpecialContext.HasContext);
+    }
+
+    [Fact]
+    public void BuildIssueDetail_KeepsMissingSpecialMetricsNullAndExplainsAvailability()
+    {
+        var issue = new OfzIssue
+        {
+            SecId = "SU29019RMFS5",
+            ShortName = "ОФЗ 29019",
+            FaceUnit = "SUR"
+        };
+        issue.ApplyClassification(new OfzIssueClassification
+        {
+            CouponType = OfzCouponType.Floating,
+            CouponTypeMarker = "ОФЗ-ПК",
+            Reliability = OfzClassificationReliability.Reliable,
+            Source = OfzIssueClassificationSources.MetadataFields,
+            Evidence = "source=metadata-fields; rules=source-floating",
+            NominalCurrency = "RUB"
+        });
+
+        var detail = OfzActivityAnalyzer.BuildIssueDetail(
+            "SU29019RMFS5",
+            [
+                SpecialTrade("SU29019RMFS5", new DateTime(2026, 05, 05)),
+                SpecialTrade("SU29019RMFS5", new DateTime(2026, 05, 06))
+            ],
+            issue);
+
+        Assert.True(detail.HasSpecialContext);
+        Assert.All(detail.SpecialContext.Metrics, metric =>
+        {
+            Assert.Null(metric.Value);
+            Assert.Equal(OfzSpecialMetricAvailability.Missing, metric.Availability);
+        });
+        Assert.Contains(detail.SpecialContext.Limitations, limitation =>
+            limitation.Contains("не заменяется нулем", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void BuildIssueDetail_UsesCbrKeyRateFallbackWhenCbrCloseMissing()
+    {
+        var issue = new OfzIssue
+        {
+            SecId = "SU29019RMFS5",
+            ShortName = "ОФЗ 29019",
+            FaceUnit = "SUR"
+        };
+        issue.ApplyClassification(new OfzIssueClassification
+        {
+            CouponType = OfzCouponType.Floating,
+            CouponTypeMarker = "ОФЗ-ПК",
+            Reliability = OfzClassificationReliability.Reliable,
+            Source = OfzIssueClassificationSources.MetadataFields,
+            Evidence = "source=metadata-fields; rules=source-floating",
+            NominalCurrency = "RUB"
+        });
+
+        var detail = OfzActivityAnalyzer.BuildIssueDetail(
+            "SU29019RMFS5",
+            [
+                SpecialTrade("SU29019RMFS5", new DateTime(2026, 05, 05), impliedFloatingRate: 13.1),
+                SpecialTrade("SU29019RMFS5", new DateTime(2026, 05, 06), impliedFloatingRate: 13.3)
+            ],
+            issue,
+            cbrKeyRates:
+            [
+                new CbrKeyRate { Date = new DateTime(2026, 05, 05), Rate = 7.5 },
+                new CbrKeyRate { Date = new DateTime(2026, 05, 06), Rate = 7.75 }
+            ]);
+
+        var cbrMetric = Assert.Single(detail.SpecialContext.Metrics, metric =>
+            metric.Kind == OfzSpecialMetricKind.ImpliedCbrRate);
+        var spreadMetric = Assert.Single(detail.SpecialContext.Metrics, metric =>
+            metric.Kind == OfzSpecialMetricKind.ImpliedFloatingRateSpread);
+
+        Assert.Equal(7.75, cbrMetric.Value);
+        Assert.Equal(OfzSpecialMetricSource.CbrKeyRate, cbrMetric.Source);
+        Assert.Equal(OfzSpecialMetricAvailability.Historical, cbrMetric.Availability);
+        Assert.Equal(5.55, spreadMetric.Value!.Value, 2);
+
+        var cbrSeries = Assert.Single(detail.SpecialContext.Series, series =>
+            series.Kind == OfzSpecialMetricKind.ImpliedCbrRate);
+        Assert.All(cbrSeries.Points, point => Assert.Equal(OfzSpecialMetricSource.CbrKeyRate, point.Source));
+        Assert.Contains(detail.SpecialContext.Limitations, limitation =>
+            limitation.Contains("официального сервиса ЦБ", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void BuildIssueDetail_MarksSnapshotOnlyAndProvisionalSpecialMetrics()
+    {
+        var issue = new OfzIssue
+        {
+            SecId = "SU29019RMFS5",
+            ShortName = "ОФЗ 29019",
+            FaceUnit = "SUR"
+        };
+        issue.ApplyClassification(new OfzIssueClassification
+        {
+            CouponType = OfzCouponType.Floating,
+            CouponTypeMarker = "ОФЗ-ПК",
+            Reliability = OfzClassificationReliability.Reliable,
+            Source = OfzIssueClassificationSources.MetadataFields,
+            Evidence = "source=metadata-fields; rules=source-floating",
+            NominalCurrency = "RUB"
+        });
+        var snapshot = new OfzLiquiditySnapshot
+        {
+            SecId = "SU29019RMFS5",
+            TradeDate = new DateTime(2026, 05, 07),
+            ObservedAt = new DateTime(2026, 05, 07, 10, 0, 0, DateTimeKind.Utc),
+            ImpliedFloatingRate = 13.4,
+            ImpliedCbrRate = 7.75
+        };
+
+        var snapshotOnly = OfzActivityAnalyzer.BuildIssueDetail(
+            "SU29019RMFS5",
+            [],
+            issue,
+            snapshot);
+
+        Assert.Contains(snapshotOnly.SpecialContext.Metrics, metric =>
+            metric.Code == "implied_floating_rate" &&
+            metric.Availability == OfzSpecialMetricAvailability.SnapshotOnly &&
+            metric.Value == 13.4);
+        Assert.Contains(snapshotOnly.SpecialContext.Limitations, limitation =>
+            limitation.Contains("текущего snapshot", StringComparison.Ordinal));
+
+        var provisionalSnapshot = new OfzLiquiditySnapshot
+        {
+            SecId = "SU29019RMFS5",
+            TradeDate = snapshot.TradeDate,
+            ObservedAt = snapshot.ObservedAt,
+            ImpliedFloatingRate = snapshot.ImpliedFloatingRate,
+            ImpliedCbrRate = snapshot.ImpliedCbrRate,
+            IsProvisional = true
+        };
+        var provisional = OfzActivityAnalyzer.BuildIssueDetail(
+            "SU29019RMFS5",
+            [],
+            issue,
+            provisionalSnapshot);
+
+        Assert.Contains(provisional.SpecialContext.Metrics, metric =>
+            metric.Code == "implied_floating_rate" &&
+            metric.Availability == OfzSpecialMetricAvailability.Provisional &&
+            metric.IsProvisional);
+        Assert.Contains(provisional.SpecialContext.Limitations, limitation =>
+            limitation.Contains("предварительные", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void BuildActivityIndex_AggregatesActiveMetricsByDate()
     {
         var date1 = new DateTime(2026, 04, 20);
@@ -866,6 +1126,28 @@ public class OfzActivityAnalyzerTests
             Offer = offer,
             Spread = spread,
             Duration = 1000
+        };
+    }
+
+    private static OfzDailyTrade SpecialTrade(
+        string secId,
+        DateTime date,
+        double? impliedFloatingRate = null,
+        double? impliedInflation = null,
+        double? impliedCbrRate = null)
+    {
+        return new OfzDailyTrade
+        {
+            SecId = secId,
+            TradeDate = date,
+            Value = 100_000_000,
+            NumTrades = 10,
+            YieldAtWeightedAveragePrice = 10,
+            WeightedAveragePrice = 100,
+            Duration = 1000,
+            ImpliedFloatingRate = impliedFloatingRate,
+            ImpliedInflation = impliedInflation,
+            ImpliedCbrRate = impliedCbrRate
         };
     }
 

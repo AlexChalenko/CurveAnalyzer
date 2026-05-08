@@ -232,7 +232,7 @@ public class OfzMarketSummaryBuilderTests
         using var document = JsonDocument.Parse(json);
         var root = document.RootElement;
 
-        Assert.Equal("1.1", root.GetProperty("schemaVersion").GetString());
+        Assert.Equal("1.2", root.GetProperty("schemaVersion").GetString());
         AssertJsonDateOnly(root.GetProperty("startDate"));
         AssertJsonDateOnly(root.GetProperty("endDate"));
         AssertJsonDateOnly(root.GetProperty("insightStartDate"));
@@ -241,6 +241,7 @@ public class OfzMarketSummaryBuilderTests
         Assert.True(root.TryGetProperty("findings", out _));
         Assert.True(root.TryGetProperty("segments", out _));
         Assert.True(root.TryGetProperty("breadthDays", out _));
+        Assert.True(root.TryGetProperty("specialMetrics", out _));
         Assert.True(root.TryGetProperty("limitations", out _));
         Assert.True(root.TryGetProperty("sourceCounts", out _));
         Assert.NotEmpty(root.GetProperty("breadthDays").EnumerateArray());
@@ -595,6 +596,192 @@ public class OfzMarketSummaryBuilderTests
     }
 
     [Fact]
+    public void BuildMarketSummary_BuildsFloatingSpecialMetricsForTypeFilter()
+    {
+        var startDate = new DateTime(2026, 04, 01);
+        var tradeDate = startDate.AddDays(1);
+        var fixedIssue = Issue("SU26238RMFS4", "ОФЗ 26238", "Фикс с известным купоном");
+        var floatingIssue = Issue("SU29019RMFS0", "ОФЗ 29019", "Флоатер");
+
+        var summary = BuildMarketSummary(new OfzMarketSummaryInput
+        {
+            StartDate = startDate,
+            EndDate = tradeDate,
+            CouponTypeFilter = OfzCouponType.Floating,
+            Issues = [fixedIssue, floatingIssue],
+            Trades =
+            [
+                Trade(fixedIssue.SecId, startDate, 20_000_000, 20, 12.00, 800),
+                Trade(fixedIssue.SecId, tradeDate, 22_000_000, 22, 12.10, 800),
+                Trade(floatingIssue.SecId, startDate, 10_000_000, 10, 13.00, 650, impliedFloatingRate: 12.80, impliedCbrRate: 7.50),
+                Trade(floatingIssue.SecId, tradeDate, 12_000_000, 12, 13.20, 640, impliedFloatingRate: 13.40, impliedCbrRate: 7.75)
+            ],
+            ActivityMetrics = [],
+            LiquidityMetrics = []
+        });
+
+        Assert.Equal(OfzCouponType.Floating, summary.CouponTypeFilter);
+        var day = summary.BreadthDays.Single(item => item.TradeDate == tradeDate);
+        Assert.Single(day.TypeShares);
+        Assert.Equal(OfzCouponType.Floating, day.TypeShares[0].CouponType);
+
+        Assert.Equal(3, summary.SpecialMetrics.Count);
+        Assert.Equal(13.40, summary.SpecialMetrics.Single(metric => metric.Kind == OfzSpecialMetricKind.ImpliedFloatingRate).Value);
+        Assert.Equal(7.75, summary.SpecialMetrics.Single(metric => metric.Kind == OfzSpecialMetricKind.ImpliedCbrRate).Value);
+        Assert.Equal(5.65, summary.SpecialMetrics.Single(metric => metric.Kind == OfzSpecialMetricKind.ImpliedFloatingRateSpread).Value);
+        Assert.All(summary.SpecialMetrics, metric => Assert.Equal(OfzSpecialMetricAvailability.Historical, metric.Availability));
+
+        var finding = Assert.Single(summary.Findings, item => item.Kind == OfzSummaryFindingKind.SpecialMetric);
+        Assert.Equal(OfzSummaryScope.SpecialMetric, finding.Scope);
+        Assert.Contains("ОФЗ-ПК", finding.Text, StringComparison.Ordinal);
+        Assert.Equal(OfzCouponType.Floating, finding.Evidence.CouponType);
+        Assert.Equal(13.40, finding.Evidence.ImpliedFloatingRate);
+        Assert.Equal(7.75, finding.Evidence.ImpliedCbrRate);
+        Assert.Equal(5.65, finding.Evidence.ImpliedFloatingRateSpread);
+        Assert.Equal(OfzSpecialMetricAvailability.Historical, finding.Evidence.SpecialMetricAvailability);
+    }
+
+    [Fact]
+    public void BuildMarketSummary_UsesCbrKeyRateFallbackForFloatingSpecialMetrics()
+    {
+        var startDate = new DateTime(2026, 04, 01);
+        var tradeDate = startDate.AddDays(1);
+        var floatingIssue = Issue("SU29019RMFS0", "ОФЗ 29019", "Флоатер");
+
+        var summary = BuildMarketSummary(new OfzMarketSummaryInput
+        {
+            StartDate = startDate,
+            EndDate = tradeDate,
+            CouponTypeFilter = OfzCouponType.Floating,
+            Issues = [floatingIssue],
+            Trades =
+            [
+                Trade(floatingIssue.SecId, startDate, 10_000_000, 10, 13.00, 650, impliedFloatingRate: 12.80),
+                Trade(floatingIssue.SecId, tradeDate, 12_000_000, 12, 13.20, 640, impliedFloatingRate: 13.40)
+            ],
+            ActivityMetrics = [],
+            LiquidityMetrics = [],
+            CbrKeyRates =
+            [
+                new CbrKeyRate { Date = startDate, Rate = 7.50 },
+                new CbrKeyRate { Date = tradeDate, Rate = 7.75 }
+            ]
+        });
+
+        var cbrMetric = summary.SpecialMetrics.Single(metric => metric.Kind == OfzSpecialMetricKind.ImpliedCbrRate);
+        var spreadMetric = summary.SpecialMetrics.Single(metric => metric.Kind == OfzSpecialMetricKind.ImpliedFloatingRateSpread);
+
+        Assert.Equal(7.75, cbrMetric.Value);
+        Assert.Equal(OfzSpecialMetricSource.CbrKeyRate, cbrMetric.Source);
+        Assert.Equal(5.65, spreadMetric.Value);
+        Assert.Contains(summary.Limitations, limitation =>
+            limitation.Kind == OfzDataLimitationKind.CbrKeyRateFallback);
+
+        var finding = Assert.Single(summary.Findings, item => item.Kind == OfzSummaryFindingKind.SpecialMetric);
+        Assert.Equal(7.75, finding.Evidence.ImpliedCbrRate);
+        Assert.Equal(5.65, finding.Evidence.ImpliedFloatingRateSpread);
+    }
+
+    [Fact]
+    public void BuildMarketSummary_BuildsInflationSpecialMetricsForTypeFilter()
+    {
+        var startDate = new DateTime(2026, 04, 01);
+        var tradeDate = startDate.AddDays(1);
+        var linkerIssue = Issue("SU52002RMFS1", "ОФЗ 52002", "Индексируемый номинал");
+
+        var summary = BuildMarketSummary(new OfzMarketSummaryInput
+        {
+            StartDate = startDate,
+            EndDate = tradeDate,
+            CouponTypeFilter = OfzCouponType.InflationLinked,
+            Issues = [linkerIssue],
+            Trades =
+            [
+                Trade(linkerIssue.SecId, startDate, 10_000_000, 10, 8.80, 1_500, impliedInflation: 5.10),
+                Trade(linkerIssue.SecId, tradeDate, 11_000_000, 11, 8.90, 1_490, impliedInflation: 5.25)
+            ],
+            ActivityMetrics = [],
+            LiquidityMetrics = []
+        });
+
+        var metric = Assert.Single(summary.SpecialMetrics);
+        Assert.Equal(OfzSpecialMetricKind.ImpliedInflation, metric.Kind);
+        Assert.Equal(5.25, metric.Value);
+        Assert.Equal(OfzSpecialMetricAvailability.Historical, metric.Availability);
+
+        var finding = Assert.Single(summary.Findings, item => item.Kind == OfzSummaryFindingKind.SpecialMetric);
+        Assert.Contains("ОФЗ-ИН", finding.Text, StringComparison.Ordinal);
+        Assert.Equal(OfzCouponType.InflationLinked, finding.Evidence.CouponType);
+        Assert.Equal(5.25, finding.Evidence.ImpliedInflation);
+    }
+
+    [Fact]
+    public void BuildMarketSummary_AddsSpecialLimitationsWithoutZeroSubstitution()
+    {
+        var startDate = new DateTime(2026, 04, 01);
+        var tradeDate = startDate.AddDays(1);
+        var floatingIssue = Issue("SU29019RMFS0", "ОФЗ 29019", "Флоатер");
+
+        var summary = BuildMarketSummary(new OfzMarketSummaryInput
+        {
+            StartDate = startDate,
+            EndDate = tradeDate,
+            CouponTypeFilter = OfzCouponType.Floating,
+            Issues = [floatingIssue],
+            Trades =
+            [
+                Trade(floatingIssue.SecId, startDate, 10_000_000, 10, 13.00, 650),
+                Trade(floatingIssue.SecId, tradeDate, 12_000_000, 12, 13.20, 640)
+            ],
+            ActivityMetrics = [],
+            LiquidityMetrics = []
+        });
+
+        Assert.Equal(3, summary.SpecialMetrics.Count);
+        Assert.All(summary.SpecialMetrics, metric =>
+        {
+            Assert.Null(metric.Value);
+            Assert.Equal(OfzSpecialMetricAvailability.Missing, metric.Availability);
+        });
+        Assert.Contains(summary.Limitations, limitation => limitation.Kind == OfzDataLimitationKind.MissingSpecialMetric);
+        Assert.DoesNotContain(summary.Findings, finding => finding.Kind == OfzSummaryFindingKind.SpecialMetric);
+
+        var json = JsonSerializer.Serialize(summary, JsonOptions);
+        using var document = JsonDocument.Parse(json);
+        Assert.All(document.RootElement.GetProperty("specialMetrics").EnumerateArray(), metric =>
+            Assert.Equal(JsonValueKind.Null, metric.GetProperty("value").ValueKind));
+    }
+
+    [Fact]
+    public void BuildMarketSummary_SpecialFindingsAvoidRecommendationLanguage()
+    {
+        var startDate = new DateTime(2026, 04, 01);
+        var tradeDate = startDate.AddDays(1);
+        var floatingIssue = Issue("SU29019RMFS0", "ОФЗ 29019", "Флоатер");
+
+        var summary = BuildMarketSummary(new OfzMarketSummaryInput
+        {
+            StartDate = startDate,
+            EndDate = tradeDate,
+            CouponTypeFilter = OfzCouponType.Floating,
+            Issues = [floatingIssue],
+            Trades =
+            [
+                Trade(floatingIssue.SecId, startDate, 10_000_000, 10, 13.00, 650, impliedFloatingRate: 12.80, impliedCbrRate: 7.50),
+                Trade(floatingIssue.SecId, tradeDate, 12_000_000, 12, 13.20, 640, impliedFloatingRate: 13.40, impliedCbrRate: 7.75)
+            ],
+            ActivityMetrics = [],
+            LiquidityMetrics = []
+        });
+
+        Assert.All(summary.Findings.Where(finding => finding.Kind == OfzSummaryFindingKind.SpecialMetric), finding =>
+        {
+            Assert.False(ContainsRecommendationLanguage(finding.Title), finding.Title);
+            Assert.False(ContainsRecommendationLanguage(finding.Text), finding.Text);
+        });
+    }
+
+    [Fact]
     public void BuildMarketSummary_KeepsUnknownCouponTypeVisible()
     {
         var startDate = new DateTime(2026, 04, 01);
@@ -894,7 +1081,10 @@ public class OfzMarketSummaryBuilderTests
         double value,
         int numTrades,
         double yield,
-        double duration)
+        double duration,
+        double? impliedFloatingRate = null,
+        double? impliedInflation = null,
+        double? impliedCbrRate = null)
     {
         return new OfzDailyTrade
         {
@@ -903,7 +1093,10 @@ public class OfzMarketSummaryBuilderTests
             Value = value,
             NumTrades = numTrades,
             YieldAtWeightedAveragePrice = yield,
-            Duration = duration
+            Duration = duration,
+            ImpliedFloatingRate = impliedFloatingRate,
+            ImpliedInflation = impliedInflation,
+            ImpliedCbrRate = impliedCbrRate
         };
     }
 
@@ -987,12 +1180,20 @@ public class OfzMarketSummaryBuilderTests
             evidence.LiquidityScore.HasValue ||
             evidence.ZSpread.HasValue ||
             evidence.ZSpreadBp.HasValue ||
-            evidence.GSpreadBp.HasValue;
+            evidence.GSpreadBp.HasValue ||
+            evidence.SpecialMetricKind.HasValue ||
+            !string.IsNullOrWhiteSpace(evidence.SpecialMetricCode) ||
+            evidence.SpecialMetricCount is > 0 ||
+            evidence.ImpliedFloatingRate.HasValue ||
+            evidence.ImpliedCbrRate.HasValue ||
+            evidence.ImpliedFloatingRateSpread.HasValue ||
+            evidence.ImpliedInflation.HasValue ||
+            evidence.SpecialMetricAvailability.HasValue;
     }
 
     private static bool ContainsRecommendationLanguage(string text)
     {
-        string[] blockedWords = ["купить", "покупать", "продать", "продавать", "держать", "рекоменд", "buy", "sell"];
+        string[] blockedWords = ["купить", "покупать", "продать", "продавать", "держать", "рекоменд", "лучше", "хуже", "выгод", "buy", "sell"];
         return blockedWords.Any(word => text.Contains(word, StringComparison.OrdinalIgnoreCase));
     }
 }

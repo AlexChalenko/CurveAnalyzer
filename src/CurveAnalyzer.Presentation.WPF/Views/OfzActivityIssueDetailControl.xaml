@@ -18,6 +18,7 @@
         <converters:OfzIssueDetailSeriesConverter x:Key="OfzIssueDetailSeriesConverter" />
         <converters:OfzIssueDetailXAxisConverter x:Key="OfzIssueDetailXAxisConverter" />
         <converters:OfzLiquidityMetricValueConverter x:Key="OfzLiquidityMetricValueConverter" />
+        <converters:OfzSpecialMetricValueConverter x:Key="OfzSpecialMetricValueConverter" />
     </UserControl.Resources>
 
     <Grid
@@ -114,6 +115,60 @@
                         </DataTemplate>
                     </ItemsControl.ItemTemplate>
                 </ItemsControl>
+                <StackPanel Visibility="{Binding SelectedIssueDetail.HasSpecialContext, Converter={StaticResource BoolToVis}}">
+                    <Separator Margin="0,4,0,4" />
+                    <DockPanel>
+                        <TextBlock
+                            FontSize="11"
+                            FontWeight="SemiBold"
+                            Text="{Binding SelectedIssueDetail.SpecialContext.Title}" />
+                        <TextBlock
+                            Margin="12,0,0,0"
+                            FontSize="10"
+                            Foreground="DimGray"
+                            Text="{Binding SelectedIssueDetail.SpecialContext.Description}"
+                            TextTrimming="CharacterEllipsis" />
+                    </DockPanel>
+                    <ItemsControl
+                        Margin="0,3,0,0"
+                        ItemsSource="{Binding SelectedIssueDetail.SpecialContext.Metrics}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <WrapPanel />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <StackPanel Margin="0,0,18,2">
+                                    <TextBlock
+                                        FontSize="10"
+                                        Foreground="DimGray"
+                                        Text="{Binding Label}" />
+                                    <TextBlock>
+                                        <Run Text="{Binding Path=., Converter={StaticResource OfzSpecialMetricValueConverter}, ConverterParameter=Value}" />
+                                        <Run Text=" (" />
+                                        <Run Text="{Binding Path=., Converter={StaticResource OfzSpecialMetricValueConverter}, ConverterParameter=Availability}" />
+                                        <Run Text=")" />
+                                    </TextBlock>
+                                </StackPanel>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <ItemsControl
+                        Margin="0,1,0,0"
+                        ItemsSource="{Binding SelectedIssueDetail.SpecialContext.Limitations}"
+                        Visibility="{Binding SelectedIssueDetail.SpecialContext.HasLimitations, Converter={StaticResource BoolToVis}}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <TextBlock
+                                    FontSize="10"
+                                    Foreground="DimGray"
+                                    Text="{Binding}"
+                                    TextTrimming="CharacterEllipsis" />
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
                 <Separator Margin="0,4,0,4" />
                 <DockPanel>
                     <TextBlock

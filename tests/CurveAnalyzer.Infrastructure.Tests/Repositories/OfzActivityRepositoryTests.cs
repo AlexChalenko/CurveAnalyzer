@@ -84,6 +84,41 @@ public sealed class OfzActivityRepositoryTests
         Assert.Single(await context.OfzActivityLoadStates.AsNoTracking().ToListAsync(cancellationToken));
     }
 
+    [Fact]
+    public async Task SaveCbrKeyRatesAsync_UpsertsAndReturnsDateRange()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        using var factory = new TestMoexContextFactory();
+        var repository = new OfzActivityRepository(factory);
+        var firstDate = new DateTime(2026, 05, 07);
+        var secondDate = firstDate.AddDays(1);
+
+        await repository.SaveCbrKeyRatesAsync(
+            [
+                new CbrKeyRate { Date = firstDate, Rate = 14.25, LoadedAt = firstDate },
+                new CbrKeyRate { Date = secondDate, Rate = 14.50, LoadedAt = secondDate }
+            ],
+            cancellationToken);
+        await repository.SaveCbrKeyRatesAsync(
+            [new CbrKeyRate { Date = firstDate, Rate = 14.00, LoadedAt = secondDate }],
+            cancellationToken);
+
+        var rates = await repository.GetCbrKeyRatesAsync(firstDate, secondDate, cancellationToken);
+
+        Assert.Collection(
+            rates,
+            first =>
+            {
+                Assert.Equal(firstDate, first.Date);
+                Assert.Equal(14.00, first.Rate);
+            },
+            second =>
+            {
+                Assert.Equal(secondDate, second.Date);
+                Assert.Equal(14.50, second.Rate);
+            });
+    }
+
     private static OfzActivityDailyData DailyData(
         DateTime date,
         OfzIssue issue,
