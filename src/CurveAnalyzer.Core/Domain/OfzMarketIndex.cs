@@ -121,6 +121,7 @@ public sealed class OfzIndexContextPoint
     public bool IsProvisional { get; init; }
     public IReadOnlyList<OfzDataLimitation> Limitations { get; init; } = [];
 
+    [JsonIgnore]
     public string SourceLabel => SourceKind == OfzMarketIndexSourceKind.Snapshot ? "snapshot" : "history";
 }
 
@@ -134,15 +135,19 @@ public sealed class OfzIndexContextDay
     public bool IsProvisional { get; init; }
     public IReadOnlyList<OfzDataLimitation> Limitations { get; init; } = [];
 
+    [JsonIgnore]
     public IReadOnlyList<OfzIndexContextPoint> WholeMarketPoints =>
         Points.Where(point => point.Role == OfzMarketIndexRole.WholeMarket).ToArray();
 
+    [JsonIgnore]
     public IReadOnlyList<OfzIndexContextPoint> SegmentPoints =>
         Points.Where(point => point.Role == OfzMarketIndexRole.DurationSegment).ToArray();
 
+    [JsonIgnore]
     public OfzIndexContextPoint? PriceIndexPoint =>
         WholeMarketPoints.FirstOrDefault(point => point.ReturnKind == OfzMarketIndexReturnKind.Price);
 
+    [JsonIgnore]
     public OfzIndexContextPoint? TotalReturnIndexPoint =>
         WholeMarketPoints.FirstOrDefault(point => point.ReturnKind == OfzMarketIndexReturnKind.TotalReturn);
 }

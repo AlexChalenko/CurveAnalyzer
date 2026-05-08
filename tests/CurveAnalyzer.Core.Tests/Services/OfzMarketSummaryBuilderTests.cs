@@ -1035,6 +1035,14 @@ public class OfzMarketSummaryBuilderTests
         Assert.True(days.GetArrayLength() > 0);
         Assert.True(root.TryGetProperty("indexSegments", out _));
         AssertJsonDateOnly(days[0].GetProperty("tradeDate"));
+        Assert.False(days[0].TryGetProperty("wholeMarketPoints", out _));
+        Assert.False(days[0].TryGetProperty("segmentPoints", out _));
+        Assert.False(days[0].TryGetProperty("priceIndexPoint", out _));
+        Assert.False(days[0].TryGetProperty("totalReturnIndexPoint", out _));
+
+        var point = days[0].GetProperty("points").EnumerateArray().First();
+        AssertJsonDateOnly(point.GetProperty("tradeDate"));
+        Assert.False(point.TryGetProperty("sourceLabel", out _));
     }
 
     [Fact]
