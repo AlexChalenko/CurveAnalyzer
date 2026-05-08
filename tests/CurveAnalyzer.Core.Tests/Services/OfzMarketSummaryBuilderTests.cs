@@ -249,6 +249,7 @@ public class OfzMarketSummaryBuilderTests
         Assert.NotEmpty(root.GetProperty("breadthDays").EnumerateArray());
 
         var breadthDay = root.GetProperty("breadthDays").EnumerateArray().First();
+        AssertJsonDateOnly(breadthDay.GetProperty("tradeDate"));
         Assert.True(breadthDay.TryGetProperty("direction", out var direction));
         Assert.True(direction.TryGetProperty("yieldUpCount", out _));
         Assert.True(direction.TryGetProperty("yieldDownCount", out _));
@@ -256,8 +257,11 @@ public class OfzMarketSummaryBuilderTests
         Assert.True(breadthDay.TryGetProperty("concentration", out var concentration));
         Assert.True(concentration.TryGetProperty("top5Share", out _));
         Assert.True(concentration.TryGetProperty("top10Share", out _));
+        Assert.True(concentration.TryGetProperty("topIssues", out var topIssues));
+        AssertJsonDateOnly(topIssues.EnumerateArray().First().GetProperty("tradeDate"));
         Assert.True(breadthDay.TryGetProperty("typeShares", out _));
-        Assert.True(breadthDay.TryGetProperty("topContributors", out _));
+        Assert.True(breadthDay.TryGetProperty("topContributors", out var topContributors));
+        AssertJsonDateOnly(topContributors.EnumerateArray().First().GetProperty("tradeDate"));
 
         var finding = root.GetProperty("findings").EnumerateArray().First();
         Assert.True(finding.TryGetProperty("id", out _));

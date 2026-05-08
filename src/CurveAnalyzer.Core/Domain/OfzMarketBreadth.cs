@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace CurveAnalyzer.Core;
 
 public enum OfzYieldDirection
@@ -39,6 +41,7 @@ public sealed class OfzMarketBreadthOptions
 
 public sealed class MarketBreadthDay
 {
+    [JsonConverter(typeof(OfzDateJsonConverter))]
     public DateTime TradeDate { get; init; }
     public int IssueCount { get; init; }
     public int ComparableIssueCount { get; init; }
@@ -96,6 +99,7 @@ public sealed class MarketBreadthContributor
     public string ShortName { get; init; } = string.Empty;
     public OfzCouponType? CouponType { get; init; }
     public string? CouponTypeMarker { get; init; }
+    [JsonConverter(typeof(OfzDateJsonConverter))]
     public DateTime TradeDate { get; init; }
     public double? Value { get; init; }
     public double? ValueShare { get; init; }
