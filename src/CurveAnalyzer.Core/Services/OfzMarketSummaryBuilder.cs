@@ -13,6 +13,7 @@ public sealed class OfzMarketSummaryInput
     public IEnumerable<OfzActivityMetric> ActivityMetrics { get; init; } = [];
     public IEnumerable<OfzLiquidityMetric> LiquidityMetrics { get; init; } = [];
     public IEnumerable<CbrKeyRate> CbrKeyRates { get; init; } = [];
+    public IEnumerable<OfzMarketIndexPoint> IndexPoints { get; init; } = [];
 }
 
 public sealed class OfzMarketSummaryOptions
@@ -23,6 +24,7 @@ public sealed class OfzMarketSummaryOptions
     public double MinimumYieldMoveAbs { get; init; } = 0.1;
     public double SegmentConcentrationShare { get; init; } = 0.5;
     public OfzMarketBreadthOptions Breadth { get; init; } = new();
+    public OfzIndexContextOptions IndexContext { get; init; } = new();
     public DateTime? GeneratedAt { get; init; }
 }
 
@@ -59,27 +61,40 @@ public static class OfzMarketSummaryBuilder
             .ToList();
 
         var breadthDays = BuildBreadthDays(trades, metrics, liquidityMetrics, issuesBySecId, options.Breadth);
+        var activityDates = trades.Select(trade => trade.TradeDate.Date)
+            .Concat(metrics.Select(metric => metric.TradeDate.Date))
+            .Distinct();
+        var indexContext = OfzIndexContextBuilder.Build(
+            input.IndexPoints,
+            startDate,
+            endDate,
+            activityDates,
+            options.IndexContext);
 
         var outputTrades = ApplyDateRange(trades, outputStartDate, outputEndDate).ToList();
         var outputMetrics = ApplyDateRange(metrics, outputStartDate, outputEndDate).ToList();
         var outputLiquidityMetrics = ApplyDateRange(liquidityMetrics, outputStartDate, outputEndDate).ToList();
         var outputBreadthDays = ApplyDateRange(breadthDays, outputStartDate, outputEndDate).ToList();
+        var outputIndexContextDays = ApplyDateRange(indexContext.Days, outputStartDate, outputEndDate).ToList();
 
         var signalTrades = ApplySignalScope(outputTrades, input.SignalScope).ToList();
         var signalMetrics = ApplySignalScope(outputMetrics, input.SignalScope).ToList();
         var signalLiquidityMetrics = ApplySignalScope(outputLiquidityMetrics, input.SignalScope).ToList();
         var signalBreadthDays = ApplySignalScope(outputBreadthDays, input.SignalScope).ToList();
-        var signalStartDate = GetMinDate(signalMetrics, signalLiquidityMetrics, signalBreadthDays, outputStartDate);
-        var signalEndDate = GetMaxDate(signalMetrics, signalLiquidityMetrics, signalBreadthDays, outputEndDate);
+        var signalIndexContextDays = ApplySignalScope(outputIndexContextDays, input.SignalScope).ToList();
+        var signalStartDate = GetMinDate(signalMetrics, signalLiquidityMetrics, signalBreadthDays, signalIndexContextDays, outputStartDate);
+        var signalEndDate = GetMaxDate(signalMetrics, signalLiquidityMetrics, signalBreadthDays, signalIndexContextDays, outputEndDate);
         var specialMetrics = BuildSpecialMetrics(signalTrades, input.CouponTypeFilter, input.CbrKeyRates);
         var limitations = BuildMarketLimitations(signalTrades, signalMetrics, signalLiquidityMetrics, signalStartDate, signalEndDate)
             .Concat(BuildSpecialMetricLimitations(specialMetrics, input.CouponTypeFilter))
+            .Concat(BuildIndexLimitations(signalIndexContextDays, indexContext.Limitations))
             .ToList();
         var segments = BuildSegments(signalMetrics, signalLiquidityMetrics, issuesBySecId, options);
         var findings = BuildFindings(
                 signalMetrics,
                 signalLiquidityMetrics,
                 signalBreadthDays,
+                signalIndexContextDays,
                 specialMetrics,
                 segments,
                 limitations,
@@ -106,9 +121,11 @@ public static class OfzMarketSummaryBuilder
             Findings = findings,
             Segments = segments,
             BreadthDays = signalBreadthDays,
+            IndexContextDays = signalIndexContextDays,
+            IndexSegments = indexContext.Segments,
             SpecialMetrics = specialMetrics,
             Limitations = limitations,
-            SourceCounts = BuildSourceCounts(signalTrades, signalMetrics, signalLiquidityMetrics, specialMetrics, issuesBySecId, input.CouponTypeFilter)
+            SourceCounts = BuildSourceCounts(signalTrades, signalMetrics, signalLiquidityMetrics, signalIndexContextDays, specialMetrics, issuesBySecId, input.CouponTypeFilter)
         };
     }
 
@@ -116,6 +133,7 @@ public static class OfzMarketSummaryBuilder
         IReadOnlyCollection<OfzActivityMetric> metrics,
         IReadOnlyCollection<OfzLiquidityMetric> liquidityMetrics,
         IReadOnlyCollection<MarketBreadthDay> breadthDays,
+        IReadOnlyCollection<OfzIndexContextDay> indexContextDays,
         IReadOnlyCollection<OfzSpecialSummaryMetric> specialMetrics,
         IReadOnlyCollection<OfzSegmentSummary> segments,
         IReadOnlyList<OfzDataLimitation> marketLimitations,
@@ -132,6 +150,7 @@ public static class OfzMarketSummaryBuilder
         AddMarketBreadthFinding(findings, breadthDays, options.Breadth);
         AddTurnoverConcentrationFinding(findings, breadthDays);
         AddTypeShareFinding(findings, breadthDays, couponTypeFilter, options.Breadth);
+        AddIndexContextFindings(findings, metrics, breadthDays, indexContextDays);
         AddWeakLiquidityFinding(findings, liquidityMetrics, issuesBySecId);
         AddSpecialMetricFinding(findings, specialMetrics, couponTypeFilter);
         AddDataQualityFinding(findings, metrics, liquidityMetrics, marketLimitations);
@@ -408,8 +427,10 @@ public static class OfzMarketSummaryBuilder
         var missingSpreadCount = liquidityMetrics.Count(metric => metric.SpreadSource == OfzSpreadSource.Missing);
         var snapshotCount = liquidityMetrics.Count(metric => metric.IsSnapshot);
         var provisionalCount = liquidityMetrics.Count(metric => metric.IsProvisional);
+        var hasMarketEvidence = metrics.Count > 0 || liquidityMetrics.Count > 0;
         var limitations = marketLimitations
             .Where(limitation => limitation.Kind is not OfzDataLimitationKind.NoData)
+            .Where(limitation => hasMarketEvidence || limitation.Kind is not OfzDataLimitationKind.NoIndexData)
             .ToList();
 
         if (missingBaselineCount == 0 && missingSpreadCount == 0 && snapshotCount == 0 && provisionalCount == 0 && limitations.Count == 0)
@@ -593,6 +614,154 @@ public static class OfzMarketSummaryBuilder
                 CouponType = topType.CouponType
             }
         });
+    }
+
+    private static void AddIndexContextFindings(
+        ICollection<OfzSummaryFinding> findings,
+        IReadOnlyCollection<OfzActivityMetric> metrics,
+        IReadOnlyCollection<MarketBreadthDay> breadthDays,
+        IReadOnlyCollection<OfzIndexContextDay> indexContextDays)
+    {
+        var activeDate = metrics
+            .Where(metric => metric.Value is > 0 || metric.NumTrades is > 0)
+            .GroupBy(metric => metric.TradeDate.Date)
+            .Select(group => new
+            {
+                TradeDate = group.Key,
+                TotalValue = group.Sum(metric => metric.Value ?? 0),
+                TotalNumTrades = group.Sum(metric => metric.NumTrades ?? 0),
+                ActiveIssueCount = group.Count(metric => metric.Value is > 0 || metric.NumTrades is > 0),
+                MaxActivityScore = group
+                    .Where(metric => metric.ActivityScore.HasValue)
+                    .Select(metric => metric.ActivityScore!.Value)
+                    .DefaultIfEmpty()
+                    .Max()
+            })
+            .OrderByDescending(item => item.TotalValue)
+            .ThenByDescending(item => item.TotalNumTrades)
+            .FirstOrDefault();
+
+        if (activeDate is not null)
+        {
+            var day = indexContextDays.FirstOrDefault(item => item.TradeDate.Date == activeDate.TradeDate);
+            var point = day?.PriceIndexPoint ?? day?.TotalReturnIndexPoint;
+            if (point is not null)
+            {
+                var meaningfulText = point.IsMeaningful
+                    ? $"совпал с движением {point.SecId}: {FormatSignedPercent(point.DailyChangePercent)}, yield Δ {FormatSignedPoints(point.YieldChange)}"
+                    : $"был локальным относительно спокойного {point.SecId}: {FormatSignedPercent(point.DailyChangePercent)}";
+
+                findings.Add(new OfzSummaryFinding
+                {
+                    Id = point.IsMeaningful
+                        ? $"activity-with-index-{point.SecId.ToLowerInvariant()}-{activeDate.TradeDate:yyyy-MM-dd}"
+                        : $"activity-without-index-{point.SecId.ToLowerInvariant()}-{activeDate.TradeDate:yyyy-MM-dd}",
+                    Kind = point.IsMeaningful
+                        ? OfzSummaryFindingKind.ActivityWithIndexMove
+                        : OfzSummaryFindingKind.ActivityWithoutIndexMove,
+                    Priority = point.IsMeaningful ? 735 : 690,
+                    Scope = OfzSummaryScope.IndexContext,
+                    Title = point.IsMeaningful
+                        ? "Активность на фоне индекса"
+                        : "Локальная активность относительно индекса",
+                    Text = $"{activeDate.TradeDate:dd.MM.yyyy}: активный день {meaningfulText}.",
+                    Evidence = CreateIndexEvidence(point, activeDate.TotalValue, activeDate.TotalNumTrades, activeDate.ActiveIssueCount),
+                    Limitations = day!.Limitations,
+                    DrillDown = new OfzSummaryDrillDown
+                    {
+                        Target = OfzSummaryDrillDownTarget.IndexContextDay,
+                        TradeDate = activeDate.TradeDate
+                    }
+                });
+            }
+            else if (day is not null && day.Limitations.Count > 0)
+            {
+                findings.Add(CreateIndexDataLimitationFinding(day));
+            }
+        }
+
+        var segmentPoint = indexContextDays
+            .SelectMany(day => day.SegmentPoints)
+            .Where(point => point.IsMeaningful)
+            .OrderByDescending(point => Math.Abs(point.DailyChangePercent ?? 0))
+            .ThenBy(point => point.SecId, StringComparer.Ordinal)
+            .FirstOrDefault();
+        if (segmentPoint is not null)
+        {
+            findings.Add(new OfzSummaryFinding
+            {
+                Id = $"segment-index-move-{segmentPoint.SecId.ToLowerInvariant()}-{segmentPoint.TradeDate:yyyy-MM-dd}",
+                Kind = OfzSummaryFindingKind.SegmentIndexMove,
+                Priority = 680,
+                Scope = OfzSummaryScope.IndexContext,
+                Title = "Движение duration-сегмента",
+                Text = $"{segmentPoint.SecId}: {FormatSignedPercent(segmentPoint.DailyChangePercent)} за {segmentPoint.TradeDate:dd.MM.yyyy}; yield Δ {FormatSignedPoints(segmentPoint.YieldChange)}.",
+                Evidence = CreateIndexEvidence(segmentPoint, null, null, null),
+                Limitations = segmentPoint.Limitations,
+                DrillDown = new OfzSummaryDrillDown
+                {
+                    Target = OfzSummaryDrillDownTarget.IndexContextDay,
+                    TradeDate = segmentPoint.TradeDate
+                }
+            });
+        }
+
+        var limitationDay = indexContextDays.FirstOrDefault(day => day.Points.Count == 0 && day.Limitations.Count > 0);
+        if (limitationDay is not null)
+        {
+            findings.Add(CreateIndexDataLimitationFinding(limitationDay));
+        }
+    }
+
+    private static OfzSummaryFinding CreateIndexDataLimitationFinding(OfzIndexContextDay day)
+    {
+        return new OfzSummaryFinding
+        {
+            Id = $"index-data-limitation-{day.TradeDate:yyyy-MM-dd}",
+            Kind = OfzSummaryFindingKind.IndexDataLimitation,
+            Priority = 500,
+            Scope = OfzSummaryScope.DataQuality,
+            Title = "Индексный фон неполный",
+            Text = $"{day.TradeDate:dd.MM.yyyy}: индексный контекст неполный, значения не заменяются нулями.",
+            Evidence = new OfzFindingEvidence
+            {
+                TradeDate = day.TradeDate,
+                IsProvisional = day.IsProvisional
+            },
+            Limitations = day.Limitations,
+            DrillDown = new OfzSummaryDrillDown
+            {
+                Target = OfzSummaryDrillDownTarget.IndexContextDay,
+                TradeDate = day.TradeDate
+            }
+        };
+    }
+
+    private static OfzFindingEvidence CreateIndexEvidence(
+        OfzIndexContextPoint point,
+        double? totalValue,
+        int? totalNumTrades,
+        int? activeIssueCount)
+    {
+        return new OfzFindingEvidence
+        {
+            TradeDate = point.TradeDate,
+            ActiveIssueCount = activeIssueCount,
+            TotalValue = totalValue,
+            TotalNumTrades = totalNumTrades,
+            IndexSecId = point.SecId,
+            IndexClose = point.Close,
+            IndexDailyChange = point.DailyChange,
+            IndexDailyChangePercent = point.DailyChangePercent,
+            IndexYield = point.Yield,
+            IndexYieldChange = point.YieldChange,
+            IndexDuration = point.Duration,
+            IndexPreviousTradeDate = point.PreviousTradeDate,
+            IndexDirection = point.Direction,
+            IndexMoveIsMeaningful = point.IsMeaningful,
+            IsSnapshot = point.SourceKind == OfzMarketIndexSourceKind.Snapshot,
+            IsProvisional = point.IsProvisional
+        };
     }
 
     private static void AddSpecialMetricFinding(
@@ -1552,6 +1721,22 @@ public static class OfzMarketSummaryBuilder
         return limitations;
     }
 
+    private static IReadOnlyList<OfzDataLimitation> BuildIndexLimitations(
+        IReadOnlyCollection<OfzIndexContextDay> indexContextDays,
+        IReadOnlyList<OfzDataLimitation> globalLimitations)
+    {
+        return globalLimitations
+            .Concat(indexContextDays.SelectMany(day => day.Limitations))
+            .GroupBy(limitation => (
+                limitation.Kind,
+                limitation.Scope,
+                limitation.SecId ?? string.Empty,
+                limitation.TradeDate?.Date,
+                limitation.Text))
+            .Select(group => group.First())
+            .ToList();
+    }
+
     private static IReadOnlyList<OfzDataLimitation> BuildSegmentLimitations(
         OfzCouponType couponType,
         IReadOnlyCollection<OfzLiquidityMetric> liquidityMetrics)
@@ -1659,6 +1844,7 @@ public static class OfzMarketSummaryBuilder
         IReadOnlyCollection<OfzDailyTrade> trades,
         IReadOnlyCollection<OfzActivityMetric> metrics,
         IReadOnlyCollection<OfzLiquidityMetric> liquidityMetrics,
+        IReadOnlyCollection<OfzIndexContextDay> indexContextDays,
         IReadOnlyCollection<OfzSpecialSummaryMetric> specialMetrics,
         IReadOnlyDictionary<string, OfzIssue> issuesBySecId,
         OfzCouponType? couponTypeFilter)
@@ -1666,6 +1852,7 @@ public static class OfzMarketSummaryBuilder
         var dates = trades.Select(trade => trade.TradeDate.Date)
             .Concat(metrics.Select(metric => metric.TradeDate.Date))
             .Concat(liquidityMetrics.Select(metric => metric.TradeDate.Date))
+            .Concat(indexContextDays.Select(day => day.TradeDate.Date))
             .Distinct()
             .Count();
 
@@ -1678,6 +1865,8 @@ public static class OfzMarketSummaryBuilder
             SnapshotLiquidityMetrics = liquidityMetrics.Count(metric => metric.IsSnapshot),
             SpecialMetricObservations = specialMetrics.Sum(metric => metric.HistoricalPointCount),
             SpecialMetricSeries = specialMetrics.Count(metric => metric.HasValue),
+            IndexPoints = indexContextDays.SelectMany(day => day.Points).Count(),
+            IndexContextDays = indexContextDays.Count,
             Dates = dates
         };
     }
@@ -1775,6 +1964,7 @@ public static class OfzMarketSummaryBuilder
             OfzActivityMetric metric => metric.TradeDate.Date,
             OfzLiquidityMetric metric => metric.TradeDate.Date,
             MarketBreadthDay day => day.TradeDate.Date,
+            OfzIndexContextDay day => day.TradeDate.Date,
             _ => null
         };
     }
@@ -1783,11 +1973,13 @@ public static class OfzMarketSummaryBuilder
         IReadOnlyCollection<OfzActivityMetric> metrics,
         IReadOnlyCollection<OfzLiquidityMetric> liquidityMetrics,
         IReadOnlyCollection<MarketBreadthDay> breadthDays,
+        IReadOnlyCollection<OfzIndexContextDay> indexContextDays,
         DateTime fallback)
     {
         return metrics.Select(metric => metric.TradeDate.Date)
             .Concat(liquidityMetrics.Select(metric => metric.TradeDate.Date))
             .Concat(breadthDays.Select(day => day.TradeDate.Date))
+            .Concat(indexContextDays.Select(day => day.TradeDate.Date))
             .DefaultIfEmpty(fallback)
             .Min();
     }
@@ -1796,11 +1988,13 @@ public static class OfzMarketSummaryBuilder
         IReadOnlyCollection<OfzActivityMetric> metrics,
         IReadOnlyCollection<OfzLiquidityMetric> liquidityMetrics,
         IReadOnlyCollection<MarketBreadthDay> breadthDays,
+        IReadOnlyCollection<OfzIndexContextDay> indexContextDays,
         DateTime fallback)
     {
         return metrics.Select(metric => metric.TradeDate.Date)
             .Concat(liquidityMetrics.Select(metric => metric.TradeDate.Date))
             .Concat(breadthDays.Select(day => day.TradeDate.Date))
+            .Concat(indexContextDays.Select(day => day.TradeDate.Date))
             .DefaultIfEmpty(fallback)
             .Max();
     }
@@ -1898,6 +2092,16 @@ public static class OfzMarketSummaryBuilder
         return value.HasValue ? value.Value.ToString("P0") : "n/a";
     }
 
+    private static string FormatSignedPercent(double? value)
+    {
+        return value.HasValue ? value.Value.ToString("+0.00%;-0.00%;0.00%") : "n/a";
+    }
+
+    private static string FormatSignedPoints(double? value)
+    {
+        return value.HasValue ? value.Value.ToString("+0.00;-0.00;0.00") + " п.п." : "n/a";
+    }
+
     private static double? NormalizePositive(double? value)
     {
         return value is > 0 ? value : null;
@@ -1964,5 +2168,14 @@ public static class OfzMarketSummaryBuilder
         ArgumentOutOfRangeException.ThrowIfNegative(options.Breadth.TypeDominanceShare);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(options.Breadth.MinimumComparableIssuesForBroadMove);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(options.Breadth.MaxTopContributors);
+        ArgumentOutOfRangeException.ThrowIfNegative(options.IndexContext.MeaningfulCloseChangePercent);
+        ArgumentOutOfRangeException.ThrowIfNegative(options.IndexContext.MeaningfulYieldChange);
+
+        if (options.IndexContext.MeaningfulCloseChangePercent > 1)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(options),
+                "MeaningfulCloseChangePercent must be a fraction between 0 and 1.");
+        }
     }
 }

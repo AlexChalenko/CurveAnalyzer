@@ -15,6 +15,7 @@
         <converters:ActivityHeatmapColorConverter x:Key="ActivityHeatmapColorConverter" />
         <converters:OfzSpecialSummaryMetricValueConverter x:Key="OfzSpecialSummaryMetricValueConverter" />
         <converters:OfzBreadthContributorValueConverter x:Key="OfzBreadthContributorValueConverter" />
+        <converters:OfzIndexContextValueConverter x:Key="OfzIndexContextValueConverter" />
         <Style x:Key="HeatmapCellButtonStyle" TargetType="{x:Type Button}">
             <Setter Property="Width" Value="32" />
             <Setter Property="Height" Value="18" />
@@ -58,7 +59,7 @@
             Margin="0,0,0,6"
             Header="Выводы"
             Visibility="{Binding HasMarketSummary, Converter={StaticResource BoolToVis}}">
-            <Grid MaxHeight="260">
+            <Grid MaxHeight="400">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="2*" />
                     <ColumnDefinition Width="8" />
@@ -184,44 +185,216 @@
                             </StackPanel>
                         </TabItem>
 
-                        <TabItem Header="Сегменты">
-                            <ScrollViewer
-                                Margin="0,4,0,0"
-                                HorizontalScrollBarVisibility="Disabled"
-                                VerticalScrollBarVisibility="Auto">
-                                <ItemsControl ItemsSource="{Binding SegmentSummaries}">
+                        <TabItem Header="Индекс">
+                            <Grid Margin="0,4,0,0">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="132" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="*" MinHeight="96" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                <TextBlock
+                                    Grid.Row="0"
+                                    FontWeight="SemiBold"
+                                    Text="Индексный фон" />
+                                <TextBlock
+                                    Grid.Row="1"
+                                    Margin="0,1,0,3"
+                                    FontSize="10"
+                                    Foreground="DimGray"
+                                    Text="{Binding IndexContextStatusMessage}"
+                                    TextWrapping="Wrap" />
+                                <DataGrid
+                                    Grid.Row="2"
+                                    AutoGenerateColumns="False"
+                                    CanUserAddRows="False"
+                                    HeadersVisibility="Column"
+                                    IsReadOnly="True"
+                                    ItemsSource="{Binding IndexContextDays}"
+                                    SelectedItem="{Binding SelectedIndexContextDay, Mode=TwoWay}"
+                                    ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                                    ScrollViewer.VerticalScrollBarVisibility="Auto">
+                                    <DataGrid.Columns>
+                                        <DataGridTextColumn
+                                            Width="64"
+                                            Binding="{Binding TradeDate, Mode=OneWay, StringFormat={}{0:dd.MM}}"
+                                            Header="Дата" />
+                                        <DataGridTextColumn
+                                            Width="78"
+                                            Binding="{Binding PriceIndexPoint.Close, Mode=OneWay, Converter={StaticResource OfzIndexContextValueConverter}, ConverterParameter=Value}"
+                                            Header="RGBI" />
+                                        <DataGridTextColumn
+                                            Width="70"
+                                            Binding="{Binding PriceIndexPoint.DailyChangePercent, Mode=OneWay, Converter={StaticResource OfzIndexContextValueConverter}, ConverterParameter=ChangePercent}"
+                                            Header="RGBI Δ" />
+                                        <DataGridTextColumn
+                                            Width="78"
+                                            Binding="{Binding TotalReturnIndexPoint.Close, Mode=OneWay, Converter={StaticResource OfzIndexContextValueConverter}, ConverterParameter=Value}"
+                                            Header="RGBITR" />
+                                        <DataGridTextColumn
+                                            Width="70"
+                                            Binding="{Binding TotalReturnIndexPoint.DailyChangePercent, Mode=OneWay, Converter={StaticResource OfzIndexContextValueConverter}, ConverterParameter=ChangePercent}"
+                                            Header="TR Δ" />
+                                        <DataGridTextColumn
+                                            Width="72"
+                                            Binding="{Binding MarketDirection, Mode=OneWay, Converter={StaticResource OfzIndexContextValueConverter}, ConverterParameter=Direction}"
+                                            Header="Фон" />
+                                    </DataGrid.Columns>
+                                </DataGrid>
+                                <TextBlock
+                                    Grid.Row="3"
+                                    Margin="0,3,0,2"
+                                    FontSize="10"
+                                    Foreground="DimGray"
+                                    Text="{Binding SelectedIndexContextDaySummary}"
+                                    TextWrapping="Wrap" />
+                                <DataGrid
+                                    Grid.Row="4"
+                                    AutoGenerateColumns="False"
+                                    CanUserAddRows="False"
+                                    HeadersVisibility="Column"
+                                    IsReadOnly="True"
+                                    ItemsSource="{Binding SelectedIndexContextPoints}"
+                                    ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                                    ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                    Visibility="{Binding HasSelectedIndexContextPoints, Converter={StaticResource BoolToVis}}">
+                                    <DataGrid.Columns>
+                                        <DataGridTextColumn
+                                            Width="82"
+                                            Binding="{Binding SecId, Mode=OneWay}"
+                                            Header="SECID" />
+                                        <DataGridTextColumn
+                                            Width="58"
+                                            Binding="{Binding DurationBucket, Mode=OneWay, Converter={StaticResource OfzIndexContextValueConverter}, ConverterParameter=Bucket}"
+                                            Header="Bucket" />
+                                        <DataGridTextColumn
+                                            Width="76"
+                                            Binding="{Binding ReturnKind, Mode=OneWay, Converter={StaticResource OfzIndexContextValueConverter}, ConverterParameter=ReturnKind}"
+                                            Header="Тип" />
+                                        <DataGridTextColumn
+                                            Width="70"
+                                            Binding="{Binding Close, Mode=OneWay, Converter={StaticResource OfzIndexContextValueConverter}, ConverterParameter=Value}"
+                                            Header="Close" />
+                                        <DataGridTextColumn
+                                            Width="70"
+                                            Binding="{Binding DailyChangePercent, Mode=OneWay, Converter={StaticResource OfzIndexContextValueConverter}, ConverterParameter=ChangePercent}"
+                                            Header="Δ" />
+                                        <DataGridTextColumn
+                                            Width="66"
+                                            Binding="{Binding Yield, Mode=OneWay, Converter={StaticResource OfzIndexContextValueConverter}, ConverterParameter=Yield}"
+                                            Header="Yield" />
+                                        <DataGridTextColumn
+                                            Width="66"
+                                            Binding="{Binding Duration, Mode=OneWay, Converter={StaticResource OfzIndexContextValueConverter}, ConverterParameter=Duration}"
+                                            Header="Dur." />
+                                        <DataGridTextColumn
+                                            Width="68"
+                                            Binding="{Binding SourceKind, Mode=OneWay, Converter={StaticResource OfzIndexContextValueConverter}, ConverterParameter=Source}"
+                                            Header="Source" />
+                                    </DataGrid.Columns>
+                                </DataGrid>
+                                <ItemsControl
+                                    Grid.Row="5"
+                                    Margin="0,3,0,0"
+                                    ItemsSource="{Binding SelectedIndexLimitations}"
+                                    Visibility="{Binding HasSelectedIndexLimitations, Converter={StaticResource BoolToVis}}">
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate>
-                                            <Border
-                                                Margin="0,0,0,4"
-                                                Padding="0,0,0,4"
-                                                BorderBrush="#E0E0E0"
-                                                BorderThickness="0,0,0,1">
-                                                <StackPanel>
-                                                    <TextBlock FontWeight="SemiBold">
-                                                        <Run Text="{Binding CouponTypeMarker}" />
-                                                        <Run Text=": " />
-                                                        <Run Text="{Binding TotalValue, StringFormat={}{0:N0}}" />
-                                                        <Run Text=" " />
-                                                        <Run Text="{Binding TotalValueUnitMarker, Mode=OneWay}" />
-                                                    </TextBlock>
-                                                    <TextBlock
-                                                        FontSize="10"
-                                                        Foreground="DimGray"
-                                                        TextWrapping="Wrap">
-                                                        <Run Text="активных " />
-                                                        <Run Text="{Binding ActiveIssueCount}" />
-                                                        <Run Text=", weak " />
-                                                        <Run Text="{Binding WeakLiquidityCount}" />
-                                                        <Run Text=", missing quotes " />
-                                                        <Run Text="{Binding MissingQuotesCount}" />
-                                                    </TextBlock>
-                                                </StackPanel>
-                                            </Border>
+                                            <TextBlock
+                                                FontSize="10"
+                                                Foreground="DimGray"
+                                                Text="{Binding Text}"
+                                                TextWrapping="Wrap" />
                                         </DataTemplate>
                                     </ItemsControl.ItemTemplate>
                                 </ItemsControl>
-                            </ScrollViewer>
+                            </Grid>
+                        </TabItem>
+
+                        <TabItem Header="Сегменты">
+                            <Grid Margin="0,4,0,0">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="112" />
+                                    <RowDefinition Height="*" MinHeight="80" />
+                                </Grid.RowDefinitions>
+                                <DataGrid
+                                    Grid.Row="0"
+                                    AutoGenerateColumns="False"
+                                    CanUserAddRows="False"
+                                    HeadersVisibility="Column"
+                                    IsReadOnly="True"
+                                    ItemsSource="{Binding IndexSegments}"
+                                    ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                                    ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                    Visibility="{Binding HasIndexSegments, Converter={StaticResource BoolToVis}}">
+                                    <DataGrid.Columns>
+                                        <DataGridTextColumn
+                                            Width="62"
+                                            Binding="{Binding Bucket, Mode=OneWay, Converter={StaticResource OfzIndexContextValueConverter}, ConverterParameter=Bucket}"
+                                            Header="Bucket" />
+                                        <DataGridTextColumn
+                                            Width="82"
+                                            Binding="{Binding PriceSeriesSecId, Mode=OneWay, TargetNullValue=n/a}"
+                                            Header="Price" />
+                                        <DataGridTextColumn
+                                            Width="82"
+                                            Binding="{Binding TotalReturnSeriesSecId, Mode=OneWay, TargetNullValue=n/a}"
+                                            Header="TR" />
+                                        <DataGridTextColumn
+                                            Width="70"
+                                            Binding="{Binding PeriodChangePercent, Mode=OneWay, Converter={StaticResource OfzIndexContextValueConverter}, ConverterParameter=ChangePercent}"
+                                            Header="Период" />
+                                        <DataGridTextColumn
+                                            Width="62"
+                                            Binding="{Binding LatestYield, Mode=OneWay, Converter={StaticResource OfzIndexContextValueConverter}, ConverterParameter=Yield}"
+                                            Header="Yield" />
+                                        <DataGridTextColumn
+                                            Width="62"
+                                            Binding="{Binding LatestDuration, Mode=OneWay, Converter={StaticResource OfzIndexContextValueConverter}, ConverterParameter=Duration}"
+                                            Header="Dur." />
+                                    </DataGrid.Columns>
+                                </DataGrid>
+                                <ScrollViewer
+                                    Grid.Row="1"
+                                    Margin="0,4,0,0"
+                                    HorizontalScrollBarVisibility="Disabled"
+                                    VerticalScrollBarVisibility="Auto">
+                                    <ItemsControl ItemsSource="{Binding SegmentSummaries}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <Border
+                                                    Margin="0,0,0,4"
+                                                    Padding="0,0,0,4"
+                                                    BorderBrush="#E0E0E0"
+                                                    BorderThickness="0,0,0,1">
+                                                    <StackPanel>
+                                                        <TextBlock FontWeight="SemiBold">
+                                                            <Run Text="{Binding CouponTypeMarker}" />
+                                                            <Run Text=": " />
+                                                            <Run Text="{Binding TotalValue, StringFormat={}{0:N0}}" />
+                                                            <Run Text=" " />
+                                                            <Run Text="{Binding TotalValueUnitMarker, Mode=OneWay}" />
+                                                        </TextBlock>
+                                                        <TextBlock
+                                                            FontSize="10"
+                                                            Foreground="DimGray"
+                                                            TextWrapping="Wrap">
+                                                            <Run Text="активных " />
+                                                            <Run Text="{Binding ActiveIssueCount}" />
+                                                            <Run Text=", weak " />
+                                                            <Run Text="{Binding WeakLiquidityCount}" />
+                                                            <Run Text=", missing quotes " />
+                                                            <Run Text="{Binding MissingQuotesCount}" />
+                                                        </TextBlock>
+                                                    </StackPanel>
+                                                </Border>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </ScrollViewer>
+                            </Grid>
                         </TabItem>
 
                         <TabItem Header="Спец">

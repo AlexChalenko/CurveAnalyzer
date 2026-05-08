@@ -119,6 +119,85 @@ public sealed class OfzActivityRepositoryTests
             });
     }
 
+    [Fact]
+    public async Task SaveMarketIndexPointsAsync_UpsertsAndReturnsDateRange()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        using var factory = new TestMoexContextFactory();
+        var repository = new OfzActivityRepository(factory);
+        var firstDate = new DateTime(2026, 05, 07);
+        var secondDate = firstDate.AddDays(1);
+
+        await repository.SaveMarketIndexPointsAsync(
+            [
+                IndexPoint("RGBI", firstDate, close: 100, loadedAt: firstDate),
+                IndexPoint("RGBI", secondDate, close: 101, loadedAt: secondDate)
+            ],
+            cancellationToken);
+        await repository.SaveMarketIndexPointsAsync(
+            [IndexPoint("RGBI", firstDate, close: 100.5, loadedAt: secondDate)],
+            cancellationToken);
+
+        var points = await repository.GetMarketIndexPointsAsync(firstDate, secondDate, cancellationToken);
+
+        Assert.Collection(
+            points,
+            first =>
+            {
+                Assert.Equal(firstDate, first.TradeDate);
+                Assert.Equal(100.5, first.Close);
+            },
+            second =>
+            {
+                Assert.Equal(secondDate, second.TradeDate);
+                Assert.Equal(101, second.Close);
+            });
+    }
+
+    [Fact]
+    public async Task SaveMarketIndexPointsAsync_KeepsHistoryAndSnapshotCacheEntries()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        using var factory = new TestMoexContextFactory();
+        var repository = new OfzActivityRepository(factory);
+        var date = new DateTime(2026, 05, 08);
+
+        await repository.SaveMarketIndexPointsAsync(
+            [
+                IndexPoint("RGBI", date, close: 100, sourceKind: OfzMarketIndexSourceKind.History),
+                IndexPoint("RGBI", date, close: 100.2, sourceKind: OfzMarketIndexSourceKind.Snapshot, isProvisional: true)
+            ],
+            cancellationToken);
+
+        var restartedRepository = new OfzActivityRepository(factory);
+        var points = await restartedRepository.GetMarketIndexPointsAsync(date, date, cancellationToken);
+
+        Assert.Equal(2, points.Count);
+        Assert.Contains(points, point => point.SourceKind == OfzMarketIndexSourceKind.History && point.Close == 100);
+        Assert.Contains(points, point => point.SourceKind == OfzMarketIndexSourceKind.Snapshot && point.IsProvisional);
+    }
+
+    [Fact]
+    public async Task SaveMarketIndexPointsAsync_DeduplicatesAfterSecIdNormalization()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        using var factory = new TestMoexContextFactory();
+        var repository = new OfzActivityRepository(factory);
+        var date = new DateTime(2026, 05, 08);
+
+        await repository.SaveMarketIndexPointsAsync(
+            [
+                IndexPoint("RGBI", date, close: 100, loadedAt: date),
+                IndexPoint(" RGBI ", date, close: 100.4, loadedAt: date.AddMinutes(1))
+            ],
+            cancellationToken);
+
+        var point = Assert.Single(await repository.GetMarketIndexPointsAsync(date, date, cancellationToken));
+
+        Assert.Equal("RGBI", point.SecId);
+        Assert.Equal(100.4, point.Close);
+    }
+
     private static OfzActivityDailyData DailyData(
         DateTime date,
         OfzIssue issue,
@@ -150,6 +229,26 @@ public sealed class OfzActivityRepositoryTests
                 RowsLoaded = 1,
                 LoadedAt = DateTime.UtcNow
             });
+    }
+
+    private static OfzMarketIndexPoint IndexPoint(
+        string secId,
+        DateTime tradeDate,
+        double close,
+        DateTime? loadedAt = null,
+        OfzMarketIndexSourceKind sourceKind = OfzMarketIndexSourceKind.History,
+        bool isProvisional = false)
+    {
+        return new OfzMarketIndexPoint
+        {
+            SecId = secId,
+            ShortName = secId,
+            TradeDate = tradeDate.Date,
+            Close = close,
+            SourceKind = sourceKind,
+            LoadedAt = loadedAt ?? DateTime.UtcNow,
+            IsProvisional = isProvisional
+        };
     }
 
     private sealed class TestMoexContextFactory : IDbContextFactory<MoexContext>, IDisposable

@@ -258,6 +258,63 @@ public sealed class OfzActivityRepository(IDbContextFactory<MoexContext> context
         await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
     }
 
+    public async Task<IReadOnlyList<OfzMarketIndexPoint>> GetMarketIndexPointsAsync(
+        DateTime startDate,
+        DateTime endDate,
+        CancellationToken cancellationToken = default)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
+
+        return await context.OfzMarketIndexPoints
+            .AsNoTracking()
+            .Where(point => point.TradeDate >= startDate.Date && point.TradeDate <= endDate.Date)
+            .OrderBy(point => point.SecId)
+            .ThenBy(point => point.TradeDate)
+            .ThenBy(point => point.SourceKind)
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task SaveMarketIndexPointsAsync(
+        IEnumerable<OfzMarketIndexPoint> points,
+        CancellationToken cancellationToken = default)
+    {
+        var distinctPoints = points
+            .Where(point => !string.IsNullOrWhiteSpace(point.SecId))
+            .Select(NormalizeMarketIndexPoint)
+            .GroupBy(point => new { point.SecId, point.TradeDate, point.SourceKind })
+            .Select(group => group.OrderByDescending(point => point.LoadedAt).First())
+            .ToList();
+
+        if (distinctPoints.Count == 0)
+        {
+            return;
+        }
+
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
+
+        foreach (var point in distinctPoints)
+        {
+            var existing = await context.OfzMarketIndexPoints
+                .FirstOrDefaultAsync(existingPoint =>
+                    existingPoint.SecId == point.SecId &&
+                    existingPoint.TradeDate == point.TradeDate &&
+                    existingPoint.SourceKind == point.SourceKind,
+                    cancellationToken)
+                .ConfigureAwait(false);
+
+            if (existing is null)
+            {
+                await context.OfzMarketIndexPoints.AddAsync(point, cancellationToken).ConfigureAwait(false);
+            }
+            else
+            {
+                context.Entry(existing).CurrentValues.SetValues(point);
+            }
+        }
+
+        await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+    }
+
     private async Task SaveIssuesAsync(
         MoexContext context,
         IEnumerable<OfzIssue> issues,
@@ -316,6 +373,31 @@ public sealed class OfzActivityRepository(IDbContextFactory<MoexContext> context
                 await context.OfzIssues.AddAsync(issue, cancellationToken).ConfigureAwait(false);
             }
         }
+    }
+
+    private static OfzMarketIndexPoint NormalizeMarketIndexPoint(OfzMarketIndexPoint point)
+    {
+        return new OfzMarketIndexPoint
+        {
+            SecId = point.SecId.Trim(),
+            TradeDate = point.TradeDate.Date,
+            ShortName = MergeText(null, point.ShortName),
+            Name = MergeText(null, point.Name),
+            Close = point.Close,
+            Open = point.Open,
+            High = point.High,
+            Low = point.Low,
+            Value = point.Value,
+            Yield = point.Yield,
+            Duration = point.Duration,
+            CurrencyId = MergeText(null, point.CurrencyId),
+            SourceKind = point.SourceKind,
+            ObservedAt = point.ObservedAt,
+            TradeSessionDate = point.TradeSessionDate?.Date,
+            RecalcDate = point.RecalcDate?.Date,
+            LoadedAt = point.LoadedAt == default ? DateTime.UtcNow : point.LoadedAt,
+            IsProvisional = point.IsProvisional
+        };
     }
 
     private static void EnsureClassificationSource(OfzIssue issue)

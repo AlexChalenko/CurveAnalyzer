@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Controls;
+using CurveAnalyzer.Presentation.WPF.ViewModels;
 
 namespace CurveAnalyzer.Presentation.WPF.Views;
 
@@ -29,6 +30,11 @@ public partial class OfzActivityControl : UserControl
 
     private void SetActivityContent(ActivitySection section)
     {
+        if (section != ActivitySection.Overview && DataContext is OfzActivityViewModel viewModel)
+        {
+            viewModel.ClearOverviewTransientSelection();
+        }
+
         ActivityContentHost.Content = section switch
         {
             ActivitySection.Signals => new OfzActivitySignalsControl(),

@@ -12,6 +12,7 @@ namespace CurveAnalyzer.Presentation.WPF.ViewModels;
 public partial class OfzActivityViewModel(OfzActivityService activityService) : ObservableObject, IChartViewModel
 {
     private const string BreadthDayPlaceholder = "Выберите строку во вкладке \"Ширина\" или вывод по ширине рынка.";
+    private const string IndexContextDayPlaceholder = "Выберите строку во вкладке \"Индекс\" или индексный вывод.";
 
     private bool _initialized;
     private int _detailSelectionVersion;
@@ -83,6 +84,21 @@ public partial class OfzActivityViewModel(OfzActivityService activityService) : 
     public partial ObservableCollection<OfzDataLimitation> SummaryLimitations { get; set; } = [];
 
     [ObservableProperty]
+    public partial ObservableCollection<OfzIndexContextDay> IndexContextDays { get; set; } = [];
+
+    [ObservableProperty]
+    public partial ObservableCollection<OfzIndexSegmentContext> IndexSegments { get; set; } = [];
+
+    [ObservableProperty]
+    public partial OfzIndexContextDay? SelectedIndexContextDay { get; set; }
+
+    [ObservableProperty]
+    public partial ObservableCollection<OfzIndexContextPoint> SelectedIndexContextPoints { get; set; } = [];
+
+    [ObservableProperty]
+    public partial ObservableCollection<OfzDataLimitation> SelectedIndexLimitations { get; set; } = [];
+
+    [ObservableProperty]
     public partial ObservableCollection<MarketBreadthContributor> SelectedBreadthContributors { get; set; } = [];
 
     [ObservableProperty]
@@ -99,6 +115,12 @@ public partial class OfzActivityViewModel(OfzActivityService activityService) : 
 
     [ObservableProperty]
     public partial string SelectedBreadthDaySummary { get; set; } = BreadthDayPlaceholder;
+
+    [ObservableProperty]
+    public partial string IndexContextStatusMessage { get; set; } = "Индексный контекст не рассчитан";
+
+    [ObservableProperty]
+    public partial string SelectedIndexContextDaySummary { get; set; } = IndexContextDayPlaceholder;
 
     [ObservableProperty]
     public partial ObservableCollection<OfzActivityIndexPoint> ActivityIndex { get; set; } = [];
@@ -156,6 +178,18 @@ public partial class OfzActivityViewModel(OfzActivityService activityService) : 
 
     [ObservableProperty]
     public partial bool HasSummaryLimitations { get; set; }
+
+    [ObservableProperty]
+    public partial bool HasIndexContext { get; set; }
+
+    [ObservableProperty]
+    public partial bool HasIndexSegments { get; set; }
+
+    [ObservableProperty]
+    public partial bool HasSelectedIndexContextPoints { get; set; }
+
+    [ObservableProperty]
+    public partial bool HasSelectedIndexLimitations { get; set; }
 
     [ObservableProperty]
     public partial bool HasSelectedBreadthContributors { get; set; }
@@ -229,6 +263,12 @@ public partial class OfzActivityViewModel(OfzActivityService activityService) : 
             updateRows: true);
     }
 
+    public void ClearOverviewTransientSelection()
+    {
+        ClearSelectedBreadthDay();
+        ClearSelectedIndexContextDay();
+    }
+
     [RelayCommand(CanExecute = nameof(CanCopySummaryJson))]
     private void CopySummaryJson()
     {
@@ -277,6 +317,7 @@ public partial class OfzActivityViewModel(OfzActivityService activityService) : 
     partial void OnSelectedSummaryFindingChanged(OfzSummaryFinding? value)
     {
         ClearSelectedBreadthDay();
+        ClearSelectedIndexContextDay();
         SelectedSummaryEvidenceText = FormatSummaryEvidence(value);
 
         if (value is null)
@@ -294,6 +335,12 @@ public partial class OfzActivityViewModel(OfzActivityService activityService) : 
             value.DrillDown.CouponType is OfzCouponType couponType)
         {
             FocusSegment(couponType, value);
+        }
+
+        if (value.DrillDown?.Target == OfzSummaryDrillDownTarget.IndexContextDay &&
+            value.DrillDown.TradeDate is DateTime indexDate)
+        {
+            FocusIndexContextDay(indexDate, value);
         }
 
         var secId = value.DrillDown?.SecId ?? value.Evidence.SecId;
@@ -338,6 +385,16 @@ public partial class OfzActivityViewModel(OfzActivityService activityService) : 
         ApplyCurrentFilter();
     }
 
+    partial void OnSelectedIndexContextDayChanged(OfzIndexContextDay? value)
+    {
+        ClearSelectedIndexContextDayDetails();
+
+        if (value is not null)
+        {
+            ApplySelectedIndexContextDay(value);
+        }
+    }
+
     private void ClearResults()
     {
         _currentResult = null;
@@ -352,7 +409,10 @@ public partial class OfzActivityViewModel(OfzActivityService activityService) : 
         SummaryFindings.Clear();
         SegmentSummaries.Clear();
         SummaryLimitations.Clear();
+        IndexContextDays.Clear();
+        IndexSegments.Clear();
         ClearSelectedBreadthDay();
+        ClearSelectedIndexContextDay();
         MarketSummary = null;
         StructuredSummaryJson = string.Empty;
         SelectedSummaryFinding = null;
@@ -372,14 +432,19 @@ public partial class OfzActivityViewModel(OfzActivityService activityService) : 
         HasMarketSummary = false;
         HasSegmentSummaries = false;
         HasSummaryLimitations = false;
+        HasIndexContext = false;
+        HasIndexSegments = false;
         HasSelectedBreadthContributors = false;
         HasSelectedBreadthLimitations = false;
+        HasSelectedIndexContextPoints = false;
+        HasSelectedIndexLimitations = false;
         HasStructuredSummaryJson = false;
         CopySummaryJsonCommand.NotifyCanExecuteChanged();
         HasActivityIndex = false;
         HasDurationYieldScatter = false;
         ActivityIndexStatusMessage = "Индекс не рассчитан";
         DurationYieldScatterStatusMessage = "Scatter не рассчитан";
+        IndexContextStatusMessage = "Индексный контекст не рассчитан";
         ClearIssueDetail();
     }
 
@@ -421,7 +486,8 @@ public partial class OfzActivityViewModel(OfzActivityService activityService) : 
             Trades = trades,
             ActivityMetrics = metrics,
             LiquidityMetrics = liquidityMetrics,
-            CbrKeyRates = _currentResult.CbrKeyRates
+            CbrKeyRates = _currentResult.CbrKeyRates,
+            IndexPoints = _currentResult.IndexPoints
         });
         var insights = OfzActivityAnalyzer.BuildActivityInsights(insightMetrics, issues)
             .Concat(OfzActivityAnalyzer.BuildLiquidityInsights(insightLiquidityMetrics, issues))
@@ -455,7 +521,7 @@ public partial class OfzActivityViewModel(OfzActivityService activityService) : 
         var insightPeriodLabel = SelectedInsightPeriodFilter?.DisplayName ?? "Весь диапазон";
         var signalScopeLabel = SelectedSignalScopeFilter?.DisplayName ?? "Все дни";
         StatusMessage = HasAnomalies || HasHeatmap || HasMarketSummary || HasActivityIndex || HasDurationYieldScatter
-            ? $"Найдено всплесков: {TopAnomalies.Count}; weak liquidity: {WeakLiquidityItems.Count}; heatmap: {HeatmapRows.Count} выпусков; выводов: {SummaryFindings.Count}; дней breadth в выводах: {marketSummary.BreadthDays.Count}; index: {ActivityIndex.Count}; scatter: {DurationYieldScatterPoints.Count}; тип: {filterLabel}; сигналы: {signalScopeLabel}; период выводов: {insightPeriodLabel}"
+            ? $"Найдено всплесков: {TopAnomalies.Count}; weak liquidity: {WeakLiquidityItems.Count}; heatmap: {HeatmapRows.Count} выпусков; выводов: {SummaryFindings.Count}; дней breadth в выводах: {marketSummary.BreadthDays.Count}; index context: {IndexContextDays.Count}; index: {ActivityIndex.Count}; scatter: {DurationYieldScatterPoints.Count}; тип: {filterLabel}; сигналы: {signalScopeLabel}; период выводов: {insightPeriodLabel}"
             : $"Нет записей с достаточной baseline; тип: {filterLabel}; сигналы: {signalScopeLabel}; период выводов: {insightPeriodLabel}";
     }
 
@@ -728,12 +794,28 @@ public partial class OfzActivityViewModel(OfzActivityService activityService) : 
             SummaryLimitations.Add(limitation);
         }
 
+        foreach (var day in summary.IndexContextDays.OrderByDescending(day => day.TradeDate))
+        {
+            IndexContextDays.Add(day);
+        }
+
+        foreach (var segment in summary.IndexSegments.OrderBy(segment => segment.Bucket))
+        {
+            IndexSegments.Add(segment);
+        }
+
         StructuredSummaryJson = JsonSerializer.Serialize(summary, SummaryJsonOptions);
         HasStructuredSummaryJson = !string.IsNullOrWhiteSpace(StructuredSummaryJson);
-        HasMarketSummary = SummaryFindings.Count > 0 || summary.Limitations.Count > 0;
+        HasMarketSummary = SummaryFindings.Count > 0 || summary.Limitations.Count > 0 || IndexContextDays.Count > 0;
         HasSegmentSummaries = SegmentSummaries.Count > 0;
         HasSummaryLimitations = SummaryLimitations.Count > 0;
+        HasIndexContext = IndexContextDays.Any(day => day.Points.Count > 0);
+        HasIndexSegments = IndexSegments.Count > 0;
+        IndexContextStatusMessage = HasIndexContext
+            ? $"{IndexContextDays.Count} дней; точек {summary.SourceCounts.IndexPoints}; source history/snapshot сохраняется в evidence"
+            : "Индексный контекст отсутствует: значения не заменяются нулями";
         SelectedSummaryFinding = SummaryFindings.FirstOrDefault();
+        SelectedIndexContextDay = IndexContextDays.FirstOrDefault(day => day.Points.Count > 0) ?? IndexContextDays.FirstOrDefault();
         CopySummaryJsonCommand.NotifyCanExecuteChanged();
     }
 
@@ -774,6 +856,18 @@ public partial class OfzActivityViewModel(OfzActivityService activityService) : 
         ApplySelectedBreadthDay(day);
     }
 
+    private void FocusIndexContextDay(DateTime tradeDate, OfzSummaryFinding finding)
+    {
+        var day = IndexContextDays.FirstOrDefault(item => item.TradeDate.Date == tradeDate.Date);
+        if (day is null)
+        {
+            SelectedIndexContextDaySummary = $"{tradeDate:yyyy-MM-dd}: {finding.Text}";
+            return;
+        }
+
+        SelectedIndexContextDay = day;
+    }
+
     private void ApplySelectedBreadthDay(MarketBreadthDay day)
     {
         SelectedBreadthDaySummary =
@@ -812,6 +906,46 @@ public partial class OfzActivityViewModel(OfzActivityService activityService) : 
         SelectedBreadthDaySummary = BreadthDayPlaceholder;
         HasSelectedBreadthContributors = false;
         HasSelectedBreadthLimitations = false;
+    }
+
+    private void ApplySelectedIndexContextDay(OfzIndexContextDay day)
+    {
+        var price = day.PriceIndexPoint;
+        var totalReturn = day.TotalReturnIndexPoint;
+        SelectedIndexContextDaySummary =
+            $"{day.TradeDate:yyyy-MM-dd}: RGBI {FormatIndexPoint(price)}, RGBITR {FormatIndexPoint(totalReturn)}, направление {day.MarketDirection}";
+
+        foreach (var point in day.Points
+            .OrderBy(point => point.Role)
+            .ThenBy(point => point.DurationBucket)
+            .ThenBy(point => point.ReturnKind)
+            .ThenBy(point => point.SecId, StringComparer.Ordinal))
+        {
+            SelectedIndexContextPoints.Add(point);
+        }
+
+        foreach (var limitation in day.Limitations)
+        {
+            SelectedIndexLimitations.Add(limitation);
+        }
+
+        HasSelectedIndexContextPoints = SelectedIndexContextPoints.Count > 0;
+        HasSelectedIndexLimitations = SelectedIndexLimitations.Count > 0;
+    }
+
+    private void ClearSelectedIndexContextDay()
+    {
+        SelectedIndexContextDay = null;
+        ClearSelectedIndexContextDayDetails();
+    }
+
+    private void ClearSelectedIndexContextDayDetails()
+    {
+        SelectedIndexContextPoints.Clear();
+        SelectedIndexLimitations.Clear();
+        SelectedIndexContextDaySummary = IndexContextDayPlaceholder;
+        HasSelectedIndexContextPoints = false;
+        HasSelectedIndexLimitations = false;
     }
 
     private void ApplyActivityIndex(IReadOnlyList<OfzActivityIndexPoint> points)
@@ -1008,6 +1142,32 @@ public partial class OfzActivityViewModel(OfzActivityService activityService) : 
         AddNumber(parts, "spread", evidence.Spread, "N3");
         AddNumber(parts, "liquidity", evidence.LiquidityScore, "N2");
 
+        if (!string.IsNullOrWhiteSpace(evidence.IndexSecId))
+        {
+            parts.Add($"index {evidence.IndexSecId}");
+        }
+
+        AddNumber(parts, "index close", evidence.IndexClose, "N2");
+        AddPercent(parts, "index Δ", evidence.IndexDailyChangePercent);
+        AddNumber(parts, "index yield", evidence.IndexYield, "N2");
+        AddNumber(parts, "index yield Δ", evidence.IndexYieldChange, "N2");
+        AddNumber(parts, "index duration", evidence.IndexDuration, "N2");
+
+        if (evidence.IndexPreviousTradeDate.HasValue)
+        {
+            parts.Add($"index prev {evidence.IndexPreviousTradeDate:yyyy-MM-dd}");
+        }
+
+        if (evidence.IndexDirection.HasValue)
+        {
+            parts.Add($"index direction {evidence.IndexDirection.Value}");
+        }
+
+        if (evidence.IndexMoveIsMeaningful)
+        {
+            parts.Add("index move meaningful");
+        }
+
         if (evidence.LiquidityBucket.HasValue)
         {
             parts.Add($"bucket {evidence.LiquidityBucket.Value}");
@@ -1063,6 +1223,25 @@ public partial class OfzActivityViewModel(OfzActivityService activityService) : 
     private static string FormatPercent(double? value)
     {
         return value.HasValue ? value.Value.ToString("P0") : "n/a";
+    }
+
+    private static string FormatSignedPercent(double? value)
+    {
+        return value.HasValue ? value.Value.ToString("+0.00%;-0.00%;0.00%") : "n/a";
+    }
+
+    private static string FormatIndexPoint(OfzIndexContextPoint? point)
+    {
+        return point is null
+            ? "n/a"
+            : $"{FormatNullable(point.Close, "N2")} ({FormatSignedPercent(point.DailyChangePercent)})";
+    }
+
+    private static string FormatNullable(double? value, string format)
+    {
+        return value.HasValue && double.IsFinite(value.Value)
+            ? value.Value.ToString(format)
+            : "n/a";
     }
 
     private static IEnumerable<OfzCouponTypeFilter> CreateCouponTypeFilters()

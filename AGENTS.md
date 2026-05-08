@@ -2,7 +2,7 @@
 
 <!-- SPECKIT START -->
 Для текущей feature сначала читай активный план:
-`specs/008-ofz-pk-in-analytics/plan.md`.
+`specs/009-ofz-index-context/plan.md`.
 <!-- SPECKIT END -->
 
 ## Язык документации

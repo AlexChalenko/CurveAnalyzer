@@ -58,4 +58,13 @@ public interface IOfzActivityRepository
     Task SaveCbrKeyRatesAsync(
         IEnumerable<CbrKeyRate> keyRates,
         CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<OfzMarketIndexPoint>> GetMarketIndexPointsAsync(
+        DateTime startDate,
+        DateTime endDate,
+        CancellationToken cancellationToken = default);
+
+    Task SaveMarketIndexPointsAsync(
+        IEnumerable<OfzMarketIndexPoint> points,
+        CancellationToken cancellationToken = default);
 }

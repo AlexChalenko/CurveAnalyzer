@@ -232,7 +232,7 @@ public class OfzMarketSummaryBuilderTests
         using var document = JsonDocument.Parse(json);
         var root = document.RootElement;
 
-        Assert.Equal("1.2", root.GetProperty("schemaVersion").GetString());
+        Assert.Equal("1.3", root.GetProperty("schemaVersion").GetString());
         AssertJsonDateOnly(root.GetProperty("startDate"));
         AssertJsonDateOnly(root.GetProperty("endDate"));
         AssertJsonDateOnly(root.GetProperty("insightStartDate"));
@@ -241,6 +241,8 @@ public class OfzMarketSummaryBuilderTests
         Assert.True(root.TryGetProperty("findings", out _));
         Assert.True(root.TryGetProperty("segments", out _));
         Assert.True(root.TryGetProperty("breadthDays", out _));
+        Assert.True(root.TryGetProperty("indexContextDays", out _));
+        Assert.True(root.TryGetProperty("indexSegments", out _));
         Assert.True(root.TryGetProperty("specialMetrics", out _));
         Assert.True(root.TryGetProperty("limitations", out _));
         Assert.True(root.TryGetProperty("sourceCounts", out _));
@@ -944,6 +946,116 @@ public class OfzMarketSummaryBuilderTests
         Assert.Equal(36_500, summary.SourceCounts.LiquidityMetrics);
     }
 
+    [Fact]
+    public void BuildMarketSummary_AddsActivityWithIndexMoveFinding()
+    {
+        var summary = BuildMarketSummary(
+            MinimalIndexInput(closeOnActiveDate: 100.5, previousClose: 100),
+            new OfzMarketSummaryOptions { MaxFindings = 10 });
+        var finding = Assert.Single(summary.Findings, item => item.Kind == OfzSummaryFindingKind.ActivityWithIndexMove);
+
+        Assert.Equal("RGBI", finding.Evidence.IndexSecId);
+        Assert.True(finding.Evidence.IndexMoveIsMeaningful);
+        Assert.Equal(OfzSummaryDrillDownTarget.IndexContextDay, finding.DrillDown?.Target);
+        Assert.Equal(EndDate, finding.DrillDown?.TradeDate);
+    }
+
+    [Fact]
+    public void BuildMarketSummary_AddsActivityWithoutIndexMoveFindingForLocalActivity()
+    {
+        var summary = BuildMarketSummary(
+            MinimalIndexInput(closeOnActiveDate: 100.05, previousClose: 100),
+            new OfzMarketSummaryOptions { MaxFindings = 10 });
+        var finding = Assert.Single(summary.Findings, item => item.Kind == OfzSummaryFindingKind.ActivityWithoutIndexMove);
+
+        Assert.Equal("RGBI", finding.Evidence.IndexSecId);
+        Assert.False(finding.Evidence.IndexMoveIsMeaningful);
+        Assert.InRange(finding.Evidence.IndexDailyChangePercent!.Value, 0.0004, 0.0006);
+    }
+
+    [Fact]
+    public void BuildMarketSummary_IndexBackedFindingsAvoidRecommendationLanguage()
+    {
+        var summary = BuildMarketSummary(
+            MinimalIndexInput(closeOnActiveDate: 100.5, previousClose: 100),
+            new OfzMarketSummaryOptions { MaxFindings = 10 });
+        var indexFindings = summary.Findings
+            .Where(finding => finding.Scope == OfzSummaryScope.IndexContext)
+            .ToArray();
+
+        Assert.NotEmpty(indexFindings);
+        Assert.All(indexFindings, finding =>
+        {
+            Assert.False(ContainsRecommendationLanguage(finding.Title), finding.Title);
+            Assert.False(ContainsRecommendationLanguage(finding.Text), finding.Text);
+        });
+    }
+
+    [Fact]
+    public void BuildMarketSummary_FiltersIndexFindingsByInsightPeriod()
+    {
+        var seed = MinimalIndexInput(closeOnActiveDate: 100.5, previousClose: 100);
+        var input = new OfzMarketSummaryInput
+        {
+            StartDate = seed.StartDate,
+            EndDate = seed.EndDate,
+            InsightStartDate = EndDate,
+            InsightEndDate = EndDate,
+            Issues = seed.Issues,
+            Trades = seed.Trades,
+            ActivityMetrics = seed.ActivityMetrics,
+            LiquidityMetrics = seed.LiquidityMetrics,
+            IndexPoints = seed.IndexPoints
+        };
+
+        var summary = BuildMarketSummary(input, new OfzMarketSummaryOptions { MaxFindings = 10 });
+
+        Assert.All(summary.IndexContextDays, day => Assert.Equal(EndDate, day.TradeDate));
+        Assert.All(
+            summary.Findings.Where(finding => finding.Scope == OfzSummaryScope.IndexContext),
+            finding => Assert.Equal(EndDate, finding.DrillDown?.TradeDate));
+    }
+
+    [Fact]
+    public void BuildMarketSummary_SerializesIndexContextContractFields()
+    {
+        var summary = BuildMarketSummary(
+            MinimalIndexInput(closeOnActiveDate: 100.5, previousClose: 100),
+            new OfzMarketSummaryOptions { MaxFindings = 10 });
+
+        using var document = JsonDocument.Parse(JsonSerializer.Serialize(summary, JsonOptions));
+        var root = document.RootElement;
+
+        Assert.Equal("1.3", root.GetProperty("schemaVersion").GetString());
+        Assert.True(root.TryGetProperty("indexContextDays", out var days));
+        Assert.True(days.GetArrayLength() > 0);
+        Assert.True(root.TryGetProperty("indexSegments", out _));
+        AssertJsonDateOnly(days[0].GetProperty("tradeDate"));
+    }
+
+    [Fact]
+    public void BuildMarketSummary_CouponTypeFilterDoesNotRecalculateMarketIndexContext()
+    {
+        var seed = SeedInput();
+        var summary = BuildMarketSummary(new OfzMarketSummaryInput
+        {
+            StartDate = StartDate,
+            EndDate = EndDate,
+            CouponTypeFilter = OfzCouponType.Fixed,
+            Issues = seed.Issues,
+            Trades = seed.Trades,
+            ActivityMetrics = seed.ActivityMetrics,
+            LiquidityMetrics = seed.LiquidityMetrics,
+            IndexPoints = WholeMarketIndexPoints(closeOnActiveDate: 100.5, previousClose: 100)
+        });
+
+        var day = Assert.Single(summary.IndexContextDays, item => item.TradeDate == EndDate);
+        Assert.NotNull(day.PriceIndexPoint);
+        Assert.Equal("RGBI", day.PriceIndexPoint.SecId);
+        Assert.Equal(0.005, day.PriceIndexPoint.DailyChangePercent);
+        Assert.Equal(4, summary.SourceCounts.IndexPoints);
+    }
+
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
     {
         WriteIndented = false,
@@ -978,6 +1090,62 @@ public class OfzMarketSummaryBuilderTests
             .YieldDirection;
     }
 
+    private static OfzMarketSummaryInput MinimalIndexInput(double closeOnActiveDate, double previousClose)
+    {
+        var issue = Issue("SU26238RMFS4", "ОФЗ 26238", "Фикс с известным купоном");
+
+        return new OfzMarketSummaryInput
+        {
+            StartDate = StartDate,
+            EndDate = EndDate,
+            Issues = [issue],
+            Trades = [Trade(issue.SecId, EndDate, 2_000_000_000, 1_100, 12.4, 800)],
+            ActivityMetrics = [ActivityMetric(issue.SecId, EndDate, 8, 2_000_000_000, 1_100, yieldMove: -0.35)],
+            LiquidityMetrics =
+            [
+                LiquidityMetric(
+                    issue.SecId,
+                    EndDate,
+                    spread: 0.12,
+                    OfzSpreadSource.Provided,
+                    OfzLiquidityBucket.Good,
+                    OfzLiquidityMetricStatus.Ready,
+                    value: 2_000_000_000,
+                    numTrades: 1_100)
+            ],
+            IndexPoints = WholeMarketIndexPoints(closeOnActiveDate, previousClose)
+        };
+    }
+
+    private static IReadOnlyList<OfzMarketIndexPoint> WholeMarketIndexPoints(double closeOnActiveDate, double previousClose)
+    {
+        return
+        [
+            IndexPoint("RGBI", EndDate.AddDays(-1), previousClose, yield: 14.1),
+            IndexPoint("RGBI", EndDate, closeOnActiveDate, yield: 14.0),
+            IndexPoint("RGBITR", EndDate.AddDays(-1), 200),
+            IndexPoint("RGBITR", EndDate, 200.6)
+        ];
+    }
+
+    private static OfzMarketIndexPoint IndexPoint(
+        string secId,
+        DateTime tradeDate,
+        double? close,
+        double? yield = null)
+    {
+        return new OfzMarketIndexPoint
+        {
+            SecId = secId,
+            ShortName = secId,
+            TradeDate = tradeDate.Date,
+            Close = close,
+            Yield = yield,
+            SourceKind = OfzMarketIndexSourceKind.History,
+            LoadedAt = DateTime.UtcNow
+        };
+    }
+
     private static OfzMarketSummaryInput NormalizeInput(OfzMarketSummaryInput input)
     {
         if (input.StartDate != default || input.EndDate != default)
@@ -994,7 +1162,9 @@ public class OfzMarketSummaryBuilderTests
             Issues = input.Issues,
             Trades = input.Trades,
             ActivityMetrics = input.ActivityMetrics,
-            LiquidityMetrics = input.LiquidityMetrics
+            LiquidityMetrics = input.LiquidityMetrics,
+            CbrKeyRates = input.CbrKeyRates,
+            IndexPoints = input.IndexPoints
         };
     }
 
@@ -1188,7 +1358,16 @@ public class OfzMarketSummaryBuilderTests
             evidence.ImpliedCbrRate.HasValue ||
             evidence.ImpliedFloatingRateSpread.HasValue ||
             evidence.ImpliedInflation.HasValue ||
-            evidence.SpecialMetricAvailability.HasValue;
+            evidence.SpecialMetricAvailability.HasValue ||
+            !string.IsNullOrWhiteSpace(evidence.IndexSecId) ||
+            evidence.IndexClose.HasValue ||
+            evidence.IndexDailyChange.HasValue ||
+            evidence.IndexDailyChangePercent.HasValue ||
+            evidence.IndexYield.HasValue ||
+            evidence.IndexYieldChange.HasValue ||
+            evidence.IndexDuration.HasValue ||
+            evidence.IndexPreviousTradeDate.HasValue ||
+            evidence.IndexDirection.HasValue;
     }
 
     private static bool ContainsRecommendationLanguage(string text)

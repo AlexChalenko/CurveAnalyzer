@@ -13,6 +13,7 @@ public sealed record OfzActivityLoadResult(
     public IReadOnlyList<OfzLiquidityMetric> LiquidityMetrics { get; init; } = [];
     public IReadOnlyList<OfzLiquidityMetric> SnapshotLiquidityMetrics { get; init; } = [];
     public IReadOnlyList<CbrKeyRate> CbrKeyRates { get; init; } = [];
+    public IReadOnlyList<OfzMarketIndexPoint> IndexPoints { get; init; } = [];
 
     public bool HasProvisionalLiquiditySnapshots =>
         LiquiditySnapshots.Any(snapshot => snapshot.IsProvisional);

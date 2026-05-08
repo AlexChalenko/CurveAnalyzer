@@ -6,12 +6,14 @@ namespace CurveAnalyzer.Application;
 public sealed class OfzActivityService(
     IOfzActivityDataService dataService,
     IOfzActivityRepository repository,
-    ICbrKeyRateDataService cbrKeyRateDataService)
+    ICbrKeyRateDataService cbrKeyRateDataService,
+    IOfzIndexDataService indexDataService)
 {
     private const string BoardId = "TQOB";
     private const int WarmUpTradingDays = 252;
     private const int BaselineCalendarLookbackDays = 60;
     private const int CbrKeyRateCalendarLookbackDays = 370;
+    private const int IndexContextCalendarLookbackDays = 60;
     private const int RefreshableRecentCalendarDays = 7;
 
     public async Task WarmUpRecentHistoryAsync(
@@ -24,6 +26,7 @@ public sealed class OfzActivityService(
         if (dates.Count > 0)
         {
             await EnsureCbrKeyRatesLoadedAsync(dates.First(), dates.Last(), cancellationToken).ConfigureAwait(false);
+            await EnsureMarketIndexPointsLoadedAsync(dates.First(), dates.Last(), cancellationToken).ConfigureAwait(false);
         }
     }
 
@@ -50,6 +53,8 @@ public sealed class OfzActivityService(
             .ConfigureAwait(false);
         var cbrKeyRates = await EnsureCbrKeyRatesLoadedAsync(startDate, endDate, cancellationToken)
             .ConfigureAwait(false);
+        var indexPoints = await EnsureMarketIndexPointsLoadedAsync(startDate, endDate, cancellationToken)
+            .ConfigureAwait(false);
 
         var allTrades = baselineTrades
             .Concat(rangeTrades)
@@ -75,7 +80,8 @@ public sealed class OfzActivityService(
             LiquiditySnapshots = liquiditySnapshots,
             LiquidityMetrics = liquidityMetrics,
             SnapshotLiquidityMetrics = snapshotLiquidityMetrics,
-            CbrKeyRates = cbrKeyRates
+            CbrKeyRates = cbrKeyRates,
+            IndexPoints = indexPoints
         };
     }
 
@@ -320,6 +326,55 @@ public sealed class OfzActivityService(
         }
     }
 
+    private async Task<IReadOnlyList<OfzMarketIndexPoint>> EnsureMarketIndexPointsLoadedAsync(
+        DateTime startDate,
+        DateTime endDate,
+        CancellationToken cancellationToken)
+    {
+        var indexStartDate = startDate.Date.AddDays(-IndexContextCalendarLookbackDays);
+        var indexEndDate = endDate.Date;
+        var cachedPoints = await repository
+            .GetMarketIndexPointsAsync(indexStartDate, indexEndDate, cancellationToken)
+            .ConfigureAwait(false);
+
+        if (!ShouldRefreshMarketIndexPoints(cachedPoints, indexStartDate, indexEndDate))
+        {
+            return cachedPoints;
+        }
+
+        var secIds = OfzIndexContextBuilder.DefaultSeries
+            .Select(series => series.SecId)
+            .ToArray();
+
+        try
+        {
+            var historyPoints = await indexDataService
+                .GetHistoryAsync(secIds, indexStartDate, indexEndDate, cancellationToken)
+                .ConfigureAwait(false);
+            await repository.SaveMarketIndexPointsAsync(historyPoints, cancellationToken).ConfigureAwait(false);
+
+            if (indexEndDate >= DateTime.Today.AddDays(-RefreshableRecentCalendarDays))
+            {
+                var snapshotPoints = await indexDataService
+                    .GetCurrentSnapshotAsync(secIds, cancellationToken)
+                    .ConfigureAwait(false);
+                await repository.SaveMarketIndexPointsAsync(snapshotPoints, cancellationToken).ConfigureAwait(false);
+            }
+
+            return await repository
+                .GetMarketIndexPointsAsync(indexStartDate, indexEndDate, cancellationToken)
+                .ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch
+        {
+            return cachedPoints;
+        }
+    }
+
     private static bool ShouldRefreshCbrKeyRates(
         IReadOnlyList<CbrKeyRate> cachedRates,
         DateTime startDate,
@@ -335,6 +390,38 @@ public sealed class OfzActivityService(
         var latestRequired = GetLastWeekdayOnOrBefore(endDate.Date <= DateTime.Today ? endDate.Date : DateTime.Today);
 
         return earliestLoaded > startDate.AddDays(7) || latestLoaded < latestRequired;
+    }
+
+    private static bool ShouldRefreshMarketIndexPoints(
+        IReadOnlyList<OfzMarketIndexPoint> cachedPoints,
+        DateTime startDate,
+        DateTime endDate)
+    {
+        if (cachedPoints.Count == 0)
+        {
+            return true;
+        }
+
+        var requiredSecIds = OfzIndexContextBuilder.DefaultSeries
+            .Where(series => series.IsRequired)
+            .Select(series => series.SecId)
+            .ToArray();
+        var cachedSecIds = cachedPoints
+            .Select(point => point.SecId)
+            .Distinct(StringComparer.Ordinal)
+            .ToHashSet(StringComparer.Ordinal);
+
+        if (requiredSecIds.Any(secId => !cachedSecIds.Contains(secId)))
+        {
+            return true;
+        }
+
+        var earliestLoaded = cachedPoints.Min(point => point.TradeDate.Date);
+        var latestLoaded = cachedPoints.Max(point => point.TradeDate.Date);
+        var latestRequired = GetLastWeekdayOnOrBefore(endDate.Date <= DateTime.Today ? endDate.Date : DateTime.Today);
+
+        return earliestLoaded > startDate.AddDays(7) ||
+            latestLoaded < latestRequired.AddDays(-RefreshableRecentCalendarDays);
     }
 
     private static (DateTime StartDate, DateTime EndDate) NormalizeRange(DateTime startDate, DateTime endDate)

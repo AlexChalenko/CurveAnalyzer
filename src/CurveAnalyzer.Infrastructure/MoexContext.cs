@@ -11,6 +11,7 @@ public class MoexContext : DbContext
     public DbSet<OfzLiquiditySnapshot> OfzLiquiditySnapshots { get; set; }
     public DbSet<OfzActivityLoadState> OfzActivityLoadStates { get; set; }
     public DbSet<CbrKeyRate> CbrKeyRates { get; set; }
+    public DbSet<OfzMarketIndexPoint> OfzMarketIndexPoints { get; set; }
 
     public MoexContext(DbContextOptions<MoexContext> options) : base(options)
     {
@@ -95,5 +96,19 @@ public class MoexContext : DbContext
         cbrKeyRate.HasKey(rate => rate.Date);
         cbrKeyRate.HasIndex(rate => rate.Date)
             .HasDatabaseName("IX_CbrKeyRates_Date");
+
+        var indexPoint = modelBuilder.Entity<OfzMarketIndexPoint>();
+        indexPoint.HasKey(point => new { point.SecId, point.TradeDate, point.SourceKind });
+        indexPoint.Property(point => point.SecId).HasMaxLength(32);
+        indexPoint.Property(point => point.ShortName).HasMaxLength(128);
+        indexPoint.Property(point => point.Name).HasMaxLength(512);
+        indexPoint.Property(point => point.CurrencyId).HasMaxLength(16);
+        indexPoint.Property(point => point.SourceKind)
+            .HasConversion<string>()
+            .HasMaxLength(16);
+        indexPoint.HasIndex(point => point.TradeDate)
+            .HasDatabaseName("IX_OfzMarketIndexPoints_TradeDate");
+        indexPoint.HasIndex(point => new { point.SecId, point.TradeDate })
+            .HasDatabaseName("IX_OfzMarketIndexPoints_SecId_TradeDate");
     }
 }

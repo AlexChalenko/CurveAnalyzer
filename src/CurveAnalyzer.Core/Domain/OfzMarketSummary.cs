@@ -16,7 +16,12 @@ public enum OfzSummaryFindingKind
     MarketBreadth = 7,
     TurnoverConcentration = 8,
     TypeShare = 9,
-    SpecialMetric = 10
+    SpecialMetric = 10,
+    IndexMove = 11,
+    ActivityWithIndexMove = 12,
+    ActivityWithoutIndexMove = 13,
+    SegmentIndexMove = 14,
+    IndexDataLimitation = 15
 }
 
 public enum OfzSummaryScope
@@ -29,7 +34,8 @@ public enum OfzSummaryScope
     Spread = 5,
     DataQuality = 6,
     MarketBreadth = 7,
-    SpecialMetric = 8
+    SpecialMetric = 8,
+    IndexContext = 9
 }
 
 public enum OfzDataLimitationKind
@@ -45,7 +51,12 @@ public enum OfzDataLimitationKind
     UnknownCouponType = 8,
     MissingSpecialMetric = 9,
     InsufficientSpecialMetricHistory = 10,
-    CbrKeyRateFallback = 11
+    CbrKeyRateFallback = 11,
+    NoIndexData = 12,
+    MissingRequiredIndexSeries = 13,
+    MissingSegmentIndexSeries = 14,
+    MissingPreviousIndexPoint = 15,
+    MissingIndexField = 16
 }
 
 public enum OfzIssueFocusReason
@@ -70,12 +81,13 @@ public enum OfzSummaryDrillDownTarget
     SegmentDetail = 2,
     WeakLiquidityTable = 3,
     ActivityTable = 4,
-    MarketBreadthDay = 5
+    MarketBreadthDay = 5,
+    IndexContextDay = 6
 }
 
 public class OfzMarketSummary
 {
-    public const string CurrentSchemaVersion = "1.2";
+    public const string CurrentSchemaVersion = "1.3";
 
     public string SchemaVersion { get; init; } = CurrentSchemaVersion;
     [JsonConverter(typeof(OfzDateJsonConverter))]
@@ -93,6 +105,8 @@ public class OfzMarketSummary
     public IReadOnlyList<OfzSummaryFinding> Findings { get; init; } = [];
     public IReadOnlyList<OfzSegmentSummary> Segments { get; init; } = [];
     public IReadOnlyList<MarketBreadthDay> BreadthDays { get; init; } = [];
+    public IReadOnlyList<OfzIndexContextDay> IndexContextDays { get; init; } = [];
+    public IReadOnlyList<OfzIndexSegmentContext> IndexSegments { get; init; } = [];
     public IReadOnlyList<OfzSpecialSummaryMetric> SpecialMetrics { get; init; } = [];
     public IReadOnlyList<OfzDataLimitation> Limitations { get; init; } = [];
     public OfzSummarySourceCounts SourceCounts { get; init; } = new();
@@ -164,6 +178,17 @@ public class OfzFindingEvidence
     public double? ImpliedFloatingRateSpread { get; init; }
     public double? ImpliedInflation { get; init; }
     public OfzSpecialMetricAvailability? SpecialMetricAvailability { get; init; }
+    public string? IndexSecId { get; init; }
+    public double? IndexClose { get; init; }
+    public double? IndexDailyChange { get; init; }
+    public double? IndexDailyChangePercent { get; init; }
+    public double? IndexYield { get; init; }
+    public double? IndexYieldChange { get; init; }
+    public double? IndexDuration { get; init; }
+    [JsonConverter(typeof(OfzDateJsonConverter))]
+    public DateTime? IndexPreviousTradeDate { get; init; }
+    public OfzMarketIndexDirection? IndexDirection { get; init; }
+    public bool IndexMoveIsMeaningful { get; init; }
     public bool IsSnapshot { get; init; }
     public bool IsProvisional { get; init; }
 }
@@ -256,6 +281,8 @@ public class OfzSummarySourceCounts
     public int SnapshotLiquidityMetrics { get; init; }
     public int SpecialMetricObservations { get; init; }
     public int SpecialMetricSeries { get; init; }
+    public int IndexPoints { get; init; }
+    public int IndexContextDays { get; init; }
     public int Dates { get; init; }
 }
 

@@ -1,0 +1,286 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://curveanalyzer.local/contracts/ofz-index-context.schema.json",
+  "title": "OFZ Market Summary with Index Context",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "schemaVersion",
+    "startDate",
+    "endDate",
+    "insightStartDate",
+    "insightEndDate",
+    "findings",
+    "breadthDays",
+    "indexContextDays",
+    "indexSegments",
+    "limitations",
+    "sourceCounts"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "type": "string",
+      "const": "1.3"
+    },
+    "startDate": {
+      "type": "string",
+      "format": "date"
+    },
+    "endDate": {
+      "type": "string",
+      "format": "date"
+    },
+    "insightStartDate": {
+      "type": "string",
+      "format": "date"
+    },
+    "insightEndDate": {
+      "type": "string",
+      "format": "date"
+    },
+    "findings": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/finding"
+      }
+    },
+    "indexContextDays": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/contextDay"
+      }
+    },
+    "indexSegments": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/segmentContext"
+      }
+    },
+    "limitations": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/limitation"
+      }
+    },
+    "sourceCounts": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "indexPoints": { "type": "integer", "minimum": 0 },
+        "indexContextDays": { "type": "integer", "minimum": 0 }
+      }
+    }
+  },
+  "$defs": {
+    "contextDay": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "tradeDate",
+        "points",
+        "marketDirection",
+        "hasMeaningfulMove",
+        "isProvisional",
+        "limitations"
+      ],
+      "properties": {
+        "tradeDate": {
+          "type": "string",
+          "format": "date"
+        },
+        "points": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/point"
+          }
+        },
+        "marketDirection": {
+          "type": "string",
+          "enum": ["Unknown", "Up", "Down", "Flat", "Mixed"]
+        },
+        "hasMeaningfulMove": { "type": "boolean" },
+        "isProvisional": { "type": "boolean" },
+        "limitations": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/limitation"
+          }
+        }
+      }
+    },
+    "point": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "secId",
+        "displayName",
+        "role",
+        "returnKind",
+        "durationBucket",
+        "tradeDate",
+        "sourceKind",
+        "isProvisional"
+      ],
+      "properties": {
+        "secId": { "type": "string" },
+        "displayName": { "type": "string" },
+        "role": {
+          "type": "string",
+          "enum": ["WholeMarket", "DurationSegment"]
+        },
+        "returnKind": {
+          "type": "string",
+          "enum": ["Price", "TotalReturn"]
+        },
+        "durationBucket": {
+          "type": "string",
+          "enum": ["All", "UpTo1Y", "OneToThreeY", "ThreeToFiveY", "SevenYPlus", "Unknown"]
+        },
+        "tradeDate": {
+          "type": "string",
+          "format": "date"
+        },
+        "close": { "type": ["number", "null"] },
+        "dailyChange": { "type": ["number", "null"] },
+        "dailyChangePercent": { "type": ["number", "null"] },
+        "yield": { "type": ["number", "null"] },
+        "yieldChange": { "type": ["number", "null"] },
+        "duration": { "type": ["number", "null"] },
+        "value": { "type": ["number", "null"] },
+        "previousTradeDate": {
+          "type": ["string", "null"],
+          "format": "date"
+        },
+        "direction": {
+          "type": "string",
+          "enum": ["Unknown", "Up", "Down", "Flat", "Mixed"]
+        },
+        "isMeaningful": { "type": "boolean" },
+        "sourceKind": {
+          "type": "string",
+          "enum": ["History", "Snapshot"]
+        },
+        "isProvisional": { "type": "boolean" }
+      }
+    },
+    "segmentContext": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "bucket",
+        "pointCount",
+        "limitations"
+      ],
+      "properties": {
+        "bucket": {
+          "type": "string",
+          "enum": ["UpTo1Y", "OneToThreeY", "ThreeToFiveY", "SevenYPlus"]
+        },
+        "priceSeriesSecId": { "type": ["string", "null"] },
+        "totalReturnSeriesSecId": { "type": ["string", "null"] },
+        "pointCount": { "type": "integer", "minimum": 0 },
+        "periodChange": { "type": ["number", "null"] },
+        "periodChangePercent": { "type": ["number", "null"] },
+        "latestYield": { "type": ["number", "null"] },
+        "latestDuration": { "type": ["number", "null"] },
+        "limitations": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/limitation"
+          }
+        }
+      }
+    },
+    "finding": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "id",
+        "kind",
+        "scope",
+        "title",
+        "text",
+        "evidence"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "MarketActivity",
+            "SegmentConcentration",
+            "RepeatedIssue",
+            "YieldMove",
+            "WeakLiquidity",
+            "DataQuality",
+            "MarketBreadth",
+            "TurnoverConcentration",
+            "TypeShare",
+            "SpecialMetric",
+            "IndexMove",
+            "ActivityWithIndexMove",
+            "ActivityWithoutIndexMove",
+            "SegmentIndexMove",
+            "IndexDataLimitation"
+          ]
+        },
+        "scope": {
+          "type": "string",
+          "enum": ["Market", "Segment", "Issue", "Date", "Liquidity", "Spread", "DataQuality", "MarketBreadth", "SpecialMetric", "IndexContext"]
+        },
+        "evidence": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "indexSecId": { "type": ["string", "null"] },
+            "indexClose": { "type": ["number", "null"] },
+            "indexDailyChange": { "type": ["number", "null"] },
+            "indexDailyChangePercent": { "type": ["number", "null"] },
+            "indexYield": { "type": ["number", "null"] },
+            "indexYieldChange": { "type": ["number", "null"] },
+            "indexDuration": { "type": ["number", "null"] },
+            "indexPreviousTradeDate": {
+              "type": ["string", "null"],
+              "format": "date"
+            },
+            "indexDirection": {
+              "type": ["string", "null"],
+              "enum": ["Unknown", "Up", "Down", "Flat", "Mixed", null]
+            },
+            "indexMoveIsMeaningful": { "type": "boolean" }
+          }
+        }
+      }
+    },
+    "limitation": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "kind",
+        "scope",
+        "text"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "NoIndexData",
+            "MissingRequiredIndexSeries",
+            "MissingSegmentIndexSeries",
+            "MissingPreviousIndexPoint",
+            "MissingIndexField",
+            "Provisional"
+          ]
+        },
+        "scope": {
+          "type": "string"
+        },
+        "secId": { "type": ["string", "null"] },
+        "tradeDate": {
+          "type": ["string", "null"],
+          "format": "date"
+        },
+        "text": { "type": "string" }
+      }
+    }
+  }
+}
