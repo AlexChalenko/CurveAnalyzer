@@ -1,4 +1,6 @@
 using System.Collections.ObjectModel;
+using System.IO;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Windows;
@@ -6,6 +8,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using CurveAnalyzer.Application;
 using CurveAnalyzer.Core;
+using Microsoft.Win32;
 
 namespace CurveAnalyzer.Presentation.WPF.ViewModels;
 
@@ -281,6 +284,42 @@ public partial class OfzActivityViewModel(OfzActivityService activityService) : 
         StatusMessage = "Structured summary JSON скопирован";
     }
 
+    [RelayCommand(CanExecute = nameof(CanCopySummaryJson))]
+    private void SaveSummaryJson()
+    {
+        if (string.IsNullOrWhiteSpace(StructuredSummaryJson))
+        {
+            return;
+        }
+
+        var dialog = new SaveFileDialog
+        {
+            AddExtension = true,
+            DefaultExt = ".json",
+            FileName = BuildSummaryJsonFileName(MarketSummary),
+            Filter = "JSON files (*.json)|*.json|All files (*.*)|*.*",
+            OverwritePrompt = true,
+            Title = "Сохранить structured summary JSON"
+        };
+
+        if (dialog.ShowDialog() != true)
+        {
+            return;
+        }
+
+        try
+        {
+            File.WriteAllText(dialog.FileName, StructuredSummaryJson, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
+            ErrorMessage = null;
+            StatusMessage = $"Structured summary JSON сохранен: {dialog.FileName}";
+        }
+        catch (Exception ex)
+        {
+            ErrorMessage = ex.Message;
+            StatusMessage = "Ошибка сохранения JSON";
+        }
+    }
+
     [RelayCommand]
     private void SelectHeatmapCell(OfzActivityHeatmapCell? cell)
     {
@@ -440,6 +479,7 @@ public partial class OfzActivityViewModel(OfzActivityService activityService) : 
         HasSelectedIndexLimitations = false;
         HasStructuredSummaryJson = false;
         CopySummaryJsonCommand.NotifyCanExecuteChanged();
+        SaveSummaryJsonCommand.NotifyCanExecuteChanged();
         HasActivityIndex = false;
         HasDurationYieldScatter = false;
         ActivityIndexStatusMessage = "Индекс не рассчитан";
@@ -817,6 +857,7 @@ public partial class OfzActivityViewModel(OfzActivityService activityService) : 
         SelectedSummaryFinding = SummaryFindings.FirstOrDefault();
         SelectedIndexContextDay = IndexContextDays.FirstOrDefault(day => day.Points.Count > 0) ?? IndexContextDays.FirstOrDefault();
         CopySummaryJsonCommand.NotifyCanExecuteChanged();
+        SaveSummaryJsonCommand.NotifyCanExecuteChanged();
     }
 
     private void FocusSegment(OfzCouponType couponType, OfzSummaryFinding finding)
@@ -1031,6 +1072,20 @@ public partial class OfzActivityViewModel(OfzActivityService activityService) : 
     private bool CanCopySummaryJson()
     {
         return HasStructuredSummaryJson;
+    }
+
+    private static string BuildSummaryJsonFileName(OfzMarketSummary? summary)
+    {
+        if (summary is null)
+        {
+            return "ofz-summary.json";
+        }
+
+        var typeSuffix = summary.CouponTypeFilter.HasValue
+            ? "-" + summary.CouponTypeFilter.Value.ToString().ToLowerInvariant()
+            : string.Empty;
+
+        return $"ofz-summary-{summary.StartDate:yyyyMMdd}-{summary.EndDate:yyyyMMdd}{typeSuffix}.json";
     }
 
     private async Task RunWithProgressAsync(

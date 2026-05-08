@@ -121,7 +121,14 @@
                             Padding="8,2"
                             HorizontalAlignment="Right"
                             Command="{Binding CopySummaryJsonCommand}"
-                            Content="JSON"
+                            Content="Копия"
+                            DockPanel.Dock="Right" />
+                        <Button
+                            Margin="4,0,0,0"
+                            Padding="8,2"
+                            HorizontalAlignment="Right"
+                            Command="{Binding SaveSummaryJsonCommand}"
+                            Content="Файл"
                             DockPanel.Dock="Right" />
                     </DockPanel>
 
