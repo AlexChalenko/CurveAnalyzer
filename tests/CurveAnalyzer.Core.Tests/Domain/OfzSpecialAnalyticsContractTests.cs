@@ -86,7 +86,7 @@ public class OfzSpecialAnalyticsContractTests
         using var document = JsonDocument.Parse(json);
         var root = document.RootElement;
 
-        Assert.Equal("1.4", root.GetProperty("schemaVersion").GetString());
+        Assert.Equal("1.5", root.GetProperty("schemaVersion").GetString());
 
         var metric = Assert.Single(root.GetProperty("specialMetrics").EnumerateArray());
         Assert.Equal("ImpliedFloatingRate", metric.GetProperty("kind").GetString());

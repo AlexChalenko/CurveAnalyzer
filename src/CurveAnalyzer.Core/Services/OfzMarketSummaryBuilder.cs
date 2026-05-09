@@ -28,6 +28,7 @@ public sealed class OfzMarketSummaryOptions
     public OfzMarketBreadthOptions Breadth { get; init; } = new();
     public OfzIndexContextOptions IndexContext { get; init; } = new();
     public OfzCashflowContextOptions Cashflow { get; init; } = new();
+    public OfzSeasonalityContextOptions Seasonality { get; init; } = new();
     public DateTime? GeneratedAt { get; init; }
 }
 
@@ -79,6 +80,9 @@ public static class OfzMarketSummaryBuilder
         var outputLiquidityMetrics = ApplyDateRange(liquidityMetrics, outputStartDate, outputEndDate).ToList();
         var outputBreadthDays = ApplyDateRange(breadthDays, outputStartDate, outputEndDate).ToList();
         var outputIndexContextDays = ApplyDateRange(indexContext.Days, outputStartDate, outputEndDate).ToList();
+        var seasonalityContext = OfzSeasonalityContextBuilder.Build(
+            metrics,
+            CreateSeasonalityOptions(options.Seasonality, startDate, endDate, outputStartDate, outputEndDate, input.SignalScope));
 
         var signalTrades = ApplySignalScope(outputTrades, input.SignalScope).ToList();
         var signalMetrics = ApplySignalScope(outputMetrics, input.SignalScope).ToList();
@@ -103,6 +107,7 @@ public static class OfzMarketSummaryBuilder
             .Concat(BuildSpecialMetricLimitations(specialMetrics, input.CouponTypeFilter))
             .Concat(BuildIndexLimitations(signalIndexContextDays, indexContext.Limitations))
             .Concat(cashflowContext.Limitations)
+            .Concat(seasonalityContext.Limitations)
             .ToList();
         var segments = BuildSegments(signalMetrics, signalLiquidityMetrics, issuesBySecId, options);
         var findings = BuildFindings(
@@ -111,6 +116,7 @@ public static class OfzMarketSummaryBuilder
                 signalBreadthDays,
                 signalIndexContextDays,
                 cashflowContext,
+                seasonalityContext,
                 specialMetrics,
                 segments,
                 limitations,
@@ -140,9 +146,10 @@ public static class OfzMarketSummaryBuilder
             IndexContextDays = signalIndexContextDays,
             IndexSegments = indexContext.Segments,
             CashflowContext = cashflowContext,
+            SeasonalityContext = seasonalityContext,
             SpecialMetrics = specialMetrics,
             Limitations = limitations,
-            SourceCounts = BuildSourceCounts(signalTrades, signalMetrics, signalLiquidityMetrics, signalIndexContextDays, cashflowContext, specialMetrics, issuesBySecId, input.CouponTypeFilter)
+            SourceCounts = BuildSourceCounts(signalTrades, signalMetrics, signalLiquidityMetrics, signalIndexContextDays, cashflowContext, seasonalityContext, specialMetrics, issuesBySecId, input.CouponTypeFilter)
         };
     }
 
@@ -152,6 +159,7 @@ public static class OfzMarketSummaryBuilder
         IReadOnlyCollection<MarketBreadthDay> breadthDays,
         IReadOnlyCollection<OfzIndexContextDay> indexContextDays,
         OfzCashflowContext cashflowContext,
+        OfzSeasonalityContext seasonalityContext,
         IReadOnlyCollection<OfzSpecialSummaryMetric> specialMetrics,
         IReadOnlyCollection<OfzSegmentSummary> segments,
         IReadOnlyList<OfzDataLimitation> marketLimitations,
@@ -170,11 +178,35 @@ public static class OfzMarketSummaryBuilder
         AddTypeShareFinding(findings, breadthDays, couponTypeFilter, options.Breadth);
         AddIndexContextFindings(findings, metrics, breadthDays, indexContextDays);
         AddCashflowFindings(findings, cashflowContext);
+        AddSeasonalityFindings(findings, seasonalityContext);
         AddWeakLiquidityFinding(findings, liquidityMetrics, issuesBySecId);
         AddSpecialMetricFinding(findings, specialMetrics, couponTypeFilter);
         AddDataQualityFinding(findings, metrics, liquidityMetrics, marketLimitations);
 
         return findings;
+    }
+
+    private static OfzSeasonalityContextOptions CreateSeasonalityOptions(
+        OfzSeasonalityContextOptions source,
+        DateTime startDate,
+        DateTime endDate,
+        DateTime outputStartDate,
+        DateTime outputEndDate,
+        OfzSummarySignalScope signalScope)
+    {
+        return new OfzSeasonalityContextOptions
+        {
+            StartDate = startDate,
+            EndDate = endDate,
+            InsightStartDate = outputStartDate,
+            InsightEndDate = outputEndDate,
+            SignalScope = signalScope,
+            MinWeekdayBaselineObservations = source.MinWeekdayBaselineObservations,
+            MinMonthBaselineObservations = source.MinMonthBaselineObservations,
+            HighActivityRatioThreshold = source.HighActivityRatioThreshold,
+            LowActivityRatioThreshold = source.LowActivityRatioThreshold,
+            UnchangedYieldMoveThreshold = source.UnchangedYieldMoveThreshold
+        };
     }
 
     private static void AddMarketActivityFinding(
@@ -848,6 +880,72 @@ public static class OfzMarketSummaryBuilder
                 Limitations = cashflowContext.Limitations
             });
         }
+    }
+
+    private static void AddSeasonalityFindings(
+        ICollection<OfzSummaryFinding> findings,
+        OfzSeasonalityContext seasonalityContext)
+    {
+        foreach (var finding in seasonalityContext.Findings
+            .OrderByDescending(item => GetSeasonalityPriority(item))
+            .ThenBy(item => item.TradeDate)
+            .ThenBy(item => item.BucketKind)
+            .Take(3))
+        {
+            var directionText = finding.Kind == OfzSeasonalityFindingKind.HighSeasonalActivity
+                ? "выше"
+                : "ниже";
+            var title = finding.Kind == OfzSeasonalityFindingKind.HighSeasonalActivity
+                ? "Активность выше сезонной базы"
+                : "Активность ниже сезонной базы";
+
+            findings.Add(new OfzSummaryFinding
+            {
+                Id = $"seasonality-{NormalizeId(finding.Kind.ToString())}-{NormalizeId(finding.BucketKind.ToString())}-{NormalizeId(finding.BucketKey)}-{finding.TradeDate:yyyy-MM-dd}",
+                Kind = OfzSummaryFindingKind.SeasonalityActivity,
+                Priority = GetSeasonalityPriority(finding),
+                Scope = OfzSummaryScope.Seasonality,
+                Title = title,
+                Text = $"{finding.TradeDate:dd.MM.yyyy}: оборот {directionText} сезонной базы {finding.BucketLabel}, ratio {FormatRatio(finding.ValueRatio)}.",
+                Evidence = CreateSeasonalityEvidence(finding),
+                Limitations = finding.Limitations,
+                DrillDown = new OfzSummaryDrillDown
+                {
+                    Target = OfzSummaryDrillDownTarget.HeatmapDate,
+                    TradeDate = finding.TradeDate
+                }
+            });
+        }
+
+    }
+
+    private static OfzFindingEvidence CreateSeasonalityEvidence(OfzSeasonalityFinding finding)
+    {
+        return new OfzFindingEvidence
+        {
+            TradeDate = finding.TradeDate,
+            TotalValue = finding.ActualValue,
+            TotalNumTrades = finding.ActualNumTrades,
+            SeasonalityFindingKind = finding.Kind,
+            SeasonalityBucketKind = finding.BucketKind,
+            SeasonalityBucketKey = finding.BucketKey,
+            SeasonalityBucketLabel = finding.BucketLabel,
+            SeasonalityActualValue = finding.ActualValue,
+            SeasonalityBaselineMedianValue = finding.BaselineMedianValue,
+            SeasonalityValueRatio = finding.ValueRatio,
+            SeasonalityActualNumTrades = finding.ActualNumTrades,
+            SeasonalityBaselineMedianNumTrades = finding.BaselineMedianNumTrades,
+            SeasonalityBaselineObservationCount = finding.BaselineObservationCount
+        };
+    }
+
+    private static int GetSeasonalityPriority(OfzSeasonalityFinding finding)
+    {
+        var ratioDistance = finding.ValueRatio.HasValue
+            ? Math.Abs(finding.ValueRatio.Value - 1)
+            : 0;
+
+        return 650 + Math.Min(80, (int)Math.Round(ratioDistance * 20));
     }
 
     private static OfzFindingEvidence CreateCashflowEvidence(OfzCashflowActivityLink link)
@@ -1974,6 +2072,7 @@ public static class OfzMarketSummaryBuilder
         IReadOnlyCollection<OfzLiquidityMetric> liquidityMetrics,
         IReadOnlyCollection<OfzIndexContextDay> indexContextDays,
         OfzCashflowContext cashflowContext,
+        OfzSeasonalityContext seasonalityContext,
         IReadOnlyCollection<OfzSpecialSummaryMetric> specialMetrics,
         IReadOnlyDictionary<string, OfzIssue> issuesBySecId,
         OfzCouponType? couponTypeFilter)
@@ -2001,6 +2100,7 @@ public static class OfzMarketSummaryBuilder
                 .GroupBy(item => new { item.SecId, item.EventType, item.EventDate, item.SourceKind, item.SourceKey })
                 .Count(),
             CashflowIssues = cashflowContext.IssueCalendars.Count(calendar => calendar.HasEvents),
+            SeasonalityObservations = seasonalityContext.ObservationCount,
             Dates = dates
         };
     }
@@ -2236,6 +2336,11 @@ public static class OfzMarketSummaryBuilder
         return value.HasValue ? value.Value.ToString("+0.00;-0.00;0.00") + " п.п." : "n/a";
     }
 
+    private static string FormatRatio(double? value)
+    {
+        return value.HasValue ? value.Value.ToString("0.00") + "x" : "n/a";
+    }
+
     private static string FormatCashflowEventType(OfzCashflowEventType eventType)
     {
         return eventType switch
@@ -2329,12 +2434,24 @@ public static class OfzMarketSummaryBuilder
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(options.Breadth.MaxTopContributors);
         ArgumentOutOfRangeException.ThrowIfNegative(options.IndexContext.MeaningfulCloseChangePercent);
         ArgumentOutOfRangeException.ThrowIfNegative(options.IndexContext.MeaningfulYieldChange);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(options.Seasonality.MinWeekdayBaselineObservations);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(options.Seasonality.MinMonthBaselineObservations);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(options.Seasonality.HighActivityRatioThreshold);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(options.Seasonality.LowActivityRatioThreshold);
+        ArgumentOutOfRangeException.ThrowIfNegative(options.Seasonality.UnchangedYieldMoveThreshold);
 
         if (options.IndexContext.MeaningfulCloseChangePercent > 1)
         {
             throw new ArgumentOutOfRangeException(
                 nameof(options),
                 "MeaningfulCloseChangePercent must be a fraction between 0 and 1.");
+        }
+
+        if (options.Seasonality.LowActivityRatioThreshold >= options.Seasonality.HighActivityRatioThreshold)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(options),
+                "LowActivityRatioThreshold must be less than HighActivityRatioThreshold.");
         }
     }
 }

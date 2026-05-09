@@ -115,6 +115,18 @@ public partial class OfzActivityViewModel(OfzActivityService activityService) : 
     public partial ObservableCollection<OfzDataLimitation> CashflowLimitations { get; set; } = [];
 
     [ObservableProperty]
+    public partial ObservableCollection<OfzSeasonalityBucket> WeekdaySeasonalityBuckets { get; set; } = [];
+
+    [ObservableProperty]
+    public partial ObservableCollection<OfzSeasonalityBucket> MonthSeasonalityBuckets { get; set; } = [];
+
+    [ObservableProperty]
+    public partial ObservableCollection<OfzSeasonalityFinding> SeasonalityFindings { get; set; } = [];
+
+    [ObservableProperty]
+    public partial ObservableCollection<OfzDataLimitation> SeasonalityLimitations { get; set; } = [];
+
+    [ObservableProperty]
     public partial ObservableCollection<MarketBreadthContributor> SelectedBreadthContributors { get; set; } = [];
 
     [ObservableProperty]
@@ -236,6 +248,24 @@ public partial class OfzActivityViewModel(OfzActivityService activityService) : 
 
     [ObservableProperty]
     public partial string CashflowStatusMessage { get; set; } = "Календарь событий не рассчитан";
+
+    [ObservableProperty]
+    public partial string SeasonalityStatusMessage { get; set; } = "Сезонный контекст не рассчитан";
+
+    [ObservableProperty]
+    public partial bool HasSeasonalityContext { get; set; }
+
+    [ObservableProperty]
+    public partial bool HasWeekdaySeasonalityBuckets { get; set; }
+
+    [ObservableProperty]
+    public partial bool HasMonthSeasonalityBuckets { get; set; }
+
+    [ObservableProperty]
+    public partial bool HasSeasonalityFindings { get; set; }
+
+    [ObservableProperty]
+    public partial bool HasSeasonalityLimitations { get; set; }
 
     [ObservableProperty]
     public partial bool HasSelectedBreadthContributors { get; set; }
@@ -497,6 +527,10 @@ public partial class OfzActivityViewModel(OfzActivityService activityService) : 
         UpcomingCashflowEvents.Clear();
         CashflowActivityLinks.Clear();
         CashflowLimitations.Clear();
+        WeekdaySeasonalityBuckets.Clear();
+        MonthSeasonalityBuckets.Clear();
+        SeasonalityFindings.Clear();
+        SeasonalityLimitations.Clear();
         ClearSelectedBreadthDay();
         ClearSelectedIndexContextDay();
         MarketSummary = null;
@@ -524,6 +558,11 @@ public partial class OfzActivityViewModel(OfzActivityService activityService) : 
         HasCashflowEvents = false;
         HasCashflowActivityLinks = false;
         HasCashflowLimitations = false;
+        HasSeasonalityContext = false;
+        HasWeekdaySeasonalityBuckets = false;
+        HasMonthSeasonalityBuckets = false;
+        HasSeasonalityFindings = false;
+        HasSeasonalityLimitations = false;
         HasSelectedBreadthContributors = false;
         HasSelectedBreadthLimitations = false;
         HasSelectedIndexContextPoints = false;
@@ -539,6 +578,7 @@ public partial class OfzActivityViewModel(OfzActivityService activityService) : 
         DurationYieldScatterStatusMessage = "Scatter не рассчитан";
         IndexContextStatusMessage = "Индексный контекст не рассчитан";
         CashflowStatusMessage = "Календарь событий не рассчитан";
+        SeasonalityStatusMessage = "Сезонный контекст не рассчитан";
         ClearIssueDetail();
     }
 
@@ -929,6 +969,32 @@ public partial class OfzActivityViewModel(OfzActivityService activityService) : 
             }
         }
 
+        if (summary.SeasonalityContext is not null)
+        {
+            foreach (var bucket in summary.SeasonalityContext.WeekdayBuckets.OrderBy(item => item.SortOrder))
+            {
+                WeekdaySeasonalityBuckets.Add(bucket);
+            }
+
+            foreach (var bucket in summary.SeasonalityContext.MonthBuckets.OrderBy(item => item.SortOrder))
+            {
+                MonthSeasonalityBuckets.Add(bucket);
+            }
+
+            foreach (var finding in summary.SeasonalityContext.Findings
+                .OrderByDescending(item => item.TradeDate)
+                .ThenBy(item => item.BucketKind)
+                .ThenBy(item => item.BucketKey, StringComparer.Ordinal))
+            {
+                SeasonalityFindings.Add(finding);
+            }
+
+            foreach (var limitation in summary.SeasonalityContext.Limitations)
+            {
+                SeasonalityLimitations.Add(limitation);
+            }
+        }
+
         StructuredSummaryJson = JsonSerializer.Serialize(summary, SummaryJsonOptions);
         HasStructuredSummaryJson = !string.IsNullOrWhiteSpace(StructuredSummaryJson);
         HasCashflowContext = summary.CashflowContext is not null &&
@@ -939,7 +1005,19 @@ public partial class OfzActivityViewModel(OfzActivityService activityService) : 
         CashflowStatusMessage = HasCashflowContext
             ? $"{CashflowEvents.Count} событий рядом с периодом; ближайших {UpcomingCashflowEvents.Count}; связей с активностью {CashflowActivityLinks.Count}"
             : "Календарь событий отсутствует";
-        HasMarketSummary = SummaryFindings.Count > 0 || summary.Limitations.Count > 0 || IndexContextDays.Count > 0 || HasCashflowContext;
+        HasSeasonalityContext = summary.SeasonalityContext is not null &&
+            (WeekdaySeasonalityBuckets.Count > 0 ||
+             MonthSeasonalityBuckets.Count > 0 ||
+             SeasonalityFindings.Count > 0 ||
+             SeasonalityLimitations.Count > 0);
+        HasWeekdaySeasonalityBuckets = WeekdaySeasonalityBuckets.Count > 0;
+        HasMonthSeasonalityBuckets = MonthSeasonalityBuckets.Count > 0;
+        HasSeasonalityFindings = SeasonalityFindings.Count > 0;
+        HasSeasonalityLimitations = SeasonalityLimitations.Count > 0;
+        SeasonalityStatusMessage = summary.SeasonalityContext is not null
+            ? $"{summary.SeasonalityContext.ObservationCount} наблюдений; weekday baseline {summary.SeasonalityContext.MinWeekdayBaselineObservations}, month baseline {summary.SeasonalityContext.MinMonthBaselineObservations}; пороги {summary.SeasonalityContext.LowActivityRatioThreshold:N2}x/{summary.SeasonalityContext.HighActivityRatioThreshold:N2}x"
+            : "Сезонный контекст отсутствует";
+        HasMarketSummary = SummaryFindings.Count > 0 || summary.Limitations.Count > 0 || IndexContextDays.Count > 0 || HasCashflowContext || HasSeasonalityContext;
         HasSegmentSummaries = SegmentSummaries.Count > 0;
         HasSummaryLimitations = SummaryLimitations.Count > 0;
         HasIndexContext = IndexContextDays.Any(day => day.Points.Count > 0);

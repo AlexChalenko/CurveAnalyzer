@@ -17,6 +17,7 @@
         <converters:OfzBreadthContributorValueConverter x:Key="OfzBreadthContributorValueConverter" />
         <converters:OfzIndexContextValueConverter x:Key="OfzIndexContextValueConverter" />
         <converters:OfzCashflowValueConverter x:Key="OfzCashflowValueConverter" />
+        <converters:OfzSeasonalityValueConverter x:Key="OfzSeasonalityValueConverter" />
         <Style x:Key="HeatmapCellButtonStyle" TargetType="{x:Type Button}">
             <Setter Property="Width" Value="32" />
             <Setter Property="Height" Value="18" />
@@ -402,6 +403,114 @@
                                         <DataGridTextColumn Width="78" Binding="{Binding Value, Mode=OneWay, StringFormat={}{0:N0}, TargetNullValue=n/a}" Header="Оборот" />
                                     </DataGrid.Columns>
                                 </DataGrid>
+                            </Grid>
+                        </TabItem>
+
+                        <TabItem Header="Сезонность">
+                            <Grid Margin="0,4,0,0">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="96" />
+                                    <RowDefinition Height="96" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="*" MinHeight="78" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                <TextBlock
+                                    Grid.Row="0"
+                                    Margin="0,0,0,3"
+                                    FontSize="10"
+                                    Foreground="DimGray"
+                                    Text="{Binding SeasonalityStatusMessage}"
+                                    TextWrapping="Wrap" />
+                                <DataGrid
+                                    Grid.Row="1"
+                                    AutoGenerateColumns="False"
+                                    CanUserAddRows="False"
+                                    HeadersVisibility="Column"
+                                    IsReadOnly="True"
+                                    ItemsSource="{Binding WeekdaySeasonalityBuckets}"
+                                    ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                                    ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                    Visibility="{Binding HasWeekdaySeasonalityBuckets, Converter={StaticResource BoolToVis}}">
+                                    <DataGrid.Columns>
+                                        <DataGridTextColumn Width="76" Binding="{Binding Label, Mode=OneWay}" Header="День" />
+                                        <DataGridTextColumn Width="54" Binding="{Binding ObservationCount, Mode=OneWay}" Header="Набл." />
+                                        <DataGridTextColumn Width="48" Binding="{Binding ActiveDayCount, Mode=OneWay}" Header="Акт." />
+                                        <DataGridTextColumn Width="74" Binding="{Binding MedianTotalValue, Mode=OneWay, Converter={StaticResource OfzSeasonalityValueConverter}, ConverterParameter=MoneyMillion}" Header="Med mln" />
+                                        <DataGridTextColumn Width="74" Binding="{Binding AverageTotalValue, Mode=OneWay, Converter={StaticResource OfzSeasonalityValueConverter}, ConverterParameter=MoneyMillion}" Header="Avg mln" />
+                                        <DataGridTextColumn Width="62" Binding="{Binding MedianNumTrades, Mode=OneWay, Converter={StaticResource OfzSeasonalityValueConverter}, ConverterParameter=Number}" Header="Сделок" />
+                                        <DataGridTextColumn Width="62" Binding="{Binding MedianActiveIssueCount, Mode=OneWay, Converter={StaticResource OfzSeasonalityValueConverter}, ConverterParameter=Decimal}" Header="Вып." />
+                                        <DataGridTextColumn Width="58" Binding="{Binding UpDayShare, Mode=OneWay, Converter={StaticResource OfzSeasonalityValueConverter}, ConverterParameter=Percent}" Header="Рост" />
+                                        <DataGridTextColumn Width="78" Binding="{Binding BaselineQuality, Mode=OneWay, Converter={StaticResource OfzSeasonalityValueConverter}, ConverterParameter=BaselineQuality}" Header="База" />
+                                    </DataGrid.Columns>
+                                </DataGrid>
+                                <DataGrid
+                                    Grid.Row="2"
+                                    Margin="0,4,0,0"
+                                    AutoGenerateColumns="False"
+                                    CanUserAddRows="False"
+                                    HeadersVisibility="Column"
+                                    IsReadOnly="True"
+                                    ItemsSource="{Binding MonthSeasonalityBuckets}"
+                                    ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                                    ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                    Visibility="{Binding HasMonthSeasonalityBuckets, Converter={StaticResource BoolToVis}}">
+                                    <DataGrid.Columns>
+                                        <DataGridTextColumn Width="76" Binding="{Binding Label, Mode=OneWay}" Header="Месяц" />
+                                        <DataGridTextColumn Width="54" Binding="{Binding ObservationCount, Mode=OneWay}" Header="Набл." />
+                                        <DataGridTextColumn Width="48" Binding="{Binding ActiveDayCount, Mode=OneWay}" Header="Акт." />
+                                        <DataGridTextColumn Width="74" Binding="{Binding MedianTotalValue, Mode=OneWay, Converter={StaticResource OfzSeasonalityValueConverter}, ConverterParameter=MoneyMillion}" Header="Med mln" />
+                                        <DataGridTextColumn Width="74" Binding="{Binding AverageTotalValue, Mode=OneWay, Converter={StaticResource OfzSeasonalityValueConverter}, ConverterParameter=MoneyMillion}" Header="Avg mln" />
+                                        <DataGridTextColumn Width="62" Binding="{Binding MedianNumTrades, Mode=OneWay, Converter={StaticResource OfzSeasonalityValueConverter}, ConverterParameter=Number}" Header="Сделок" />
+                                        <DataGridTextColumn Width="62" Binding="{Binding MedianActiveIssueCount, Mode=OneWay, Converter={StaticResource OfzSeasonalityValueConverter}, ConverterParameter=Decimal}" Header="Вып." />
+                                        <DataGridTextColumn Width="58" Binding="{Binding DownDayShare, Mode=OneWay, Converter={StaticResource OfzSeasonalityValueConverter}, ConverterParameter=Percent}" Header="Сниж." />
+                                        <DataGridTextColumn Width="78" Binding="{Binding BaselineQuality, Mode=OneWay, Converter={StaticResource OfzSeasonalityValueConverter}, ConverterParameter=BaselineQuality}" Header="База" />
+                                    </DataGrid.Columns>
+                                </DataGrid>
+                                <TextBlock
+                                    Grid.Row="3"
+                                    Margin="0,4,0,2"
+                                    FontWeight="SemiBold"
+                                    Text="Выводы" />
+                                <DataGrid
+                                    Grid.Row="4"
+                                    AutoGenerateColumns="False"
+                                    CanUserAddRows="False"
+                                    HeadersVisibility="Column"
+                                    IsReadOnly="True"
+                                    ItemsSource="{Binding SeasonalityFindings}"
+                                    ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                                    ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                    Visibility="{Binding HasSeasonalityFindings, Converter={StaticResource BoolToVis}}">
+                                    <DataGrid.Columns>
+                                        <DataGridTextColumn Width="74" Binding="{Binding TradeDate, Mode=OneWay, StringFormat={}{0:dd.MM.yy}}" Header="Дата" />
+                                        <DataGridTextColumn Width="70" Binding="{Binding BucketKind, Mode=OneWay, Converter={StaticResource OfzSeasonalityValueConverter}, ConverterParameter=BucketKind}" Header="Тип" />
+                                        <DataGridTextColumn Width="76" Binding="{Binding BucketLabel, Mode=OneWay}" Header="Bucket" />
+                                        <DataGridTextColumn Width="86" Binding="{Binding Kind, Mode=OneWay, Converter={StaticResource OfzSeasonalityValueConverter}, ConverterParameter=FindingKind}" Header="Сигнал" />
+                                        <DataGridTextColumn Width="74" Binding="{Binding ActualValue, Mode=OneWay, Converter={StaticResource OfzSeasonalityValueConverter}, ConverterParameter=MoneyMillion}" Header="Факт mln" />
+                                        <DataGridTextColumn Width="74" Binding="{Binding BaselineMedianValue, Mode=OneWay, Converter={StaticResource OfzSeasonalityValueConverter}, ConverterParameter=MoneyMillion}" Header="База mln" />
+                                        <DataGridTextColumn Width="58" Binding="{Binding ValueRatio, Mode=OneWay, Converter={StaticResource OfzSeasonalityValueConverter}, ConverterParameter=Ratio}" Header="Ratio" />
+                                        <DataGridTextColumn Width="58" Binding="{Binding ActualNumTrades, Mode=OneWay, Converter={StaticResource OfzSeasonalityValueConverter}, ConverterParameter=Number}" Header="Сделки" />
+                                        <DataGridTextColumn Width="58" Binding="{Binding BaselineMedianNumTrades, Mode=OneWay, Converter={StaticResource OfzSeasonalityValueConverter}, ConverterParameter=Number}" Header="База" />
+                                        <DataGridTextColumn Width="50" Binding="{Binding BaselineObservationCount, Mode=OneWay}" Header="N" />
+                                    </DataGrid.Columns>
+                                </DataGrid>
+                                <ItemsControl
+                                    Grid.Row="5"
+                                    Margin="0,3,0,0"
+                                    ItemsSource="{Binding SeasonalityLimitations}"
+                                    Visibility="{Binding HasSeasonalityLimitations, Converter={StaticResource BoolToVis}}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <TextBlock
+                                                FontSize="10"
+                                                Foreground="DimGray"
+                                                Text="{Binding Text}"
+                                                TextWrapping="Wrap" />
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
                             </Grid>
                         </TabItem>
 

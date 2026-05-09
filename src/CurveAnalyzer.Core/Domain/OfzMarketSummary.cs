@@ -24,7 +24,9 @@ public enum OfzSummaryFindingKind
     IndexDataLimitation = 15,
     ActivityNearCashflowEvent = 16,
     UpcomingCashflowEvent = 17,
-    CashflowDataLimitation = 18
+    CashflowDataLimitation = 18,
+    SeasonalityActivity = 19,
+    SeasonalityDataLimitation = 20
 }
 
 public enum OfzSummaryScope
@@ -39,7 +41,8 @@ public enum OfzSummaryScope
     MarketBreadth = 7,
     SpecialMetric = 8,
     IndexContext = 9,
-    Cashflow = 10
+    Cashflow = 10,
+    Seasonality = 11
 }
 
 public enum OfzDataLimitationKind
@@ -94,7 +97,7 @@ public enum OfzSummaryDrillDownTarget
 
 public class OfzMarketSummary
 {
-    public const string CurrentSchemaVersion = "1.4";
+    public const string CurrentSchemaVersion = "1.5";
 
     public string SchemaVersion { get; init; } = CurrentSchemaVersion;
     [JsonConverter(typeof(OfzDateJsonConverter))]
@@ -115,6 +118,7 @@ public class OfzMarketSummary
     public IReadOnlyList<OfzIndexContextDay> IndexContextDays { get; init; } = [];
     public IReadOnlyList<OfzIndexSegmentContext> IndexSegments { get; init; } = [];
     public OfzCashflowContext? CashflowContext { get; init; }
+    public OfzSeasonalityContext? SeasonalityContext { get; init; }
     public IReadOnlyList<OfzSpecialSummaryMetric> SpecialMetrics { get; init; } = [];
     public IReadOnlyList<OfzDataLimitation> Limitations { get; init; } = [];
     public OfzSummarySourceCounts SourceCounts { get; init; } = new();
@@ -205,6 +209,16 @@ public class OfzFindingEvidence
     public double? CashflowValueRub { get; init; }
     public double? CashflowValuePercent { get; init; }
     public OfzCashflowSourceKind? CashflowSourceKind { get; init; }
+    public OfzSeasonalityFindingKind? SeasonalityFindingKind { get; init; }
+    public OfzSeasonalityBucketKind? SeasonalityBucketKind { get; init; }
+    public string? SeasonalityBucketKey { get; init; }
+    public string? SeasonalityBucketLabel { get; init; }
+    public double? SeasonalityActualValue { get; init; }
+    public double? SeasonalityBaselineMedianValue { get; init; }
+    public double? SeasonalityValueRatio { get; init; }
+    public int? SeasonalityActualNumTrades { get; init; }
+    public double? SeasonalityBaselineMedianNumTrades { get; init; }
+    public int? SeasonalityBaselineObservationCount { get; init; }
     public bool IsSnapshot { get; init; }
     public bool IsProvisional { get; init; }
 }
@@ -301,6 +315,7 @@ public class OfzSummarySourceCounts
     public int IndexContextDays { get; init; }
     public int CashflowEvents { get; init; }
     public int CashflowIssues { get; init; }
+    public int SeasonalityObservations { get; init; }
     public int Dates { get; init; }
 }
 

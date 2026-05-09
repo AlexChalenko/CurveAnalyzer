@@ -232,7 +232,7 @@ public class OfzMarketSummaryBuilderTests
         using var document = JsonDocument.Parse(json);
         var root = document.RootElement;
 
-        Assert.Equal("1.4", root.GetProperty("schemaVersion").GetString());
+        Assert.Equal("1.5", root.GetProperty("schemaVersion").GetString());
         AssertJsonDateOnly(root.GetProperty("startDate"));
         AssertJsonDateOnly(root.GetProperty("endDate"));
         AssertJsonDateOnly(root.GetProperty("insightStartDate"));
@@ -243,6 +243,7 @@ public class OfzMarketSummaryBuilderTests
         Assert.True(root.TryGetProperty("breadthDays", out _));
         Assert.True(root.TryGetProperty("indexContextDays", out _));
         Assert.True(root.TryGetProperty("indexSegments", out _));
+        Assert.True(root.TryGetProperty("seasonalityContext", out _));
         Assert.True(root.TryGetProperty("specialMetrics", out _));
         Assert.True(root.TryGetProperty("limitations", out _));
         Assert.True(root.TryGetProperty("sourceCounts", out _));
@@ -1030,7 +1031,7 @@ public class OfzMarketSummaryBuilderTests
         using var document = JsonDocument.Parse(JsonSerializer.Serialize(summary, JsonOptions));
         var root = document.RootElement;
 
-        Assert.Equal("1.4", root.GetProperty("schemaVersion").GetString());
+        Assert.Equal("1.5", root.GetProperty("schemaVersion").GetString());
         Assert.True(root.TryGetProperty("indexContextDays", out var days));
         Assert.True(days.GetArrayLength() > 0);
         Assert.True(root.TryGetProperty("indexSegments", out _));
@@ -1129,7 +1130,7 @@ public class OfzMarketSummaryBuilderTests
         using var document = JsonDocument.Parse(JsonSerializer.Serialize(summary, JsonOptions));
         var root = document.RootElement;
 
-        Assert.Equal("1.4", root.GetProperty("schemaVersion").GetString());
+        Assert.Equal("1.5", root.GetProperty("schemaVersion").GetString());
         Assert.True(root.TryGetProperty("cashflowContext", out var context));
         AssertJsonDateOnly(context.GetProperty("startDate"));
         AssertJsonDateOnly(context.GetProperty("endDate"));
@@ -1142,6 +1143,158 @@ public class OfzMarketSummaryBuilderTests
         Assert.Equal("Offer", evidence.GetProperty("cashflowEventType").GetString());
         AssertJsonDateOnly(evidence.GetProperty("cashflowEventDate"));
         Assert.True(evidence.TryGetProperty("cashflowSourceKind", out _));
+    }
+
+    [Fact]
+    public void BuildMarketSummary_AddsSeasonalityContextAndFinding()
+    {
+        var firstMonday = new DateTime(2026, 04, 06);
+        var issue = Issue("SU26238RMFS4", "ОФЗ 26238", "Фикс с известным купоном");
+        var summary = BuildMarketSummary(
+            new OfzMarketSummaryInput
+            {
+                StartDate = firstMonday,
+                EndDate = firstMonday.AddDays(28),
+                InsightStartDate = firstMonday.AddDays(28),
+                InsightEndDate = firstMonday.AddDays(28),
+                Issues = [issue],
+                ActivityMetrics =
+                [
+                    ActivityMetric(issue.SecId, firstMonday, 1, 100_000_000, 10),
+                    ActivityMetric(issue.SecId, firstMonday.AddDays(7), 1, 110_000_000, 11),
+                    ActivityMetric(issue.SecId, firstMonday.AddDays(14), 1, 90_000_000, 9),
+                    ActivityMetric(issue.SecId, firstMonday.AddDays(21), 1, 100_000_000, 10),
+                    ActivityMetric(issue.SecId, firstMonday.AddDays(28), 3, 260_000_000, 26)
+                ],
+                LiquidityMetrics = []
+            },
+            new OfzMarketSummaryOptions { MaxFindings = 20 });
+
+        Assert.NotNull(summary.SeasonalityContext);
+        Assert.Equal(5, summary.SeasonalityContext.ObservationCount);
+        Assert.Equal(5, summary.SourceCounts.SeasonalityObservations);
+        var seasonalityFinding = Assert.Single(summary.SeasonalityContext.Findings);
+        Assert.Equal(OfzSeasonalityFindingKind.HighSeasonalActivity, seasonalityFinding.Kind);
+        Assert.Equal("Monday", seasonalityFinding.BucketKey);
+
+        var summaryFinding = Assert.Single(summary.Findings, finding => finding.Kind == OfzSummaryFindingKind.SeasonalityActivity);
+        Assert.Equal(OfzSummaryScope.Seasonality, summaryFinding.Scope);
+        Assert.Equal(OfzSeasonalityFindingKind.HighSeasonalActivity, summaryFinding.Evidence.SeasonalityFindingKind);
+        Assert.Equal(OfzSeasonalityBucketKind.Weekday, summaryFinding.Evidence.SeasonalityBucketKind);
+        Assert.Equal("Monday", summaryFinding.Evidence.SeasonalityBucketKey);
+        Assert.Equal(2.6, summaryFinding.Evidence.SeasonalityValueRatio!.Value, 1);
+        Assert.Equal(OfzSummaryDrillDownTarget.HeatmapDate, summaryFinding.DrillDown?.Target);
+        Assert.False(ContainsRecommendationLanguage(summaryFinding.Title), summaryFinding.Title);
+        Assert.False(ContainsRecommendationLanguage(summaryFinding.Text), summaryFinding.Text);
+    }
+
+    [Fact]
+    public void BuildMarketSummary_SeasonalityHonorsCouponFilterAndSignalScope()
+    {
+        var firstMonday = new DateTime(2026, 04, 06);
+        var fixedIssue = Issue("SU26238RMFS4", "ОФЗ 26238", "Фикс с известным купоном");
+        var floatingIssue = Issue("SU29019RMFS0", "ОФЗ 29019", "Флоатер");
+        var summary = BuildMarketSummary(
+            new OfzMarketSummaryInput
+            {
+                StartDate = firstMonday,
+                EndDate = firstMonday.AddDays(35),
+                InsightStartDate = firstMonday.AddDays(28),
+                InsightEndDate = firstMonday.AddDays(35),
+                CouponTypeFilter = OfzCouponType.Floating,
+                SignalScope = OfzSummarySignalScope.LastAvailableDay,
+                Issues = [fixedIssue, floatingIssue],
+                ActivityMetrics =
+                [
+                    ActivityMetric(fixedIssue.SecId, firstMonday, 1, 100_000_000, 10),
+                    ActivityMetric(fixedIssue.SecId, firstMonday.AddDays(7), 1, 100_000_000, 10),
+                    ActivityMetric(fixedIssue.SecId, firstMonday.AddDays(14), 1, 100_000_000, 10),
+                    ActivityMetric(fixedIssue.SecId, firstMonday.AddDays(21), 1, 100_000_000, 10),
+                    ActivityMetric(fixedIssue.SecId, firstMonday.AddDays(28), 4, 400_000_000, 40),
+                    ActivityMetric(floatingIssue.SecId, firstMonday, 1, 100_000_000, 10),
+                    ActivityMetric(floatingIssue.SecId, firstMonday.AddDays(7), 1, 100_000_000, 10),
+                    ActivityMetric(floatingIssue.SecId, firstMonday.AddDays(14), 1, 100_000_000, 10),
+                    ActivityMetric(floatingIssue.SecId, firstMonday.AddDays(21), 1, 100_000_000, 10),
+                    ActivityMetric(floatingIssue.SecId, firstMonday.AddDays(28), 1, 100_000_000, 10),
+                    ActivityMetric(floatingIssue.SecId, firstMonday.AddDays(35), 3, 250_000_000, 25)
+                ],
+                LiquidityMetrics = []
+            },
+            new OfzMarketSummaryOptions { MaxFindings = 20 });
+
+        Assert.Equal(OfzCouponType.Floating, summary.CouponTypeFilter);
+        Assert.NotNull(summary.SeasonalityContext);
+        Assert.Equal(1, summary.SourceCounts.ActivityMetrics);
+        Assert.Equal(6, summary.SourceCounts.SeasonalityObservations);
+        Assert.All(summary.SeasonalityContext.Findings, finding => Assert.Equal(firstMonday.AddDays(35), finding.TradeDate));
+        Assert.DoesNotContain(summary.SeasonalityContext.Findings, finding => finding.TradeDate == firstMonday.AddDays(28));
+        Assert.Contains(summary.Findings, finding =>
+            finding.Kind == OfzSummaryFindingKind.SeasonalityActivity &&
+            finding.Evidence.TradeDate == firstMonday.AddDays(35));
+    }
+
+    [Fact]
+    public void BuildMarketSummary_SerializesSeasonalityContractFields()
+    {
+        var firstMonday = new DateTime(2026, 04, 06);
+        var issue = Issue("SU26238RMFS4", "ОФЗ 26238", "Фикс с известным купоном");
+        var summary = BuildMarketSummary(
+            new OfzMarketSummaryInput
+            {
+                StartDate = firstMonday,
+                EndDate = firstMonday.AddDays(28),
+                InsightStartDate = firstMonday.AddDays(28),
+                InsightEndDate = firstMonday.AddDays(28),
+                Issues = [issue],
+                ActivityMetrics =
+                [
+                    ActivityMetric(issue.SecId, firstMonday, 1, 100_000_000, 10),
+                    ActivityMetric(issue.SecId, firstMonday.AddDays(7), 1, 100_000_000, 10),
+                    ActivityMetric(issue.SecId, firstMonday.AddDays(14), 1, 100_000_000, 10),
+                    ActivityMetric(issue.SecId, firstMonday.AddDays(21), 1, 100_000_000, 10),
+                    ActivityMetric(issue.SecId, firstMonday.AddDays(28), 3, 260_000_000, 26)
+                ],
+                LiquidityMetrics = []
+            },
+            new OfzMarketSummaryOptions { MaxFindings = 20 });
+
+        using var document = JsonDocument.Parse(JsonSerializer.Serialize(summary, JsonOptions));
+        var root = document.RootElement;
+
+        Assert.Equal("1.5", root.GetProperty("schemaVersion").GetString());
+        Assert.True(root.TryGetProperty("seasonalityContext", out var context));
+        AssertJsonDateOnly(context.GetProperty("startDate"));
+        AssertJsonDateOnly(context.GetProperty("endDate"));
+        Assert.True(context.GetProperty("weekdayBuckets").GetArrayLength() > 0);
+        Assert.True(context.GetProperty("monthBuckets").GetArrayLength() > 0);
+
+        var bucket = context.GetProperty("weekdayBuckets").EnumerateArray().First();
+        Assert.Equal("Weekday", bucket.GetProperty("kind").GetString());
+        Assert.True(bucket.TryGetProperty("medianTotalValue", out _));
+        Assert.Equal("Weak", bucket.GetProperty("baselineQuality").GetString());
+
+        var seasonalityFinding = context.GetProperty("findings").EnumerateArray().Single();
+        Assert.Equal("HighSeasonalActivity", seasonalityFinding.GetProperty("kind").GetString());
+        AssertJsonDateOnly(seasonalityFinding.GetProperty("tradeDate"));
+        Assert.Equal("Weekday", seasonalityFinding.GetProperty("bucketKind").GetString());
+        Assert.True(seasonalityFinding.TryGetProperty("valueRatio", out _));
+
+        var summaryFinding = root.GetProperty("findings")
+            .EnumerateArray()
+            .First(item => item.GetProperty("kind").GetString() == "SeasonalityActivity");
+        var evidence = summaryFinding.GetProperty("evidence");
+        Assert.Equal("HighSeasonalActivity", evidence.GetProperty("seasonalityFindingKind").GetString());
+        Assert.Equal("Weekday", evidence.GetProperty("seasonalityBucketKind").GetString());
+        Assert.Equal("Monday", evidence.GetProperty("seasonalityBucketKey").GetString());
+        Assert.Equal(5, root.GetProperty("sourceCounts").GetProperty("seasonalityObservations").GetInt32());
+
+        var roundTrip = JsonSerializer.Deserialize<OfzMarketSummary>(
+            JsonSerializer.Serialize(summary, JsonOptions),
+            JsonOptions)!;
+        Assert.NotNull(roundTrip.SeasonalityContext);
+        Assert.Equal(5, roundTrip.SeasonalityContext.ObservationCount);
+        Assert.Single(roundTrip.SeasonalityContext.Findings);
+        Assert.Equal(OfzSeasonalityFindingKind.HighSeasonalActivity, roundTrip.SeasonalityContext.Findings[0].Kind);
     }
 
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
@@ -1489,7 +1642,17 @@ public class OfzMarketSummaryBuilderTests
             evidence.CashflowValue.HasValue ||
             evidence.CashflowValueRub.HasValue ||
             evidence.CashflowValuePercent.HasValue ||
-            evidence.CashflowSourceKind.HasValue;
+            evidence.CashflowSourceKind.HasValue ||
+            evidence.SeasonalityFindingKind.HasValue ||
+            evidence.SeasonalityBucketKind.HasValue ||
+            !string.IsNullOrWhiteSpace(evidence.SeasonalityBucketKey) ||
+            !string.IsNullOrWhiteSpace(evidence.SeasonalityBucketLabel) ||
+            evidence.SeasonalityActualValue.HasValue ||
+            evidence.SeasonalityBaselineMedianValue.HasValue ||
+            evidence.SeasonalityValueRatio.HasValue ||
+            evidence.SeasonalityActualNumTrades.HasValue ||
+            evidence.SeasonalityBaselineMedianNumTrades.HasValue ||
+            evidence.SeasonalityBaselineObservationCount.HasValue;
     }
 
     private static bool ContainsRecommendationLanguage(string text)

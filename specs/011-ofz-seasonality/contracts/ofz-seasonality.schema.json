@@ -1,0 +1,89 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://curveanalyzer.local/schemas/ofz-seasonality.schema.json",
+  "title": "CurveAnalyzer OFZ seasonality context",
+  "type": "object",
+  "required": ["schemaVersion", "seasonalityContext"],
+  "properties": {
+    "schemaVersion": { "type": "string", "const": "1.5" },
+    "seasonalityContext": {
+      "type": ["object", "null"],
+      "properties": {
+        "startDate": { "type": "string", "format": "date" },
+        "endDate": { "type": "string", "format": "date" },
+        "weekdayBuckets": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/seasonalityBucket" }
+        },
+        "monthBuckets": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/seasonalityBucket" }
+        },
+        "findings": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/seasonalityFinding" }
+        },
+        "limitations": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/limitation" }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "seasonalityBucket": {
+      "type": "object",
+      "required": ["kind", "key", "label", "observationCount", "baselineQuality"],
+      "properties": {
+        "kind": { "type": "string", "enum": ["Weekday", "Month"] },
+        "key": { "type": "string" },
+        "label": { "type": "string" },
+        "sortOrder": { "type": "integer" },
+        "observationCount": { "type": "integer", "minimum": 0 },
+        "activeDayCount": { "type": "integer", "minimum": 0 },
+        "medianTotalValue": { "type": ["number", "null"] },
+        "averageTotalValue": { "type": ["number", "null"] },
+        "medianNumTrades": { "type": ["number", "null"] },
+        "medianActiveIssueCount": { "type": ["number", "null"] },
+        "upDayShare": { "type": ["number", "null"] },
+        "downDayShare": { "type": ["number", "null"] },
+        "baselineQuality": { "type": "string", "enum": ["Strong", "Weak", "Insufficient"] },
+        "limitations": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/limitation" }
+        }
+      }
+    },
+    "seasonalityFinding": {
+      "type": "object",
+      "required": ["kind", "tradeDate", "bucketKind", "bucketKey", "bucketLabel"],
+      "properties": {
+        "kind": { "type": "string" },
+        "tradeDate": { "type": "string", "format": "date" },
+        "bucketKind": { "type": "string" },
+        "bucketKey": { "type": "string" },
+        "bucketLabel": { "type": "string" },
+        "actualValue": { "type": ["number", "null"] },
+        "baselineMedianValue": { "type": ["number", "null"] },
+        "valueRatio": { "type": ["number", "null"] },
+        "actualNumTrades": { "type": ["integer", "null"] },
+        "baselineMedianNumTrades": { "type": ["number", "null"] },
+        "baselineObservationCount": { "type": "integer", "minimum": 0 },
+        "limitations": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/limitation" }
+        }
+      }
+    },
+    "limitation": {
+      "type": "object",
+      "properties": {
+        "kind": { "type": "string" },
+        "scope": { "type": "string" },
+        "text": { "type": "string" },
+        "tradeDate": { "type": ["string", "null"], "format": "date" },
+        "couponType": { "type": ["string", "null"] }
+      }
+    }
+  }
+}

@@ -2,7 +2,7 @@
 
 <!-- SPECKIT START -->
 Для текущей feature сначала читай активный план:
-`specs/010-ofz-cashflow-calendar/plan.md`.
+`specs/011-ofz-seasonality/plan.md`.
 <!-- SPECKIT END -->
 
 ## Язык документации
