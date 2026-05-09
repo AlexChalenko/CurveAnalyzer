@@ -3,7 +3,7 @@
 **Дата обновления**: 2026-05-09
 **Контекст**: идеи из `Curve Analyzer.md`, `Curve Analyzer v2.md`,
 реализованный экран `Активность ОФЗ`, проверки доступных полей MOEX ISS и
-закрытые Spec Kit features до `010-ofz-cashflow-calendar`.
+закрытые Spec Kit features до `011-ofz-seasonality`.
 
 ## Что уже реализовано
 
@@ -28,8 +28,12 @@
   source, provisional markers, index-backed findings.
 - Календарь денежных потоков ОФЗ: купоны, амортизации, погашения, оферты,
   snapshot fallback, ближайшие события и связь активности с событиями выпуска.
-- Structured summary JSON schema `1.4`: date-only поля для торговых дат,
-  index context, breadth, special metrics, cashflow context, source counts.
+- Сезонность активности: weekday/month profiles, no-lookahead seasonal
+  baseline, high/low seasonal activity findings и limitations для короткой
+  истории.
+- Structured summary JSON schema `1.5`: date-only поля для торговых дат,
+  index context, breadth, special metrics, cashflow context, seasonality
+  context, source counts.
 - UX для JSON: копирование в clipboard и сохранение structured summary JSON в
   `.json` файл.
 
@@ -45,28 +49,12 @@
 6. `009-ofz-index-context`: RGBI/RGBITR и duration segment context.
 7. `010-ofz-cashflow-calendar`: календарь купонов, амортизаций, погашений,
    оферт и cashflow-backed context.
+8. `011-ofz-seasonality`: weekday/month сезонность активности, baseline без
+   заглядывания в будущее и structured `seasonalityContext`.
 
 ## Кандидаты на следующие этапы
 
-### 1. Сезонность торгов
-
-**Приоритет**: низкий.
-
-**Предлагаемый feature id**: `011-ofz-seasonality`.
-
-**Идея**: проверить, есть ли повторяемые паттерны активности по дням недели,
-месяцам, налоговым периодам и концу года.
-
-**Визуализации**:
-
-- seasonality heatmap `месяц / день`;
-- средняя активность по дням недели;
-- сравнение текущего периода с историческим средним.
-
-**Риск**: нужна более длинная история и аккуратная интерпретация, иначе легко
-получить шум.
-
-### 2. Корреляции с внешними факторами
+### 1. Корреляции с внешними факторами
 
 **Приоритет**: низкий.
 
@@ -83,7 +71,7 @@
 **Риск**: это расширяет область проекта за пределы MOEX bonds workflow и
 требует отдельной модели качества данных.
 
-### 3. Рейтинг привлекательности, прогнозы и стресс-тесты
+### 2. Рейтинг привлекательности, прогнозы и стресс-тесты
 
 **Приоритет**: отложить.
 
@@ -99,11 +87,9 @@
 
 ## Рекомендуемый порядок
 
-1. `011-ofz-seasonality`: сезонность активности при наличии достаточной
-   истории.
-2. `012-ofz-external-factors`: внешние факторы только после стабилизации
+1. `012-ofz-external-factors`: внешние факторы только после стабилизации
    bond workflow.
-3. Рейтинг/прогнозы/стресс-тесты оставить за пределами ближайшего roadmap.
+2. Рейтинг/прогнозы/стресс-тесты оставить за пределами ближайшего roadmap.
 
 ## Проверенные источники данных
 
