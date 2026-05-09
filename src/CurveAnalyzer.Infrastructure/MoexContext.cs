@@ -12,6 +12,7 @@ public class MoexContext : DbContext
     public DbSet<OfzActivityLoadState> OfzActivityLoadStates { get; set; }
     public DbSet<CbrKeyRate> CbrKeyRates { get; set; }
     public DbSet<OfzMarketIndexPoint> OfzMarketIndexPoints { get; set; }
+    public DbSet<OfzCashflowEvent> OfzCashflowEvents { get; set; }
 
     public MoexContext(DbContextOptions<MoexContext> options) : base(options)
     {
@@ -110,5 +111,26 @@ public class MoexContext : DbContext
             .HasDatabaseName("IX_OfzMarketIndexPoints_TradeDate");
         indexPoint.HasIndex(point => new { point.SecId, point.TradeDate })
             .HasDatabaseName("IX_OfzMarketIndexPoints_SecId_TradeDate");
+
+        var cashflowEvent = modelBuilder.Entity<OfzCashflowEvent>();
+        cashflowEvent.HasKey(e => new { e.SecId, e.EventType, e.EventDate, e.SourceKind, e.SourceKey });
+        cashflowEvent.Property(e => e.SecId).HasMaxLength(32);
+        cashflowEvent.Property(e => e.SourceKey).HasMaxLength(128);
+        cashflowEvent.Property(e => e.ShortName).HasMaxLength(128);
+        cashflowEvent.Property(e => e.EventType)
+            .HasConversion<string>()
+            .HasMaxLength(32);
+        cashflowEvent.Property(e => e.FaceUnit).HasMaxLength(16);
+        cashflowEvent.Property(e => e.Agent).HasMaxLength(128);
+        cashflowEvent.Property(e => e.OfferType).HasMaxLength(64);
+        cashflowEvent.Property(e => e.SourceKind)
+            .HasConversion<string>()
+            .HasMaxLength(32);
+        cashflowEvent.Property(e => e.SourceLabel).HasMaxLength(64);
+        cashflowEvent.Ignore(e => e.Limitations);
+        cashflowEvent.HasIndex(e => e.EventDate)
+            .HasDatabaseName("IX_OfzCashflowEvents_EventDate");
+        cashflowEvent.HasIndex(e => new { e.SecId, e.EventDate })
+            .HasDatabaseName("IX_OfzCashflowEvents_SecId_EventDate");
     }
 }

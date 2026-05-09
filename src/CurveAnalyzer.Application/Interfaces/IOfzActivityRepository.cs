@@ -67,4 +67,14 @@ public interface IOfzActivityRepository
     Task SaveMarketIndexPointsAsync(
         IEnumerable<OfzMarketIndexPoint> points,
         CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<OfzCashflowEvent>> GetCashflowEventsAsync(
+        IReadOnlyCollection<string> secIds,
+        DateTime startDate,
+        DateTime endDate,
+        CancellationToken cancellationToken = default);
+
+    Task SaveCashflowEventsAsync(
+        IEnumerable<OfzCashflowEvent> events,
+        CancellationToken cancellationToken = default);
 }

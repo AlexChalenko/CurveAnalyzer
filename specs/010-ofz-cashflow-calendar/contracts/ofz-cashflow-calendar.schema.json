@@ -1,0 +1,80 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://curveanalyzer.local/schemas/ofz-cashflow-calendar.schema.json",
+  "title": "OFZ Cashflow Calendar Context",
+  "type": "object",
+  "required": ["schemaVersion", "cashflowContext"],
+  "properties": {
+    "schemaVersion": { "type": "string" },
+    "cashflowContext": {
+      "type": ["object", "null"],
+      "properties": {
+        "startDate": { "type": "string", "format": "date" },
+        "endDate": { "type": "string", "format": "date" },
+        "eventWindowDays": { "type": "integer" },
+        "events": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/cashflowEvent" }
+        },
+        "upcomingEvents": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/cashflowEvent" }
+        },
+        "issueCalendars": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/issueCalendar" }
+        },
+        "limitations": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/limitation" }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "cashflowEvent": {
+      "type": "object",
+      "required": ["secId", "eventType", "eventDate", "sourceKind"],
+      "properties": {
+        "secId": { "type": "string" },
+        "shortName": { "type": ["string", "null"] },
+        "eventType": {
+          "enum": ["Coupon", "Amortization", "Maturity", "Offer", "Buyback", "CallOption", "PutOption"]
+        },
+        "eventDate": { "type": "string", "format": "date" },
+        "recordDate": { "type": ["string", "null"], "format": "date" },
+        "value": { "type": ["number", "null"] },
+        "valueRub": { "type": ["number", "null"] },
+        "valuePercent": { "type": ["number", "null"] },
+        "faceValue": { "type": ["number", "null"] },
+        "faceUnit": { "type": ["string", "null"] },
+        "sourceKind": { "enum": ["Schedule", "Snapshot", "DescriptionFallback"] },
+        "isProvisional": { "type": "boolean" }
+      }
+    },
+    "issueCalendar": {
+      "type": "object",
+      "required": ["secId", "events"],
+      "properties": {
+        "secId": { "type": "string" },
+        "shortName": { "type": ["string", "null"] },
+        "events": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/cashflowEvent" }
+        }
+      }
+    },
+    "limitation": {
+      "type": "object",
+      "required": ["kind", "scope", "text"],
+      "properties": {
+        "kind": { "type": "string" },
+        "scope": { "type": "string" },
+        "text": { "type": "string" },
+        "secId": { "type": ["string", "null"] },
+        "tradeDate": { "type": ["string", "null"], "format": "date" },
+        "couponType": { "type": ["string", "null"] }
+      }
+    }
+  }
+}

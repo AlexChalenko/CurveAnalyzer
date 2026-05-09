@@ -21,7 +21,10 @@ public enum OfzSummaryFindingKind
     ActivityWithIndexMove = 12,
     ActivityWithoutIndexMove = 13,
     SegmentIndexMove = 14,
-    IndexDataLimitation = 15
+    IndexDataLimitation = 15,
+    ActivityNearCashflowEvent = 16,
+    UpcomingCashflowEvent = 17,
+    CashflowDataLimitation = 18
 }
 
 public enum OfzSummaryScope
@@ -35,7 +38,8 @@ public enum OfzSummaryScope
     DataQuality = 6,
     MarketBreadth = 7,
     SpecialMetric = 8,
-    IndexContext = 9
+    IndexContext = 9,
+    Cashflow = 10
 }
 
 public enum OfzDataLimitationKind
@@ -56,7 +60,9 @@ public enum OfzDataLimitationKind
     MissingRequiredIndexSeries = 13,
     MissingSegmentIndexSeries = 14,
     MissingPreviousIndexPoint = 15,
-    MissingIndexField = 16
+    MissingIndexField = 16,
+    NoCashflowData = 17,
+    MissingCashflowField = 18
 }
 
 public enum OfzIssueFocusReason
@@ -82,12 +88,13 @@ public enum OfzSummaryDrillDownTarget
     WeakLiquidityTable = 3,
     ActivityTable = 4,
     MarketBreadthDay = 5,
-    IndexContextDay = 6
+    IndexContextDay = 6,
+    CashflowEvent = 7
 }
 
 public class OfzMarketSummary
 {
-    public const string CurrentSchemaVersion = "1.3";
+    public const string CurrentSchemaVersion = "1.4";
 
     public string SchemaVersion { get; init; } = CurrentSchemaVersion;
     [JsonConverter(typeof(OfzDateJsonConverter))]
@@ -107,6 +114,7 @@ public class OfzMarketSummary
     public IReadOnlyList<MarketBreadthDay> BreadthDays { get; init; } = [];
     public IReadOnlyList<OfzIndexContextDay> IndexContextDays { get; init; } = [];
     public IReadOnlyList<OfzIndexSegmentContext> IndexSegments { get; init; } = [];
+    public OfzCashflowContext? CashflowContext { get; init; }
     public IReadOnlyList<OfzSpecialSummaryMetric> SpecialMetrics { get; init; } = [];
     public IReadOnlyList<OfzDataLimitation> Limitations { get; init; } = [];
     public OfzSummarySourceCounts SourceCounts { get; init; } = new();
@@ -189,6 +197,14 @@ public class OfzFindingEvidence
     public DateTime? IndexPreviousTradeDate { get; init; }
     public OfzMarketIndexDirection? IndexDirection { get; init; }
     public bool IndexMoveIsMeaningful { get; init; }
+    public OfzCashflowEventType? CashflowEventType { get; init; }
+    [JsonConverter(typeof(OfzDateJsonConverter))]
+    public DateTime? CashflowEventDate { get; init; }
+    public int? CashflowDaysToEvent { get; init; }
+    public double? CashflowValue { get; init; }
+    public double? CashflowValueRub { get; init; }
+    public double? CashflowValuePercent { get; init; }
+    public OfzCashflowSourceKind? CashflowSourceKind { get; init; }
     public bool IsSnapshot { get; init; }
     public bool IsProvisional { get; init; }
 }
@@ -283,6 +299,8 @@ public class OfzSummarySourceCounts
     public int SpecialMetricSeries { get; init; }
     public int IndexPoints { get; init; }
     public int IndexContextDays { get; init; }
+    public int CashflowEvents { get; init; }
+    public int CashflowIssues { get; init; }
     public int Dates { get; init; }
 }
 

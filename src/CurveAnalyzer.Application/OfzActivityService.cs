@@ -7,13 +7,16 @@ public sealed class OfzActivityService(
     IOfzActivityDataService dataService,
     IOfzActivityRepository repository,
     ICbrKeyRateDataService cbrKeyRateDataService,
-    IOfzIndexDataService indexDataService)
+    IOfzIndexDataService indexDataService,
+    IOfzCashflowDataService cashflowDataService)
 {
     private const string BoardId = "TQOB";
     private const int WarmUpTradingDays = 252;
     private const int BaselineCalendarLookbackDays = 60;
     private const int CbrKeyRateCalendarLookbackDays = 370;
     private const int IndexContextCalendarLookbackDays = 60;
+    private const int CashflowNearWindowDays = 3;
+    private const int CashflowLookAheadDays = 370;
     private const int RefreshableRecentCalendarDays = 7;
 
     public async Task WarmUpRecentHistoryAsync(
@@ -74,6 +77,13 @@ public sealed class OfzActivityService(
             .Distinct(StringComparer.Ordinal)
             .ToList();
         var issues = await repository.GetIssuesAsync(secIds, cancellationToken).ConfigureAwait(false);
+        var activeSecIds = rangeTrades
+            .Select(trade => trade.SecId)
+            .Where(secId => !string.IsNullOrWhiteSpace(secId))
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
+        var cashflowEvents = await EnsureCashflowEventsLoadedAsync(activeSecIds, startDate, endDate, cancellationToken)
+            .ConfigureAwait(false);
 
         return new OfzActivityLoadResult(startDate, endDate, issues, rangeTrades, metrics)
         {
@@ -81,7 +91,9 @@ public sealed class OfzActivityService(
             LiquidityMetrics = liquidityMetrics,
             SnapshotLiquidityMetrics = snapshotLiquidityMetrics,
             CbrKeyRates = cbrKeyRates,
-            IndexPoints = indexPoints
+            IndexPoints = indexPoints,
+            CashflowEvents = cashflowEvents,
+            CashflowDataLoaded = activeSecIds.Count > 0
         };
     }
 
@@ -375,6 +387,49 @@ public sealed class OfzActivityService(
         }
     }
 
+    private async Task<IReadOnlyList<OfzCashflowEvent>> EnsureCashflowEventsLoadedAsync(
+        IReadOnlyCollection<string> secIds,
+        DateTime startDate,
+        DateTime endDate,
+        CancellationToken cancellationToken)
+    {
+        if (secIds.Count == 0)
+        {
+            return [];
+        }
+
+        var cashflowStartDate = startDate.Date.AddDays(-CashflowNearWindowDays);
+        var cashflowEndDate = endDate.Date.AddDays(CashflowLookAheadDays);
+        var cachedEvents = await repository
+            .GetCashflowEventsAsync(secIds, cashflowStartDate, cashflowEndDate, cancellationToken)
+            .ConfigureAwait(false);
+
+        if (!ShouldRefreshCashflowEvents(secIds, cachedEvents))
+        {
+            return cachedEvents;
+        }
+
+        try
+        {
+            var loadedEvents = await cashflowDataService
+                .GetScheduleAsync(secIds, cancellationToken)
+                .ConfigureAwait(false);
+            await repository.SaveCashflowEventsAsync(loadedEvents, cancellationToken).ConfigureAwait(false);
+
+            return await repository
+                .GetCashflowEventsAsync(secIds, cashflowStartDate, cashflowEndDate, cancellationToken)
+                .ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch
+        {
+            return cachedEvents;
+        }
+    }
+
     private static bool ShouldRefreshCbrKeyRates(
         IReadOnlyList<CbrKeyRate> cachedRates,
         DateTime startDate,
@@ -422,6 +477,23 @@ public sealed class OfzActivityService(
 
         return earliestLoaded > startDate.AddDays(7) ||
             latestLoaded < latestRequired.AddDays(-RefreshableRecentCalendarDays);
+    }
+
+    private static bool ShouldRefreshCashflowEvents(
+        IReadOnlyCollection<string> secIds,
+        IReadOnlyList<OfzCashflowEvent> cachedEvents)
+    {
+        if (cachedEvents.Count == 0)
+        {
+            return true;
+        }
+
+        var cachedSecIds = cachedEvents
+            .Select(item => item.SecId)
+            .Distinct(StringComparer.Ordinal)
+            .ToHashSet(StringComparer.Ordinal);
+
+        return secIds.Any(secId => !cachedSecIds.Contains(secId));
     }
 
     private static (DateTime StartDate, DateTime EndDate) NormalizeRange(DateTime startDate, DateTime endDate)

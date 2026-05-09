@@ -16,6 +16,7 @@
         <converters:OfzSpecialSummaryMetricValueConverter x:Key="OfzSpecialSummaryMetricValueConverter" />
         <converters:OfzBreadthContributorValueConverter x:Key="OfzBreadthContributorValueConverter" />
         <converters:OfzIndexContextValueConverter x:Key="OfzIndexContextValueConverter" />
+        <converters:OfzCashflowValueConverter x:Key="OfzCashflowValueConverter" />
         <Style x:Key="HeatmapCellButtonStyle" TargetType="{x:Type Button}">
             <Setter Property="Width" Value="32" />
             <Setter Property="Height" Value="18" />
@@ -317,6 +318,90 @@
                                         </DataTemplate>
                                     </ItemsControl.ItemTemplate>
                                 </ItemsControl>
+                            </Grid>
+                        </TabItem>
+
+                        <TabItem Header="События">
+                            <Grid Margin="0,4,0,0">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="104" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="92" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="*" MinHeight="54" />
+                                </Grid.RowDefinitions>
+                                <TextBlock
+                                    Grid.Row="0"
+                                    Margin="0,0,0,3"
+                                    FontSize="10"
+                                    Foreground="DimGray"
+                                    Text="{Binding CashflowStatusMessage}"
+                                    TextWrapping="Wrap" />
+                                <DataGrid
+                                    Grid.Row="1"
+                                    AutoGenerateColumns="False"
+                                    CanUserAddRows="False"
+                                    HeadersVisibility="Column"
+                                    IsReadOnly="True"
+                                    ItemsSource="{Binding CashflowEvents}"
+                                    ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                                    ScrollViewer.VerticalScrollBarVisibility="Auto">
+                                    <DataGrid.Columns>
+                                        <DataGridTextColumn Width="74" Binding="{Binding EventDate, Mode=OneWay, StringFormat={}{0:dd.MM.yy}}" Header="Дата" />
+                                        <DataGridTextColumn Width="88" Binding="{Binding ShortName, Mode=OneWay, TargetNullValue=n/a}" Header="Выпуск" />
+                                        <DataGridTextColumn Width="70" Binding="{Binding EventType, Mode=OneWay, Converter={StaticResource OfzCashflowValueConverter}, ConverterParameter=EventType}" Header="Тип" />
+                                        <DataGridTextColumn Width="66" Binding="{Binding Value, Mode=OneWay, Converter={StaticResource OfzCashflowValueConverter}, ConverterParameter=Value}" Header="Value" />
+                                        <DataGridTextColumn Width="66" Binding="{Binding ValuePercent, Mode=OneWay, Converter={StaticResource OfzCashflowValueConverter}, ConverterParameter=Percent}" Header="%" />
+                                        <DataGridTextColumn Width="70" Binding="{Binding SourceKind, Mode=OneWay, Converter={StaticResource OfzCashflowValueConverter}, ConverterParameter=Source}" Header="Source" />
+                                    </DataGrid.Columns>
+                                </DataGrid>
+                                <TextBlock
+                                    Grid.Row="2"
+                                    Margin="0,4,0,2"
+                                    FontWeight="SemiBold"
+                                    Text="Ближайшие" />
+                                <DataGrid
+                                    Grid.Row="3"
+                                    AutoGenerateColumns="False"
+                                    CanUserAddRows="False"
+                                    HeadersVisibility="Column"
+                                    IsReadOnly="True"
+                                    ItemsSource="{Binding UpcomingCashflowEvents}"
+                                    ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                                    ScrollViewer.VerticalScrollBarVisibility="Auto">
+                                    <DataGrid.Columns>
+                                        <DataGridTextColumn Width="74" Binding="{Binding EventDate, Mode=OneWay, StringFormat={}{0:dd.MM.yy}}" Header="Дата" />
+                                        <DataGridTextColumn Width="88" Binding="{Binding ShortName, Mode=OneWay, TargetNullValue=n/a}" Header="Выпуск" />
+                                        <DataGridTextColumn Width="70" Binding="{Binding EventType, Mode=OneWay, Converter={StaticResource OfzCashflowValueConverter}, ConverterParameter=EventType}" Header="Тип" />
+                                        <DataGridTextColumn Width="66" Binding="{Binding Value, Mode=OneWay, Converter={StaticResource OfzCashflowValueConverter}, ConverterParameter=Value}" Header="Value" />
+                                        <DataGridTextColumn Width="66" Binding="{Binding ValuePercent, Mode=OneWay, Converter={StaticResource OfzCashflowValueConverter}, ConverterParameter=Percent}" Header="%" />
+                                    </DataGrid.Columns>
+                                </DataGrid>
+                                <TextBlock
+                                    Grid.Row="4"
+                                    Margin="0,4,0,2"
+                                    FontWeight="SemiBold"
+                                    Text="Связь с активностью" />
+                                <DataGrid
+                                    Grid.Row="5"
+                                    AutoGenerateColumns="False"
+                                    CanUserAddRows="False"
+                                    HeadersVisibility="Column"
+                                    IsReadOnly="True"
+                                    ItemsSource="{Binding CashflowActivityLinks}"
+                                    ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                                    ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                    Visibility="{Binding HasCashflowActivityLinks, Converter={StaticResource BoolToVis}}">
+                                    <DataGrid.Columns>
+                                        <DataGridTextColumn Width="74" Binding="{Binding TradeDate, Mode=OneWay, StringFormat={}{0:dd.MM.yy}}" Header="Trade" />
+                                        <DataGridTextColumn Width="88" Binding="{Binding ShortName, Mode=OneWay}" Header="Выпуск" />
+                                        <DataGridTextColumn Width="74" Binding="{Binding Event.EventDate, Mode=OneWay, StringFormat={}{0:dd.MM.yy}}" Header="Event" />
+                                        <DataGridTextColumn Width="70" Binding="{Binding Event.EventType, Mode=OneWay, Converter={StaticResource OfzCashflowValueConverter}, ConverterParameter=EventType}" Header="Тип" />
+                                        <DataGridTextColumn Width="46" Binding="{Binding DaysToEvent, Mode=OneWay, Converter={StaticResource OfzCashflowValueConverter}, ConverterParameter=Days}" Header="Δдн" />
+                                        <DataGridTextColumn Width="78" Binding="{Binding Value, Mode=OneWay, StringFormat={}{0:N0}, TargetNullValue=n/a}" Header="Оборот" />
+                                    </DataGrid.Columns>
+                                </DataGrid>
                             </Grid>
                         </TabItem>
 

@@ -232,7 +232,7 @@ public class OfzMarketSummaryBuilderTests
         using var document = JsonDocument.Parse(json);
         var root = document.RootElement;
 
-        Assert.Equal("1.3", root.GetProperty("schemaVersion").GetString());
+        Assert.Equal("1.4", root.GetProperty("schemaVersion").GetString());
         AssertJsonDateOnly(root.GetProperty("startDate"));
         AssertJsonDateOnly(root.GetProperty("endDate"));
         AssertJsonDateOnly(root.GetProperty("insightStartDate"));
@@ -1030,7 +1030,7 @@ public class OfzMarketSummaryBuilderTests
         using var document = JsonDocument.Parse(JsonSerializer.Serialize(summary, JsonOptions));
         var root = document.RootElement;
 
-        Assert.Equal("1.3", root.GetProperty("schemaVersion").GetString());
+        Assert.Equal("1.4", root.GetProperty("schemaVersion").GetString());
         Assert.True(root.TryGetProperty("indexContextDays", out var days));
         Assert.True(days.GetArrayLength() > 0);
         Assert.True(root.TryGetProperty("indexSegments", out _));
@@ -1066,6 +1066,82 @@ public class OfzMarketSummaryBuilderTests
         Assert.Equal("RGBI", day.PriceIndexPoint.SecId);
         Assert.Equal(0.005, day.PriceIndexPoint.DailyChangePercent);
         Assert.Equal(4, summary.SourceCounts.IndexPoints);
+    }
+
+    [Fact]
+    public void BuildMarketSummary_AddsCashflowContextAndActivityNearEventFinding()
+    {
+        var seed = SeedInput();
+        var input = new OfzMarketSummaryInput
+        {
+            StartDate = StartDate,
+            EndDate = EndDate,
+            Issues = seed.Issues,
+            Trades = seed.Trades,
+            ActivityMetrics = seed.ActivityMetrics,
+            LiquidityMetrics = seed.LiquidityMetrics,
+            CashflowDataLoaded = true,
+            CashflowEvents =
+            [
+                CashflowEvent("SU26238RMFS4", OfzCashflowEventType.Coupon, EndDate.AddDays(1), value: null, valueRub: null, valuePercent: 7.1),
+                CashflowEvent("SU26239RMFS2", OfzCashflowEventType.Maturity, EndDate.AddDays(20), value: 1_000, valueRub: 1_000, valuePercent: 100)
+            ]
+        };
+
+        var summary = BuildMarketSummary(input, new OfzMarketSummaryOptions { MaxFindings = 10 });
+        var finding = Assert.Single(summary.Findings, item => item.Kind == OfzSummaryFindingKind.ActivityNearCashflowEvent);
+
+        Assert.NotNull(summary.CashflowContext);
+        Assert.Equal("SU26238RMFS4", finding.Evidence.SecId);
+        Assert.Equal(OfzCashflowEventType.Coupon, finding.Evidence.CashflowEventType);
+        Assert.Equal(EndDate.AddDays(1), finding.Evidence.CashflowEventDate);
+        Assert.Equal(1, finding.Evidence.CashflowDaysToEvent);
+        Assert.Null(finding.Evidence.CashflowValue);
+        Assert.Equal(7.1, finding.Evidence.CashflowValuePercent);
+        Assert.Equal(OfzSummaryDrillDownTarget.CashflowEvent, finding.DrillDown?.Target);
+        Assert.Equal(2, summary.SourceCounts.CashflowEvents);
+        Assert.Equal(2, summary.SourceCounts.CashflowIssues);
+        Assert.False(ContainsRecommendationLanguage(finding.Title), finding.Title);
+        Assert.False(ContainsRecommendationLanguage(finding.Text), finding.Text);
+    }
+
+    [Fact]
+    public void BuildMarketSummary_SerializesCashflowContractFields()
+    {
+        var seed = SeedInput();
+        var summary = BuildMarketSummary(
+            new OfzMarketSummaryInput
+            {
+                StartDate = StartDate,
+                EndDate = EndDate,
+                Issues = seed.Issues,
+                Trades = seed.Trades,
+                ActivityMetrics = seed.ActivityMetrics,
+                LiquidityMetrics = seed.LiquidityMetrics,
+                CashflowDataLoaded = true,
+                CashflowEvents =
+                [
+                    CashflowEvent("SU26238RMFS4", OfzCashflowEventType.Offer, EndDate, price: 100.2)
+                ]
+            },
+            new OfzMarketSummaryOptions { MaxFindings = 10 });
+
+        using var document = JsonDocument.Parse(JsonSerializer.Serialize(summary, JsonOptions));
+        var root = document.RootElement;
+
+        Assert.Equal("1.4", root.GetProperty("schemaVersion").GetString());
+        Assert.True(root.TryGetProperty("cashflowContext", out var context));
+        AssertJsonDateOnly(context.GetProperty("startDate"));
+        AssertJsonDateOnly(context.GetProperty("endDate"));
+        Assert.True(context.GetProperty("events").GetArrayLength() > 0);
+
+        var cashflowFinding = root.GetProperty("findings")
+            .EnumerateArray()
+            .First(item => item.GetProperty("kind").GetString() == "ActivityNearCashflowEvent");
+        var evidence = cashflowFinding.GetProperty("evidence");
+        Assert.Equal("Offer", evidence.GetProperty("cashflowEventType").GetString());
+        AssertJsonDateOnly(evidence.GetProperty("cashflowEventDate"));
+        Assert.True(evidence.TryGetProperty("cashflowSourceKind", out _));
     }
 
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
@@ -1176,7 +1252,9 @@ public class OfzMarketSummaryBuilderTests
             ActivityMetrics = input.ActivityMetrics,
             LiquidityMetrics = input.LiquidityMetrics,
             CbrKeyRates = input.CbrKeyRates,
-            IndexPoints = input.IndexPoints
+            IndexPoints = input.IndexPoints,
+            CashflowEvents = input.CashflowEvents,
+            CashflowDataLoaded = input.CashflowDataLoaded
         };
     }
 
@@ -1339,6 +1417,31 @@ public class OfzMarketSummaryBuilderTests
         };
     }
 
+    private static OfzCashflowEvent CashflowEvent(
+        string secId,
+        OfzCashflowEventType eventType,
+        DateTime eventDate,
+        double? value = 10,
+        double? valueRub = 10,
+        double? valuePercent = 5,
+        double? price = null)
+    {
+        return new OfzCashflowEvent
+        {
+            SecId = secId,
+            SourceKey = $"{eventType}:{eventDate:yyyy-MM-dd}",
+            ShortName = secId == "SU26238RMFS4" ? "ОФЗ 26238" : "ОФЗ 26239",
+            EventType = eventType,
+            EventDate = eventDate,
+            Value = value,
+            ValueRub = valueRub,
+            ValuePercent = valuePercent,
+            Price = price,
+            SourceKind = OfzCashflowSourceKind.Schedule,
+            LoadedAt = new DateTime(2026, 04, 20, 12, 0, 0, DateTimeKind.Utc)
+        };
+    }
+
     private static bool HasEvidenceOrLimitation(OfzSummaryFinding finding)
     {
         var evidence = finding.Evidence;
@@ -1379,7 +1482,14 @@ public class OfzMarketSummaryBuilderTests
             evidence.IndexYieldChange.HasValue ||
             evidence.IndexDuration.HasValue ||
             evidence.IndexPreviousTradeDate.HasValue ||
-            evidence.IndexDirection.HasValue;
+            evidence.IndexDirection.HasValue ||
+            evidence.CashflowEventType.HasValue ||
+            evidence.CashflowEventDate.HasValue ||
+            evidence.CashflowDaysToEvent.HasValue ||
+            evidence.CashflowValue.HasValue ||
+            evidence.CashflowValueRub.HasValue ||
+            evidence.CashflowValuePercent.HasValue ||
+            evidence.CashflowSourceKind.HasValue;
     }
 
     private static bool ContainsRecommendationLanguage(string text)

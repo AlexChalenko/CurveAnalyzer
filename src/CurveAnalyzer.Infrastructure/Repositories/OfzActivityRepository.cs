@@ -315,6 +315,93 @@ public sealed class OfzActivityRepository(IDbContextFactory<MoexContext> context
         await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
     }
 
+    public async Task<IReadOnlyList<OfzCashflowEvent>> GetCashflowEventsAsync(
+        IReadOnlyCollection<string> secIds,
+        DateTime startDate,
+        DateTime endDate,
+        CancellationToken cancellationToken = default)
+    {
+        if (secIds.Count == 0)
+        {
+            return [];
+        }
+
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
+        var normalizedSecIds = secIds
+            .Where(secId => !string.IsNullOrWhiteSpace(secId))
+            .Select(secId => secId.Trim())
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
+
+        if (normalizedSecIds.Count == 0)
+        {
+            return [];
+        }
+
+        var events = await context.OfzCashflowEvents
+            .AsNoTracking()
+            .Where(item =>
+                normalizedSecIds.Contains(item.SecId) &&
+                item.EventDate >= startDate.Date &&
+                item.EventDate <= endDate.Date)
+            .OrderBy(item => item.SecId)
+            .ThenBy(item => item.EventDate)
+            .ThenBy(item => item.EventType)
+            .ThenBy(item => item.SourceKind)
+            .ThenBy(item => item.SourceKey)
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        return events
+            .Select(NormalizeCashflowEvent)
+            .ToList();
+    }
+
+    public async Task SaveCashflowEventsAsync(
+        IEnumerable<OfzCashflowEvent> events,
+        CancellationToken cancellationToken = default)
+    {
+        var distinctEvents = events
+            .Where(item => !string.IsNullOrWhiteSpace(item.SecId))
+            .Where(item => item.EventDate != default)
+            .Select(NormalizeCashflowEvent)
+            .GroupBy(item => new { item.SecId, item.EventType, item.EventDate, item.SourceKind, item.SourceKey })
+            .Select(group => group.OrderByDescending(item => item.LoadedAt).First())
+            .ToList();
+
+        if (distinctEvents.Count == 0)
+        {
+            return;
+        }
+
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
+
+        foreach (var cashflowEvent in distinctEvents)
+        {
+            var existing = await context.OfzCashflowEvents
+                .AsTracking()
+                .FirstOrDefaultAsync(existingEvent =>
+                    existingEvent.SecId == cashflowEvent.SecId &&
+                    existingEvent.EventType == cashflowEvent.EventType &&
+                    existingEvent.EventDate == cashflowEvent.EventDate &&
+                    existingEvent.SourceKind == cashflowEvent.SourceKind &&
+                    existingEvent.SourceKey == cashflowEvent.SourceKey,
+                    cancellationToken)
+                .ConfigureAwait(false);
+
+            if (existing is null)
+            {
+                await context.OfzCashflowEvents.AddAsync(cashflowEvent, cancellationToken).ConfigureAwait(false);
+            }
+            else
+            {
+                context.Entry(existing).CurrentValues.SetValues(cashflowEvent);
+            }
+        }
+
+        await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+    }
+
     private async Task SaveIssuesAsync(
         MoexContext context,
         IEnumerable<OfzIssue> issues,
@@ -398,6 +485,65 @@ public sealed class OfzActivityRepository(IDbContextFactory<MoexContext> context
             LoadedAt = point.LoadedAt == default ? DateTime.UtcNow : point.LoadedAt,
             IsProvisional = point.IsProvisional
         };
+    }
+
+    private static OfzCashflowEvent NormalizeCashflowEvent(OfzCashflowEvent item)
+    {
+        var eventDate = item.EventDate.Date;
+        var sourceKey = string.IsNullOrWhiteSpace(item.SourceKey)
+            ? $"{item.EventType}:{eventDate:yyyy-MM-dd}:{item.SourceKind}"
+            : item.SourceKey.Trim();
+        var faceUnit = MergeText(null, item.FaceUnit);
+        var value = NormalizeCouponFinite(item.EventType, item.Value);
+        var valueRub = NormalizeCouponFinite(item.EventType, item.ValueRub) ??
+            (IsRubFaceUnit(faceUnit) ? value : null);
+
+        return new OfzCashflowEvent
+        {
+            SecId = item.SecId.Trim(),
+            SourceKey = sourceKey,
+            ShortName = MergeText(null, item.ShortName),
+            EventType = item.EventType,
+            EventDate = eventDate,
+            StartDate = item.StartDate?.Date,
+            EndDate = item.EndDate?.Date,
+            RecordDate = item.RecordDate?.Date,
+            Value = value,
+            ValueRub = valueRub,
+            ValuePercent = NormalizeCouponFinite(item.EventType, item.ValuePercent),
+            FaceValue = NormalizeFinite(item.FaceValue),
+            InitialFaceValue = NormalizeFinite(item.InitialFaceValue),
+            FaceUnit = faceUnit,
+            Price = NormalizeFinite(item.Price),
+            Agent = MergeText(null, item.Agent),
+            OfferType = MergeText(null, item.OfferType),
+            SourceKind = item.SourceKind,
+            SourceLabel = MergeText(null, item.SourceLabel),
+            LoadedAt = item.LoadedAt == default ? DateTime.UtcNow : item.LoadedAt,
+            IsProvisional = item.IsProvisional
+        };
+    }
+
+    private static double? NormalizeFinite(double? value)
+    {
+        return value.HasValue && double.IsFinite(value.Value) ? value.Value : null;
+    }
+
+    private static double? NormalizeCouponFinite(OfzCashflowEventType eventType, double? value)
+    {
+        var normalized = NormalizeFinite(value);
+        const double tolerance = 0.0000001;
+        return eventType == OfzCashflowEventType.Coupon &&
+            normalized.HasValue &&
+            Math.Abs(normalized.Value) < tolerance
+                ? null
+                : normalized;
+    }
+
+    private static bool IsRubFaceUnit(string? faceUnit)
+    {
+        return string.Equals(faceUnit, "RUB", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(faceUnit, "SUR", StringComparison.OrdinalIgnoreCase);
     }
 
     private static void EnsureClassificationSource(OfzIssue issue)

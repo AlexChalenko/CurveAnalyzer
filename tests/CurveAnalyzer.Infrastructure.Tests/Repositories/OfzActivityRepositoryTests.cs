@@ -198,6 +198,91 @@ public sealed class OfzActivityRepositoryTests
         Assert.Equal(100.4, point.Close);
     }
 
+    [Fact]
+    public async Task SaveCashflowEventsAsync_UpsertsAndReturnsDateRange()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        using var factory = new TestMoexContextFactory();
+        var repository = new OfzActivityRepository(factory);
+        var firstDate = new DateTime(2026, 05, 20);
+        var secondDate = firstDate.AddDays(10);
+
+        await repository.SaveCashflowEventsAsync(
+            [
+                CashflowEvent("SU26238RMFS4", OfzCashflowEventType.Coupon, firstDate, value: 12.3, loadedAt: firstDate),
+                CashflowEvent("SU26238RMFS4", OfzCashflowEventType.Maturity, secondDate, value: 1_000, loadedAt: secondDate)
+            ],
+            cancellationToken);
+        await repository.SaveCashflowEventsAsync(
+            [CashflowEvent("SU26238RMFS4", OfzCashflowEventType.Coupon, firstDate, value: 12.7, loadedAt: secondDate)],
+            cancellationToken);
+
+        var events = await repository.GetCashflowEventsAsync(
+            ["SU26238RMFS4"],
+            firstDate,
+            secondDate,
+            cancellationToken);
+
+        Assert.Collection(
+            events,
+            first =>
+            {
+                Assert.Equal(firstDate, first.EventDate);
+                Assert.Equal(OfzCashflowEventType.Coupon, first.EventType);
+                Assert.Equal(12.7, first.Value);
+                Assert.Equal(12.7, first.ValueRub);
+            },
+            second =>
+            {
+                Assert.Equal(secondDate, second.EventDate);
+                Assert.Equal(OfzCashflowEventType.Maturity, second.EventType);
+                Assert.Equal(1_000, second.Value);
+            });
+    }
+
+    [Fact]
+    public async Task SaveCashflowEventsAsync_NormalizesZeroCouponValuesAndKeepsDistinctSourceKinds()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        using var factory = new TestMoexContextFactory();
+        var repository = new OfzActivityRepository(factory);
+        var date = new DateTime(2026, 05, 20);
+
+        await repository.SaveCashflowEventsAsync(
+            [
+                CashflowEvent("SU26238RMFS4", OfzCashflowEventType.Coupon, date, value: 0, sourceKind: OfzCashflowSourceKind.Schedule),
+                CashflowEvent("SU26238RMFS4", OfzCashflowEventType.Coupon, date, value: 12, sourceKind: OfzCashflowSourceKind.Snapshot, isProvisional: true)
+            ],
+            cancellationToken);
+
+        var events = await repository.GetCashflowEventsAsync(["SU26238RMFS4"], date, date, cancellationToken);
+
+        Assert.Equal(2, events.Count);
+        Assert.Contains(events, item => item.SourceKind == OfzCashflowSourceKind.Schedule && item.Value is null);
+        Assert.Contains(events, item => item.SourceKind == OfzCashflowSourceKind.Snapshot && item.IsProvisional);
+    }
+
+    [Fact]
+    public async Task SaveCashflowEventsAsync_KeepsZeroValuesForNonCouponEvents()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        using var factory = new TestMoexContextFactory();
+        var repository = new OfzActivityRepository(factory);
+        var date = new DateTime(2026, 05, 20);
+
+        await repository.SaveCashflowEventsAsync(
+            [CashflowEvent("SU26238RMFS4", OfzCashflowEventType.Maturity, date, value: 0)],
+            cancellationToken);
+
+        var cashflowEvent = Assert.Single(await repository.GetCashflowEventsAsync(
+            ["SU26238RMFS4"],
+            date,
+            date,
+            cancellationToken));
+
+        Assert.Equal(0, cashflowEvent.Value);
+    }
+
     private static OfzActivityDailyData DailyData(
         DateTime date,
         OfzIssue issue,
@@ -246,6 +331,33 @@ public sealed class OfzActivityRepositoryTests
             TradeDate = tradeDate.Date,
             Close = close,
             SourceKind = sourceKind,
+            LoadedAt = loadedAt ?? DateTime.UtcNow,
+            IsProvisional = isProvisional
+        };
+    }
+
+    private static OfzCashflowEvent CashflowEvent(
+        string secId,
+        OfzCashflowEventType eventType,
+        DateTime eventDate,
+        double? value,
+        DateTime? loadedAt = null,
+        OfzCashflowSourceKind sourceKind = OfzCashflowSourceKind.Schedule,
+        bool isProvisional = false)
+    {
+        return new OfzCashflowEvent
+        {
+            SecId = secId,
+            SourceKey = $"{eventType}:{eventDate:yyyy-MM-dd}:{sourceKind}",
+            ShortName = "ОФЗ 26238",
+            EventType = eventType,
+            EventDate = eventDate.Date,
+            Value = value,
+            ValueRub = null,
+            ValuePercent = value,
+            FaceUnit = "SUR",
+            SourceKind = sourceKind,
+            SourceLabel = sourceKind.ToString(),
             LoadedAt = loadedAt ?? DateTime.UtcNow,
             IsProvisional = isProvisional
         };
