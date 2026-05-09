@@ -1,0 +1,92 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ofz-external-factors.schema.json",
+  "title": "OFZ External Factors Context",
+  "type": "object",
+  "required": ["schemaVersion", "externalFactorsContext"],
+  "properties": {
+    "schemaVersion": {
+      "const": "1.6"
+    },
+    "externalFactorsContext": {
+      "type": "object",
+      "required": ["factorSeries", "links", "limitations"],
+      "properties": {
+        "factorSeries": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/factorSeries"
+          }
+        },
+        "links": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/activityLink"
+          }
+        },
+        "limitations": {
+          "type": "array"
+        }
+      }
+    }
+  },
+  "$defs": {
+    "factorSeries": {
+      "type": "object",
+      "required": ["kind", "code", "label", "source", "availability", "observations"],
+      "properties": {
+        "kind": { "type": "string" },
+        "code": { "type": "string" },
+        "label": { "type": "string" },
+        "unit": { "type": ["string", "null"] },
+        "scope": { "type": "string" },
+        "source": { "type": "string" },
+        "availability": { "type": "string" },
+        "observations": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/observation"
+          }
+        },
+        "latestObservation": {
+          "anyOf": [
+            { "$ref": "#/$defs/observation" },
+            { "type": "null" }
+          ]
+        },
+        "limitations": { "type": "array" }
+      }
+    },
+    "observation": {
+      "type": "object",
+      "required": ["tradeDate", "sourceLabel", "isSnapshot", "isProvisional"],
+      "properties": {
+        "tradeDate": { "type": "string", "format": "date" },
+        "value": { "type": ["number", "null"] },
+        "dailyChange": { "type": ["number", "null"] },
+        "dailyChangePercent": { "type": ["number", "null"] },
+        "direction": { "type": ["string", "null"] },
+        "isMeaningful": { "type": "boolean" },
+        "previousTradeDate": { "type": ["string", "null"], "format": "date" },
+        "sourceLabel": { "type": "string" },
+        "isSnapshot": { "type": "boolean" },
+        "isProvisional": { "type": "boolean" }
+      }
+    },
+    "activityLink": {
+      "type": "object",
+      "required": ["tradeDate", "factorCode", "linkKind", "text"],
+      "properties": {
+        "tradeDate": { "type": "string", "format": "date" },
+        "factorCode": { "type": "string" },
+        "factorObservationDate": { "type": ["string", "null"], "format": "date" },
+        "linkKind": { "type": "string" },
+        "activityValue": { "type": ["number", "null"] },
+        "activityScore": { "type": ["number", "null"] },
+        "yieldMove": { "type": ["number", "null"] },
+        "text": { "type": "string" },
+        "limitations": { "type": "array" }
+      }
+    }
+  }
+}
