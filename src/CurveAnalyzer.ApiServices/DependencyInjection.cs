@@ -11,6 +11,7 @@ public static class DependencyInjection
         services.AddSingleton<IDataService, OnlineDataService>();
         services.AddSingleton<IOfzActivityDataService, OfzActivityOnlineDataService>();
         services.AddSingleton<IOfzIndexDataService, OfzIndexOnlineDataService>();
+        services.AddSingleton<IOfzCashflowDataService, OfzCashflowOnlineDataService>();
         services.AddSingleton<ICbrKeyRateDataService, CbrKeyRateDataService>();
 
         return services;

@@ -16,6 +16,7 @@ public partial class OfzActivityViewModel(OfzActivityService activityService) : 
 {
     private const string BreadthDayPlaceholder = "Выберите строку во вкладке \"Ширина\" или вывод по ширине рынка.";
     private const string IndexContextDayPlaceholder = "Выберите строку во вкладке \"Индекс\" или индексный вывод.";
+    private const string IssueCashflowPlaceholder = "Календарь выпуска не выбран";
 
     private bool _initialized;
     private int _detailSelectionVersion;
@@ -102,6 +103,18 @@ public partial class OfzActivityViewModel(OfzActivityService activityService) : 
     public partial ObservableCollection<OfzDataLimitation> SelectedIndexLimitations { get; set; } = [];
 
     [ObservableProperty]
+    public partial ObservableCollection<OfzCashflowEvent> CashflowEvents { get; set; } = [];
+
+    [ObservableProperty]
+    public partial ObservableCollection<OfzCashflowEvent> UpcomingCashflowEvents { get; set; } = [];
+
+    [ObservableProperty]
+    public partial ObservableCollection<OfzCashflowActivityLink> CashflowActivityLinks { get; set; } = [];
+
+    [ObservableProperty]
+    public partial ObservableCollection<OfzDataLimitation> CashflowLimitations { get; set; } = [];
+
+    [ObservableProperty]
     public partial ObservableCollection<MarketBreadthContributor> SelectedBreadthContributors { get; set; } = [];
 
     [ObservableProperty]
@@ -142,6 +155,15 @@ public partial class OfzActivityViewModel(OfzActivityService activityService) : 
 
     [ObservableProperty]
     public partial OfzIssueLiquidityProfile? SelectedIssueLiquidityProfile { get; set; }
+
+    [ObservableProperty]
+    public partial ObservableCollection<OfzCashflowEvent> SelectedIssueCashflowEvents { get; set; } = [];
+
+    [ObservableProperty]
+    public partial ObservableCollection<OfzDataLimitation> SelectedIssueCashflowLimitations { get; set; } = [];
+
+    [ObservableProperty]
+    public partial string SelectedIssueCashflowStatusMessage { get; set; } = IssueCashflowPlaceholder;
 
     [ObservableProperty]
     public partial bool IsLoadingIssueDetail { get; set; }
@@ -193,6 +215,27 @@ public partial class OfzActivityViewModel(OfzActivityService activityService) : 
 
     [ObservableProperty]
     public partial bool HasSelectedIndexLimitations { get; set; }
+
+    [ObservableProperty]
+    public partial bool HasCashflowContext { get; set; }
+
+    [ObservableProperty]
+    public partial bool HasCashflowEvents { get; set; }
+
+    [ObservableProperty]
+    public partial bool HasCashflowActivityLinks { get; set; }
+
+    [ObservableProperty]
+    public partial bool HasCashflowLimitations { get; set; }
+
+    [ObservableProperty]
+    public partial bool HasSelectedIssueCashflowEvents { get; set; }
+
+    [ObservableProperty]
+    public partial bool HasSelectedIssueCashflowLimitations { get; set; }
+
+    [ObservableProperty]
+    public partial string CashflowStatusMessage { get; set; } = "Календарь событий не рассчитан";
 
     [ObservableProperty]
     public partial bool HasSelectedBreadthContributors { get; set; }
@@ -450,6 +493,10 @@ public partial class OfzActivityViewModel(OfzActivityService activityService) : 
         SummaryLimitations.Clear();
         IndexContextDays.Clear();
         IndexSegments.Clear();
+        CashflowEvents.Clear();
+        UpcomingCashflowEvents.Clear();
+        CashflowActivityLinks.Clear();
+        CashflowLimitations.Clear();
         ClearSelectedBreadthDay();
         ClearSelectedIndexContextDay();
         MarketSummary = null;
@@ -473,10 +520,16 @@ public partial class OfzActivityViewModel(OfzActivityService activityService) : 
         HasSummaryLimitations = false;
         HasIndexContext = false;
         HasIndexSegments = false;
+        HasCashflowContext = false;
+        HasCashflowEvents = false;
+        HasCashflowActivityLinks = false;
+        HasCashflowLimitations = false;
         HasSelectedBreadthContributors = false;
         HasSelectedBreadthLimitations = false;
         HasSelectedIndexContextPoints = false;
         HasSelectedIndexLimitations = false;
+        HasSelectedIssueCashflowEvents = false;
+        HasSelectedIssueCashflowLimitations = false;
         HasStructuredSummaryJson = false;
         CopySummaryJsonCommand.NotifyCanExecuteChanged();
         SaveSummaryJsonCommand.NotifyCanExecuteChanged();
@@ -485,6 +538,7 @@ public partial class OfzActivityViewModel(OfzActivityService activityService) : 
         ActivityIndexStatusMessage = "Индекс не рассчитан";
         DurationYieldScatterStatusMessage = "Scatter не рассчитан";
         IndexContextStatusMessage = "Индексный контекст не рассчитан";
+        CashflowStatusMessage = "Календарь событий не рассчитан";
         ClearIssueDetail();
     }
 
@@ -527,7 +581,9 @@ public partial class OfzActivityViewModel(OfzActivityService activityService) : 
             ActivityMetrics = metrics,
             LiquidityMetrics = liquidityMetrics,
             CbrKeyRates = _currentResult.CbrKeyRates,
-            IndexPoints = _currentResult.IndexPoints
+            IndexPoints = _currentResult.IndexPoints,
+            CashflowEvents = _currentResult.CashflowEvents,
+            CashflowDataLoaded = _currentResult.CashflowDataLoaded
         });
         var insights = OfzActivityAnalyzer.BuildActivityInsights(insightMetrics, issues)
             .Concat(OfzActivityAnalyzer.BuildLiquidityInsights(insightLiquidityMetrics, issues))
@@ -561,7 +617,7 @@ public partial class OfzActivityViewModel(OfzActivityService activityService) : 
         var insightPeriodLabel = SelectedInsightPeriodFilter?.DisplayName ?? "Весь диапазон";
         var signalScopeLabel = SelectedSignalScopeFilter?.DisplayName ?? "Все дни";
         StatusMessage = HasAnomalies || HasHeatmap || HasMarketSummary || HasActivityIndex || HasDurationYieldScatter
-            ? $"Найдено всплесков: {TopAnomalies.Count}; weak liquidity: {WeakLiquidityItems.Count}; heatmap: {HeatmapRows.Count} выпусков; выводов: {SummaryFindings.Count}; дней breadth в выводах: {marketSummary.BreadthDays.Count}; index context: {IndexContextDays.Count}; index: {ActivityIndex.Count}; scatter: {DurationYieldScatterPoints.Count}; тип: {filterLabel}; сигналы: {signalScopeLabel}; период выводов: {insightPeriodLabel}"
+            ? $"Найдено всплесков: {TopAnomalies.Count}; weak liquidity: {WeakLiquidityItems.Count}; heatmap: {HeatmapRows.Count} выпусков; выводов: {SummaryFindings.Count}; дней breadth в выводах: {marketSummary.BreadthDays.Count}; index context: {IndexContextDays.Count}; cashflow events: {CashflowEvents.Count + UpcomingCashflowEvents.Count}; index: {ActivityIndex.Count}; scatter: {DurationYieldScatterPoints.Count}; тип: {filterLabel}; сигналы: {signalScopeLabel}; период выводов: {insightPeriodLabel}"
             : $"Нет записей с достаточной baseline; тип: {filterLabel}; сигналы: {signalScopeLabel}; период выводов: {insightPeriodLabel}";
     }
 
@@ -844,9 +900,46 @@ public partial class OfzActivityViewModel(OfzActivityService activityService) : 
             IndexSegments.Add(segment);
         }
 
+        if (summary.CashflowContext is not null)
+        {
+            foreach (var cashflowEvent in summary.CashflowContext.Events
+                .OrderBy(item => item.EventDate)
+                .ThenBy(item => item.SecId, StringComparer.Ordinal)
+                .ThenBy(item => item.EventType))
+            {
+                CashflowEvents.Add(cashflowEvent);
+            }
+
+            foreach (var cashflowEvent in summary.CashflowContext.UpcomingEvents
+                .OrderBy(item => item.EventDate)
+                .ThenBy(item => item.SecId, StringComparer.Ordinal)
+                .ThenBy(item => item.EventType))
+            {
+                UpcomingCashflowEvents.Add(cashflowEvent);
+            }
+
+            foreach (var link in summary.CashflowContext.ActivityLinks)
+            {
+                CashflowActivityLinks.Add(link);
+            }
+
+            foreach (var limitation in summary.CashflowContext.Limitations)
+            {
+                CashflowLimitations.Add(limitation);
+            }
+        }
+
         StructuredSummaryJson = JsonSerializer.Serialize(summary, SummaryJsonOptions);
         HasStructuredSummaryJson = !string.IsNullOrWhiteSpace(StructuredSummaryJson);
-        HasMarketSummary = SummaryFindings.Count > 0 || summary.Limitations.Count > 0 || IndexContextDays.Count > 0;
+        HasCashflowContext = summary.CashflowContext is not null &&
+            (summary.CashflowContext.IssueCalendars.Count > 0 || summary.CashflowContext.Limitations.Count > 0);
+        HasCashflowEvents = CashflowEvents.Count > 0 || UpcomingCashflowEvents.Count > 0;
+        HasCashflowActivityLinks = CashflowActivityLinks.Count > 0;
+        HasCashflowLimitations = CashflowLimitations.Count > 0;
+        CashflowStatusMessage = HasCashflowContext
+            ? $"{CashflowEvents.Count} событий рядом с периодом; ближайших {UpcomingCashflowEvents.Count}; связей с активностью {CashflowActivityLinks.Count}"
+            : "Календарь событий отсутствует";
+        HasMarketSummary = SummaryFindings.Count > 0 || summary.Limitations.Count > 0 || IndexContextDays.Count > 0 || HasCashflowContext;
         HasSegmentSummaries = SegmentSummaries.Count > 0;
         HasSummaryLimitations = SummaryLimitations.Count > 0;
         HasIndexContext = IndexContextDays.Any(day => day.Points.Count > 0);
@@ -1036,6 +1129,7 @@ public partial class OfzActivityViewModel(OfzActivityService activityService) : 
 
             SelectedIssueDetail = detail;
             SelectedIssueLiquidityProfile = liquidityProfile;
+            ApplySelectedIssueCashflow(secId);
             IssueDetailStatusMessage = detail.HasPoints
                 ? $"{detail.ShortName} ({detail.SecId}): {detail.Points.Count} записей"
                 : $"{secId}: нет записей за диапазон";
@@ -1049,6 +1143,7 @@ public partial class OfzActivityViewModel(OfzActivityService activityService) : 
 
             SelectedIssueDetail = null;
             SelectedIssueLiquidityProfile = null;
+            ClearSelectedIssueCashflow();
             IssueDetailStatusMessage = $"Ошибка детализации: {ex.Message}";
         }
         finally
@@ -1065,8 +1160,53 @@ public partial class OfzActivityViewModel(OfzActivityService activityService) : 
         _detailSelectionVersion++;
         SelectedIssueDetail = null;
         SelectedIssueLiquidityProfile = null;
+        ClearSelectedIssueCashflow();
         IsLoadingIssueDetail = false;
         IssueDetailStatusMessage = "Выпуск не выбран";
+    }
+
+    private void ApplySelectedIssueCashflow(string secId)
+    {
+        ClearSelectedIssueCashflow();
+
+        var calendar = MarketSummary?.CashflowContext?.IssueCalendars
+            .FirstOrDefault(item => string.Equals(item.SecId, secId, StringComparison.Ordinal));
+        if (calendar is null)
+        {
+            SelectedIssueCashflowStatusMessage = $"{secId}: календарь событий отсутствует";
+            return;
+        }
+
+        var events = calendar.NearPeriodEvents.Count > 0
+            ? calendar.NearPeriodEvents
+            : calendar.Events;
+        foreach (var cashflowEvent in events
+            .OrderBy(item => item.EventDate)
+            .ThenBy(item => item.EventType)
+            .ThenBy(item => item.SourceKind))
+        {
+            SelectedIssueCashflowEvents.Add(cashflowEvent);
+        }
+
+        foreach (var limitation in calendar.Limitations)
+        {
+            SelectedIssueCashflowLimitations.Add(limitation);
+        }
+
+        HasSelectedIssueCashflowEvents = SelectedIssueCashflowEvents.Count > 0;
+        HasSelectedIssueCashflowLimitations = SelectedIssueCashflowLimitations.Count > 0;
+        SelectedIssueCashflowStatusMessage = HasSelectedIssueCashflowEvents
+            ? $"{calendar.ShortName}: событий {SelectedIssueCashflowEvents.Count}, окно +/- {MarketSummary?.CashflowContext?.EventWindowDays ?? 0} дн."
+            : $"{calendar.ShortName}: событий рядом с периодом нет";
+    }
+
+    private void ClearSelectedIssueCashflow()
+    {
+        SelectedIssueCashflowEvents.Clear();
+        SelectedIssueCashflowLimitations.Clear();
+        HasSelectedIssueCashflowEvents = false;
+        HasSelectedIssueCashflowLimitations = false;
+        SelectedIssueCashflowStatusMessage = IssueCashflowPlaceholder;
     }
 
     private bool CanCopySummaryJson()
@@ -1223,6 +1363,26 @@ public partial class OfzActivityViewModel(OfzActivityService activityService) : 
             parts.Add("index move meaningful");
         }
 
+        if (evidence.CashflowEventType.HasValue)
+        {
+            parts.Add($"event {FormatCashflowEventType(evidence.CashflowEventType.Value)}");
+        }
+
+        if (evidence.CashflowEventDate.HasValue)
+        {
+            parts.Add($"event date {evidence.CashflowEventDate:yyyy-MM-dd}");
+        }
+
+        AddNumber(parts, "days to event", evidence.CashflowDaysToEvent, "N0");
+        AddNumber(parts, "cashflow", evidence.CashflowValue, "N2");
+        AddNumber(parts, "cashflow RUB", evidence.CashflowValueRub, "N2");
+        AddNumber(parts, "cashflow %", evidence.CashflowValuePercent, "N2");
+
+        if (evidence.CashflowSourceKind.HasValue)
+        {
+            parts.Add($"cashflow source {evidence.CashflowSourceKind.Value}");
+        }
+
         if (evidence.LiquidityBucket.HasValue)
         {
             parts.Add($"bucket {evidence.LiquidityBucket.Value}");
@@ -1283,6 +1443,21 @@ public partial class OfzActivityViewModel(OfzActivityService activityService) : 
     private static string FormatSignedPercent(double? value)
     {
         return value.HasValue ? value.Value.ToString("+0.00%;-0.00%;0.00%") : "n/a";
+    }
+
+    private static string FormatCashflowEventType(OfzCashflowEventType eventType)
+    {
+        return eventType switch
+        {
+            OfzCashflowEventType.Coupon => "купон",
+            OfzCashflowEventType.Amortization => "амортизация",
+            OfzCashflowEventType.Maturity => "погашение",
+            OfzCashflowEventType.Offer => "оферта",
+            OfzCashflowEventType.Buyback => "buyback",
+            OfzCashflowEventType.CallOption => "call option",
+            OfzCashflowEventType.PutOption => "put option",
+            _ => eventType.ToString()
+        };
     }
 
     private static string FormatIndexPoint(OfzIndexContextPoint? point)

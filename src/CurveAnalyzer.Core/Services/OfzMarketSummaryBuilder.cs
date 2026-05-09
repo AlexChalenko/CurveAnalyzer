@@ -14,6 +14,8 @@ public sealed class OfzMarketSummaryInput
     public IEnumerable<OfzLiquidityMetric> LiquidityMetrics { get; init; } = [];
     public IEnumerable<CbrKeyRate> CbrKeyRates { get; init; } = [];
     public IEnumerable<OfzMarketIndexPoint> IndexPoints { get; init; } = [];
+    public IEnumerable<OfzCashflowEvent> CashflowEvents { get; init; } = [];
+    public bool CashflowDataLoaded { get; init; }
 }
 
 public sealed class OfzMarketSummaryOptions
@@ -25,6 +27,7 @@ public sealed class OfzMarketSummaryOptions
     public double SegmentConcentrationShare { get; init; } = 0.5;
     public OfzMarketBreadthOptions Breadth { get; init; } = new();
     public OfzIndexContextOptions IndexContext { get; init; } = new();
+    public OfzCashflowContextOptions Cashflow { get; init; } = new();
     public DateTime? GeneratedAt { get; init; }
 }
 
@@ -85,9 +88,21 @@ public static class OfzMarketSummaryBuilder
         var signalStartDate = GetMinDate(signalMetrics, signalLiquidityMetrics, signalBreadthDays, signalIndexContextDays, outputStartDate);
         var signalEndDate = GetMaxDate(signalMetrics, signalLiquidityMetrics, signalBreadthDays, signalIndexContextDays, outputEndDate);
         var specialMetrics = BuildSpecialMetrics(signalTrades, input.CouponTypeFilter, input.CbrKeyRates);
+        var cashflowEvents = input.CashflowEvents.ToList();
+        var shouldBuildCashflowContext = input.CashflowDataLoaded || cashflowEvents.Count > 0;
+        var cashflowContext = OfzCashflowContextBuilder.Build(
+            cashflowEvents,
+            shouldBuildCashflowContext
+                ? issuesBySecId.Values.Where(issue => !input.CouponTypeFilter.HasValue || issue.CouponType == input.CouponTypeFilter.Value)
+                : [],
+            signalMetrics,
+            signalStartDate,
+            signalEndDate,
+            options.Cashflow);
         var limitations = BuildMarketLimitations(signalTrades, signalMetrics, signalLiquidityMetrics, signalStartDate, signalEndDate)
             .Concat(BuildSpecialMetricLimitations(specialMetrics, input.CouponTypeFilter))
             .Concat(BuildIndexLimitations(signalIndexContextDays, indexContext.Limitations))
+            .Concat(cashflowContext.Limitations)
             .ToList();
         var segments = BuildSegments(signalMetrics, signalLiquidityMetrics, issuesBySecId, options);
         var findings = BuildFindings(
@@ -95,6 +110,7 @@ public static class OfzMarketSummaryBuilder
                 signalLiquidityMetrics,
                 signalBreadthDays,
                 signalIndexContextDays,
+                cashflowContext,
                 specialMetrics,
                 segments,
                 limitations,
@@ -123,9 +139,10 @@ public static class OfzMarketSummaryBuilder
             BreadthDays = signalBreadthDays,
             IndexContextDays = signalIndexContextDays,
             IndexSegments = indexContext.Segments,
+            CashflowContext = cashflowContext,
             SpecialMetrics = specialMetrics,
             Limitations = limitations,
-            SourceCounts = BuildSourceCounts(signalTrades, signalMetrics, signalLiquidityMetrics, signalIndexContextDays, specialMetrics, issuesBySecId, input.CouponTypeFilter)
+            SourceCounts = BuildSourceCounts(signalTrades, signalMetrics, signalLiquidityMetrics, signalIndexContextDays, cashflowContext, specialMetrics, issuesBySecId, input.CouponTypeFilter)
         };
     }
 
@@ -134,6 +151,7 @@ public static class OfzMarketSummaryBuilder
         IReadOnlyCollection<OfzLiquidityMetric> liquidityMetrics,
         IReadOnlyCollection<MarketBreadthDay> breadthDays,
         IReadOnlyCollection<OfzIndexContextDay> indexContextDays,
+        OfzCashflowContext cashflowContext,
         IReadOnlyCollection<OfzSpecialSummaryMetric> specialMetrics,
         IReadOnlyCollection<OfzSegmentSummary> segments,
         IReadOnlyList<OfzDataLimitation> marketLimitations,
@@ -151,6 +169,7 @@ public static class OfzMarketSummaryBuilder
         AddTurnoverConcentrationFinding(findings, breadthDays);
         AddTypeShareFinding(findings, breadthDays, couponTypeFilter, options.Breadth);
         AddIndexContextFindings(findings, metrics, breadthDays, indexContextDays);
+        AddCashflowFindings(findings, cashflowContext);
         AddWeakLiquidityFinding(findings, liquidityMetrics, issuesBySecId);
         AddSpecialMetricFinding(findings, specialMetrics, couponTypeFilter);
         AddDataQualityFinding(findings, metrics, liquidityMetrics, marketLimitations);
@@ -761,6 +780,115 @@ public static class OfzMarketSummaryBuilder
             IndexMoveIsMeaningful = point.IsMeaningful,
             IsSnapshot = point.SourceKind == OfzMarketIndexSourceKind.Snapshot,
             IsProvisional = point.IsProvisional
+        };
+    }
+
+    private static void AddCashflowFindings(
+        ICollection<OfzSummaryFinding> findings,
+        OfzCashflowContext cashflowContext)
+    {
+        var link = cashflowContext.ActivityLinks
+            .OrderBy(item => Math.Abs(item.DaysToEvent))
+            .ThenByDescending(item => item.Value ?? 0)
+            .ThenByDescending(item => item.NumTrades ?? 0)
+            .FirstOrDefault();
+        if (link is not null)
+        {
+            findings.Add(new OfzSummaryFinding
+            {
+                Id = $"cashflow-near-{NormalizeId(link.Event.EventType.ToString())}-{NormalizeId(link.SecId)}-{link.TradeDate:yyyy-MM-dd}-{link.Event.EventDate:yyyy-MM-dd}",
+                Kind = OfzSummaryFindingKind.ActivityNearCashflowEvent,
+                Priority = 720 + Math.Max(0, cashflowContext.EventWindowDays - Math.Abs(link.DaysToEvent)),
+                Scope = OfzSummaryScope.Cashflow,
+                Title = "Активность рядом с событием выпуска",
+                Text = $"{link.ShortName}: активность {link.TradeDate:dd.MM.yyyy} рядом с {FormatCashflowEventType(link.Event.EventType)} {link.Event.EventDate:dd.MM.yyyy} ({FormatDaysToEvent(link.DaysToEvent)}).",
+                Evidence = CreateCashflowEvidence(link),
+                Limitations = link.Event.Limitations,
+                DrillDown = new OfzSummaryDrillDown
+                {
+                    Target = OfzSummaryDrillDownTarget.CashflowEvent,
+                    SecId = link.SecId,
+                    TradeDate = link.Event.EventDate
+                }
+            });
+        }
+
+        var upcoming = cashflowContext.UpcomingEvents.FirstOrDefault();
+        if (upcoming is not null)
+        {
+            findings.Add(new OfzSummaryFinding
+            {
+                Id = $"upcoming-cashflow-{NormalizeId(upcoming.EventType.ToString())}-{NormalizeId(upcoming.SecId)}-{upcoming.EventDate:yyyy-MM-dd}",
+                Kind = OfzSummaryFindingKind.UpcomingCashflowEvent,
+                Priority = 520,
+                Scope = OfzSummaryScope.Cashflow,
+                Title = "Ближайшее событие выпуска",
+                Text = $"{upcoming.ShortName ?? upcoming.SecId}: {FormatCashflowEventType(upcoming.EventType)} {upcoming.EventDate:dd.MM.yyyy}.",
+                Evidence = CreateCashflowEvidence(upcoming, null, null, null, null),
+                Limitations = upcoming.Limitations,
+                DrillDown = new OfzSummaryDrillDown
+                {
+                    Target = OfzSummaryDrillDownTarget.CashflowEvent,
+                    SecId = upcoming.SecId,
+                    TradeDate = upcoming.EventDate
+                }
+            });
+        }
+
+        if (!cashflowContext.HasEvents && cashflowContext.Limitations.Count > 0)
+        {
+            findings.Add(new OfzSummaryFinding
+            {
+                Id = "cashflow-data-limitation",
+                Kind = OfzSummaryFindingKind.CashflowDataLimitation,
+                Priority = 480,
+                Scope = OfzSummaryScope.DataQuality,
+                Title = "Календарь событий неполный",
+                Text = "Cashflow-календарь недоступен или пуст; суммы и события не заменяются нулями.",
+                Limitations = cashflowContext.Limitations
+            });
+        }
+    }
+
+    private static OfzFindingEvidence CreateCashflowEvidence(OfzCashflowActivityLink link)
+    {
+        return CreateCashflowEvidence(
+            link.Event,
+            link.TradeDate,
+            link.Value,
+            link.NumTrades,
+            link.ActivityScore,
+            link.YieldMove,
+            link.DaysToEvent);
+    }
+
+    private static OfzFindingEvidence CreateCashflowEvidence(
+        OfzCashflowEvent cashflowEvent,
+        DateTime? tradeDate,
+        double? value,
+        int? numTrades,
+        double? activityScore,
+        double? yieldMove = null,
+        int? daysToEvent = null)
+    {
+        return new OfzFindingEvidence
+        {
+            TradeDate = tradeDate,
+            SecId = cashflowEvent.SecId,
+            ShortName = cashflowEvent.ShortName ?? cashflowEvent.SecId,
+            Value = value,
+            NumTrades = numTrades,
+            ActivityScore = activityScore,
+            YieldMove = yieldMove,
+            CashflowEventType = cashflowEvent.EventType,
+            CashflowEventDate = cashflowEvent.EventDate,
+            CashflowDaysToEvent = daysToEvent,
+            CashflowValue = cashflowEvent.Value,
+            CashflowValueRub = cashflowEvent.ValueRub,
+            CashflowValuePercent = cashflowEvent.ValuePercent,
+            CashflowSourceKind = cashflowEvent.SourceKind,
+            IsSnapshot = cashflowEvent.SourceKind != OfzCashflowSourceKind.Schedule,
+            IsProvisional = cashflowEvent.IsProvisional
         };
     }
 
@@ -1845,6 +1973,7 @@ public static class OfzMarketSummaryBuilder
         IReadOnlyCollection<OfzActivityMetric> metrics,
         IReadOnlyCollection<OfzLiquidityMetric> liquidityMetrics,
         IReadOnlyCollection<OfzIndexContextDay> indexContextDays,
+        OfzCashflowContext cashflowContext,
         IReadOnlyCollection<OfzSpecialSummaryMetric> specialMetrics,
         IReadOnlyDictionary<string, OfzIssue> issuesBySecId,
         OfzCouponType? couponTypeFilter)
@@ -1867,6 +1996,11 @@ public static class OfzMarketSummaryBuilder
             SpecialMetricSeries = specialMetrics.Count(metric => metric.HasValue),
             IndexPoints = indexContextDays.SelectMany(day => day.Points).Count(),
             IndexContextDays = indexContextDays.Count,
+            CashflowEvents = cashflowContext.Events
+                .Concat(cashflowContext.UpcomingEvents)
+                .GroupBy(item => new { item.SecId, item.EventType, item.EventDate, item.SourceKind, item.SourceKey })
+                .Count(),
+            CashflowIssues = cashflowContext.IssueCalendars.Count(calendar => calendar.HasEvents),
             Dates = dates
         };
     }
@@ -2100,6 +2234,31 @@ public static class OfzMarketSummaryBuilder
     private static string FormatSignedPoints(double? value)
     {
         return value.HasValue ? value.Value.ToString("+0.00;-0.00;0.00") + " п.п." : "n/a";
+    }
+
+    private static string FormatCashflowEventType(OfzCashflowEventType eventType)
+    {
+        return eventType switch
+        {
+            OfzCashflowEventType.Coupon => "купоном",
+            OfzCashflowEventType.Amortization => "амортизацией",
+            OfzCashflowEventType.Maturity => "погашением",
+            OfzCashflowEventType.Offer => "офертой",
+            OfzCashflowEventType.Buyback => "buyback",
+            OfzCashflowEventType.CallOption => "call option",
+            OfzCashflowEventType.PutOption => "put option",
+            _ => eventType.ToString()
+        };
+    }
+
+    private static string FormatDaysToEvent(int daysToEvent)
+    {
+        return daysToEvent switch
+        {
+            0 => "в день события",
+            > 0 => $"за {daysToEvent} дн.",
+            _ => $"через {Math.Abs(daysToEvent)} дн. после события"
+        };
     }
 
     private static double? NormalizePositive(double? value)

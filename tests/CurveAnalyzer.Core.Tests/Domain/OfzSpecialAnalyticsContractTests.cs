@@ -12,7 +12,7 @@ public class OfzSpecialAnalyticsContractTests
     };
 
     [Fact]
-    public void MarketSummary_SerializesSpecialMetricsContractVersion13()
+    public void MarketSummary_SerializesSpecialMetricsContractVersion14()
     {
         var tradeDate = new DateTime(2026, 05, 06);
         var summary = new OfzMarketSummary
@@ -86,7 +86,7 @@ public class OfzSpecialAnalyticsContractTests
         using var document = JsonDocument.Parse(json);
         var root = document.RootElement;
 
-        Assert.Equal("1.3", root.GetProperty("schemaVersion").GetString());
+        Assert.Equal("1.4", root.GetProperty("schemaVersion").GetString());
 
         var metric = Assert.Single(root.GetProperty("specialMetrics").EnumerateArray());
         Assert.Equal("ImpliedFloatingRate", metric.GetProperty("kind").GetString());
