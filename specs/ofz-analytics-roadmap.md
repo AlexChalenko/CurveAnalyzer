@@ -3,7 +3,7 @@
 **Дата обновления**: 2026-05-09
 **Контекст**: идеи из `Curve Analyzer.md`, `Curve Analyzer v2.md`,
 реализованный экран `Активность ОФЗ`, проверки доступных полей MOEX ISS и
-закрытые Spec Kit features до `011-ofz-seasonality`.
+закрытые Spec Kit features до `012-ofz-external-factors`.
 
 ## Что уже реализовано
 
@@ -31,9 +31,12 @@
 - Сезонность активности: weekday/month profiles, no-lookahead seasonal
   baseline, high/low seasonal activity findings и limitations для короткой
   истории.
-- Structured summary JSON schema `1.5`: date-only поля для торговых дат,
+- Внешние факторы активности: ключевая ставка ЦБ, MOEX index context и
+  OFZ-derived special metrics как нейтральный фон, no-lookahead alignment,
+  factor links и limitations без подстановки нулей.
+- Structured summary JSON schema `1.6`: date-only поля для торговых дат,
   index context, breadth, special metrics, cashflow context, seasonality
-  context, source counts.
+  context, external factors context, source counts.
 - UX для JSON: копирование в clipboard и сохранение structured summary JSON в
   `.json` файл.
 
@@ -51,27 +54,12 @@
    оферт и cashflow-backed context.
 8. `011-ofz-seasonality`: weekday/month сезонность активности, baseline без
    заглядывания в будущее и structured `seasonalityContext`.
+9. `012-ofz-external-factors`: внешний факторный слой для активности ОФЗ,
+   `externalFactorsContext`, factor-backed findings и JSON schema `1.6`.
 
 ## Кандидаты на следующие этапы
 
-### 1. Корреляции с внешними факторами
-
-**Приоритет**: низкий.
-
-**Предлагаемый feature id**: `012-ofz-external-factors`.
-
-**Идея**: сравнивать доходности/активность ОФЗ с ключевой ставкой, инфляцией,
-курсами и товарными индикаторами.
-
-**Возможные источники**:
-
-- Банк России для ключевой ставки и инфляционных рядов;
-- MOEX/ISS для индексов и валютных данных.
-
-**Риск**: это расширяет область проекта за пределы MOEX bonds workflow и
-требует отдельной модели качества данных.
-
-### 2. Рейтинг привлекательности, прогнозы и стресс-тесты
+### 1. Рейтинг привлекательности, прогнозы и стресс-тесты
 
 **Приоритет**: отложить.
 
@@ -87,8 +75,8 @@
 
 ## Рекомендуемый порядок
 
-1. `012-ofz-external-factors`: внешние факторы только после стабилизации
-   bond workflow.
+1. После `012-ofz-external-factors` стабилизировать UI/JSON контракт на реальных
+   выгрузках.
 2. Рейтинг/прогнозы/стресс-тесты оставить за пределами ближайшего roadmap.
 
 ## Проверенные источники данных

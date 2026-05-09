@@ -18,6 +18,7 @@
         <converters:OfzIndexContextValueConverter x:Key="OfzIndexContextValueConverter" />
         <converters:OfzCashflowValueConverter x:Key="OfzCashflowValueConverter" />
         <converters:OfzSeasonalityValueConverter x:Key="OfzSeasonalityValueConverter" />
+        <converters:OfzExternalFactorsValueConverter x:Key="OfzExternalFactorsValueConverter" />
         <Style x:Key="HeatmapCellButtonStyle" TargetType="{x:Type Button}">
             <Setter Property="Width" Value="32" />
             <Setter Property="Height" Value="18" />
@@ -309,6 +310,175 @@
                                     Margin="0,3,0,0"
                                     ItemsSource="{Binding SelectedIndexLimitations}"
                                     Visibility="{Binding HasSelectedIndexLimitations, Converter={StaticResource BoolToVis}}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <TextBlock
+                                                FontSize="10"
+                                                Foreground="DimGray"
+                                                Text="{Binding Text}"
+                                                TextWrapping="Wrap" />
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </Grid>
+                        </TabItem>
+
+                        <TabItem Header="Факторы">
+                            <Grid Margin="0,4,0,0">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="116" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="94" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="*" MinHeight="54" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                <TextBlock
+                                    Grid.Row="0"
+                                    FontWeight="SemiBold"
+                                    Text="Внешние факторы" />
+                                <TextBlock
+                                    Grid.Row="1"
+                                    Margin="0,1,0,3"
+                                    FontSize="10"
+                                    Foreground="DimGray"
+                                    Text="{Binding ExternalFactorsStatusMessage}"
+                                    TextWrapping="Wrap" />
+                                <DataGrid
+                                    Grid.Row="2"
+                                    AutoGenerateColumns="False"
+                                    CanUserAddRows="False"
+                                    HeadersVisibility="Column"
+                                    IsReadOnly="True"
+                                    ItemsSource="{Binding ExternalFactorSeries}"
+                                    SelectedItem="{Binding SelectedExternalFactorSeries, Mode=TwoWay}"
+                                    ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                                    ScrollViewer.VerticalScrollBarVisibility="Auto">
+                                    <DataGrid.Columns>
+                                        <DataGridTextColumn
+                                            Width="86"
+                                            Binding="{Binding Code, Mode=OneWay}"
+                                            Header="Код" />
+                                        <DataGridTextColumn
+                                            Width="150"
+                                            Binding="{Binding Label, Mode=OneWay}"
+                                            Header="Фактор" />
+                                        <DataGridTextColumn
+                                            Width="68"
+                                            Binding="{Binding Kind, Mode=OneWay, Converter={StaticResource OfzExternalFactorsValueConverter}, ConverterParameter=Kind}"
+                                            Header="Тип" />
+                                        <DataGridTextColumn
+                                            Width="74"
+                                            Binding="{Binding LatestObservation.Value, Mode=OneWay, Converter={StaticResource OfzExternalFactorsValueConverter}, ConverterParameter=Value}"
+                                            Header="Value" />
+                                        <DataGridTextColumn
+                                            Width="70"
+                                            Binding="{Binding LatestObservation.DailyChangePercent, Mode=OneWay, Converter={StaticResource OfzExternalFactorsValueConverter}, ConverterParameter=ChangePercent}"
+                                            Header="Δ" />
+                                        <DataGridTextColumn
+                                            Width="66"
+                                            Binding="{Binding Source, Mode=OneWay, Converter={StaticResource OfzExternalFactorsValueConverter}, ConverterParameter=Source}"
+                                            Header="Source" />
+                                        <DataGridTextColumn
+                                            Width="82"
+                                            Binding="{Binding Availability, Mode=OneWay, Converter={StaticResource OfzExternalFactorsValueConverter}, ConverterParameter=Availability}"
+                                            Header="Статус" />
+                                    </DataGrid.Columns>
+                                </DataGrid>
+                                <TextBlock
+                                    Grid.Row="3"
+                                    Margin="0,3,0,2"
+                                    FontSize="10"
+                                    Foreground="DimGray"
+                                    Text="{Binding SelectedExternalFactorSummary}"
+                                    TextWrapping="Wrap" />
+                                <DataGrid
+                                    Grid.Row="4"
+                                    AutoGenerateColumns="False"
+                                    CanUserAddRows="False"
+                                    HeadersVisibility="Column"
+                                    IsReadOnly="True"
+                                    ItemsSource="{Binding SelectedExternalFactorObservations}"
+                                    ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                                    ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                    Visibility="{Binding HasSelectedExternalFactorObservations, Converter={StaticResource BoolToVis}}">
+                                    <DataGrid.Columns>
+                                        <DataGridTextColumn
+                                            Width="66"
+                                            Binding="{Binding TradeDate, Mode=OneWay, StringFormat={}{0:dd.MM.yy}}"
+                                            Header="Дата" />
+                                        <DataGridTextColumn
+                                            Width="76"
+                                            Binding="{Binding Value, Mode=OneWay, Converter={StaticResource OfzExternalFactorsValueConverter}, ConverterParameter=Value}"
+                                            Header="Value" />
+                                        <DataGridTextColumn
+                                            Width="70"
+                                            Binding="{Binding DailyChange, Mode=OneWay, Converter={StaticResource OfzExternalFactorsValueConverter}, ConverterParameter=Change}"
+                                            Header="Δ val" />
+                                        <DataGridTextColumn
+                                            Width="70"
+                                            Binding="{Binding DailyChangePercent, Mode=OneWay, Converter={StaticResource OfzExternalFactorsValueConverter}, ConverterParameter=ChangePercent}"
+                                            Header="Δ %" />
+                                        <DataGridTextColumn
+                                            Width="72"
+                                            Binding="{Binding Direction, Mode=OneWay, Converter={StaticResource OfzExternalFactorsValueConverter}, ConverterParameter=Direction}"
+                                            Header="Фон" />
+                                        <DataGridTextColumn
+                                            Width="72"
+                                            Binding="{Binding SourceLabel, Mode=OneWay}"
+                                            Header="Source" />
+                                    </DataGrid.Columns>
+                                </DataGrid>
+                                <TextBlock
+                                    Grid.Row="5"
+                                    Margin="0,4,0,2"
+                                    FontWeight="SemiBold"
+                                    Text="Связь с активностью"
+                                    Visibility="{Binding HasExternalFactorLinks, Converter={StaticResource BoolToVis}}" />
+                                <DataGrid
+                                    Grid.Row="6"
+                                    AutoGenerateColumns="False"
+                                    CanUserAddRows="False"
+                                    HeadersVisibility="Column"
+                                    IsReadOnly="True"
+                                    ItemsSource="{Binding ExternalFactorLinks}"
+                                    ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                                    ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                    Visibility="{Binding HasExternalFactorLinks, Converter={StaticResource BoolToVis}}">
+                                    <DataGrid.Columns>
+                                        <DataGridTextColumn
+                                            Width="66"
+                                            Binding="{Binding TradeDate, Mode=OneWay, StringFormat={}{0:dd.MM.yy}}"
+                                            Header="Дата" />
+                                        <DataGridTextColumn
+                                            Width="86"
+                                            Binding="{Binding FactorCode, Mode=OneWay}"
+                                            Header="Фактор" />
+                                        <DataGridTextColumn
+                                            Width="134"
+                                            Binding="{Binding LinkKind, Mode=OneWay, Converter={StaticResource OfzExternalFactorsValueConverter}, ConverterParameter=LinkKind}"
+                                            Header="Тип" />
+                                        <DataGridTextColumn
+                                            Width="82"
+                                            Binding="{Binding ActivityValue, Mode=OneWay, StringFormat={}{0:N1}, TargetNullValue=n/a}"
+                                            Header="Оборот" />
+                                        <DataGridTextColumn
+                                            Width="76"
+                                            Binding="{Binding YieldMove, Mode=OneWay, Converter={StaticResource OfzExternalFactorsValueConverter}, ConverterParameter=Change}"
+                                            Header="Yield Δ" />
+                                        <DataGridTextColumn
+                                            Width="220"
+                                            Binding="{Binding Text, Mode=OneWay}"
+                                            Header="Описание" />
+                                    </DataGrid.Columns>
+                                </DataGrid>
+                                <ItemsControl
+                                    Grid.Row="7"
+                                    Margin="0,3,0,0"
+                                    ItemsSource="{Binding ExternalFactorLimitations}"
+                                    Visibility="{Binding HasExternalFactorLimitations, Converter={StaticResource BoolToVis}}">
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate>
                                             <TextBlock

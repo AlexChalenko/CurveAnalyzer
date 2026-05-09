@@ -2,7 +2,7 @@
 
 <!-- SPECKIT START -->
 Для текущей feature сначала читай активный план:
-`specs/011-ofz-seasonality/plan.md`.
+`specs/012-ofz-external-factors/plan.md`.
 <!-- SPECKIT END -->
 
 ## Язык документации

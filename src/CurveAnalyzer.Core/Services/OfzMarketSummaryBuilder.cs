@@ -29,6 +29,7 @@ public sealed class OfzMarketSummaryOptions
     public OfzIndexContextOptions IndexContext { get; init; } = new();
     public OfzCashflowContextOptions Cashflow { get; init; } = new();
     public OfzSeasonalityContextOptions Seasonality { get; init; } = new();
+    public OfzExternalFactorsContextOptions ExternalFactors { get; init; } = new();
     public DateTime? GeneratedAt { get; init; }
 }
 
@@ -103,11 +104,18 @@ public static class OfzMarketSummaryBuilder
             signalStartDate,
             signalEndDate,
             options.Cashflow);
+        var externalFactorsContext = OfzExternalFactorsContextBuilder.Build(
+            metrics,
+            input.CbrKeyRates,
+            outputIndexContextDays,
+            specialMetrics,
+            CreateExternalFactorsOptions(options.ExternalFactors, startDate, endDate, outputStartDate, outputEndDate, input.SignalScope));
         var limitations = BuildMarketLimitations(signalTrades, signalMetrics, signalLiquidityMetrics, signalStartDate, signalEndDate)
             .Concat(BuildSpecialMetricLimitations(specialMetrics, input.CouponTypeFilter))
             .Concat(BuildIndexLimitations(signalIndexContextDays, indexContext.Limitations))
             .Concat(cashflowContext.Limitations)
             .Concat(seasonalityContext.Limitations)
+            .Concat(externalFactorsContext.Limitations)
             .ToList();
         var segments = BuildSegments(signalMetrics, signalLiquidityMetrics, issuesBySecId, options);
         var findings = BuildFindings(
@@ -117,6 +125,7 @@ public static class OfzMarketSummaryBuilder
                 signalIndexContextDays,
                 cashflowContext,
                 seasonalityContext,
+                externalFactorsContext,
                 specialMetrics,
                 segments,
                 limitations,
@@ -147,9 +156,10 @@ public static class OfzMarketSummaryBuilder
             IndexSegments = indexContext.Segments,
             CashflowContext = cashflowContext,
             SeasonalityContext = seasonalityContext,
+            ExternalFactorsContext = externalFactorsContext,
             SpecialMetrics = specialMetrics,
             Limitations = limitations,
-            SourceCounts = BuildSourceCounts(signalTrades, signalMetrics, signalLiquidityMetrics, signalIndexContextDays, cashflowContext, seasonalityContext, specialMetrics, issuesBySecId, input.CouponTypeFilter)
+            SourceCounts = BuildSourceCounts(signalTrades, signalMetrics, signalLiquidityMetrics, signalIndexContextDays, cashflowContext, seasonalityContext, externalFactorsContext, specialMetrics, issuesBySecId, input.CouponTypeFilter)
         };
     }
 
@@ -160,6 +170,7 @@ public static class OfzMarketSummaryBuilder
         IReadOnlyCollection<OfzIndexContextDay> indexContextDays,
         OfzCashflowContext cashflowContext,
         OfzSeasonalityContext seasonalityContext,
+        OfzExternalFactorsContext externalFactorsContext,
         IReadOnlyCollection<OfzSpecialSummaryMetric> specialMetrics,
         IReadOnlyCollection<OfzSegmentSummary> segments,
         IReadOnlyList<OfzDataLimitation> marketLimitations,
@@ -177,6 +188,7 @@ public static class OfzMarketSummaryBuilder
         AddTurnoverConcentrationFinding(findings, breadthDays);
         AddTypeShareFinding(findings, breadthDays, couponTypeFilter, options.Breadth);
         AddIndexContextFindings(findings, metrics, breadthDays, indexContextDays);
+        AddExternalFactorFindings(findings, externalFactorsContext);
         AddCashflowFindings(findings, cashflowContext);
         AddSeasonalityFindings(findings, seasonalityContext);
         AddWeakLiquidityFinding(findings, liquidityMetrics, issuesBySecId);
@@ -206,6 +218,25 @@ public static class OfzMarketSummaryBuilder
             HighActivityRatioThreshold = source.HighActivityRatioThreshold,
             LowActivityRatioThreshold = source.LowActivityRatioThreshold,
             UnchangedYieldMoveThreshold = source.UnchangedYieldMoveThreshold
+        };
+    }
+
+    private static OfzExternalFactorsContextOptions CreateExternalFactorsOptions(
+        OfzExternalFactorsContextOptions source,
+        DateTime startDate,
+        DateTime endDate,
+        DateTime outputStartDate,
+        DateTime outputEndDate,
+        OfzSummarySignalScope signalScope)
+    {
+        return new OfzExternalFactorsContextOptions
+        {
+            StartDate = startDate,
+            EndDate = endDate,
+            InsightStartDate = outputStartDate,
+            InsightEndDate = outputEndDate,
+            SignalScope = signalScope,
+            MeaningfulPolicyRateChange = source.MeaningfulPolicyRateChange
         };
     }
 
@@ -482,6 +513,7 @@ public static class OfzMarketSummaryBuilder
         var limitations = marketLimitations
             .Where(limitation => limitation.Kind is not OfzDataLimitationKind.NoData)
             .Where(limitation => hasMarketEvidence || limitation.Kind is not OfzDataLimitationKind.NoIndexData)
+            .Where(limitation => hasMarketEvidence || limitation.Kind is not OfzDataLimitationKind.MissingExternalFactor)
             .ToList();
 
         if (missingBaselineCount == 0 && missingSpreadCount == 0 && snapshotCount == 0 && provisionalCount == 0 && limitations.Count == 0)
@@ -785,6 +817,108 @@ public static class OfzMarketSummaryBuilder
                 Target = OfzSummaryDrillDownTarget.IndexContextDay,
                 TradeDate = day.TradeDate
             }
+        };
+    }
+
+    private static void AddExternalFactorFindings(
+        ICollection<OfzSummaryFinding> findings,
+        OfzExternalFactorsContext externalFactorsContext)
+    {
+        foreach (var link in externalFactorsContext.Links
+            .Where(link => link.LinkKind != OfzExternalFactorLinkKind.MissingFactor)
+            .OrderByDescending(link => GetExternalFactorPriority(link))
+            .ThenByDescending(link => link.ActivityValue ?? 0)
+            .ThenBy(link => link.FactorCode, StringComparer.Ordinal)
+            .Take(2))
+        {
+            var series = externalFactorsContext.FactorSeries
+                .FirstOrDefault(item => string.Equals(item.Code, link.FactorCode, StringComparison.Ordinal));
+            var observation = series?.Observations
+                .FirstOrDefault(item => item.TradeDate.Date == link.FactorObservationDate?.Date);
+
+            findings.Add(new OfzSummaryFinding
+            {
+                Id = $"external-factor-{NormalizeId(link.LinkKind.ToString())}-{NormalizeId(link.FactorCode)}-{link.TradeDate:yyyy-MM-dd}",
+                Kind = OfzSummaryFindingKind.ExternalFactorActivity,
+                Priority = GetExternalFactorPriority(link),
+                Scope = OfzSummaryScope.ExternalFactors,
+                Title = GetExternalFactorTitle(link),
+                Text = link.Text,
+                Evidence = CreateExternalFactorEvidence(link, series, observation),
+                Limitations = link.Limitations,
+                DrillDown = new OfzSummaryDrillDown
+                {
+                    Target = OfzSummaryDrillDownTarget.ExternalFactors,
+                    TradeDate = link.TradeDate
+                }
+            });
+        }
+
+        if (externalFactorsContext.Links.Count > 0 &&
+            externalFactorsContext.ObservationCount == 0 &&
+            externalFactorsContext.Limitations.Count > 0)
+        {
+            findings.Add(new OfzSummaryFinding
+            {
+                Id = "external-factor-data-limitation",
+                Kind = OfzSummaryFindingKind.ExternalFactorDataLimitation,
+                Priority = 470,
+                Scope = OfzSummaryScope.DataQuality,
+                Title = "Факторный контекст неполный",
+                Text = "Внешние факторы недоступны или неполны; значения не заменяются нулями.",
+                Limitations = externalFactorsContext.Limitations,
+                DrillDown = new OfzSummaryDrillDown
+                {
+                    Target = OfzSummaryDrillDownTarget.ExternalFactors
+                }
+            });
+        }
+    }
+
+    private static string GetExternalFactorTitle(OfzExternalFactorActivityLink link)
+    {
+        return link.LinkKind switch
+        {
+            OfzExternalFactorLinkKind.YieldMoveWithFactorMove => "Доходность на фоне фактора",
+            OfzExternalFactorLinkKind.ActivityWithFactorMove => "Активность на фоне фактора",
+            _ => "Локальная активность относительно фактора"
+        };
+    }
+
+    private static int GetExternalFactorPriority(OfzExternalFactorActivityLink link)
+    {
+        return link.LinkKind switch
+        {
+            OfzExternalFactorLinkKind.YieldMoveWithFactorMove => 715,
+            OfzExternalFactorLinkKind.ActivityWithFactorMove => 705,
+            OfzExternalFactorLinkKind.ActivityWithoutFactorMove => 660,
+            _ => 460
+        };
+    }
+
+    private static OfzFindingEvidence CreateExternalFactorEvidence(
+        OfzExternalFactorActivityLink link,
+        OfzExternalFactorSeries? series,
+        OfzExternalFactorObservation? observation)
+    {
+        return new OfzFindingEvidence
+        {
+            TradeDate = link.TradeDate,
+            TotalValue = link.ActivityValue,
+            ActivityScore = link.ActivityScore,
+            YieldMove = link.YieldMove,
+            ExternalFactorCode = link.FactorCode,
+            ExternalFactorKind = series?.Kind,
+            ExternalFactorSource = series?.Source,
+            ExternalFactorLinkKind = link.LinkKind,
+            ExternalFactorObservationDate = link.FactorObservationDate,
+            ExternalFactorValue = observation?.Value,
+            ExternalFactorDailyChange = observation?.DailyChange,
+            ExternalFactorDailyChangePercent = observation?.DailyChangePercent,
+            ExternalFactorDirection = observation?.Direction,
+            ExternalFactorMoveIsMeaningful = observation?.IsMeaningful ?? false,
+            IsSnapshot = observation?.IsSnapshot ?? false,
+            IsProvisional = observation?.IsProvisional ?? false
         };
     }
 
@@ -2073,6 +2207,7 @@ public static class OfzMarketSummaryBuilder
         IReadOnlyCollection<OfzIndexContextDay> indexContextDays,
         OfzCashflowContext cashflowContext,
         OfzSeasonalityContext seasonalityContext,
+        OfzExternalFactorsContext externalFactorsContext,
         IReadOnlyCollection<OfzSpecialSummaryMetric> specialMetrics,
         IReadOnlyDictionary<string, OfzIssue> issuesBySecId,
         OfzCouponType? couponTypeFilter)
@@ -2101,6 +2236,9 @@ public static class OfzMarketSummaryBuilder
                 .Count(),
             CashflowIssues = cashflowContext.IssueCalendars.Count(calendar => calendar.HasEvents),
             SeasonalityObservations = seasonalityContext.ObservationCount,
+            ExternalFactorObservations = externalFactorsContext.ObservationCount,
+            ExternalFactorSeries = externalFactorsContext.FactorSeries.Count(series => series.HasValue),
+            ExternalFactorLinks = externalFactorsContext.Links.Count,
             Dates = dates
         };
     }
