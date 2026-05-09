@@ -16,6 +16,7 @@ public partial class OfzActivityViewModel(OfzActivityService activityService) : 
 {
     private const string BreadthDayPlaceholder = "Выберите строку во вкладке \"Ширина\" или вывод по ширине рынка.";
     private const string IndexContextDayPlaceholder = "Выберите строку во вкладке \"Индекс\" или индексный вывод.";
+    private const string ExternalFactorPlaceholder = "Выберите строку во вкладке \"Факторы\" или факторный вывод.";
     private const string IssueCashflowPlaceholder = "Календарь выпуска не выбран";
 
     private bool _initialized;
@@ -125,6 +126,27 @@ public partial class OfzActivityViewModel(OfzActivityService activityService) : 
 
     [ObservableProperty]
     public partial ObservableCollection<OfzDataLimitation> SeasonalityLimitations { get; set; } = [];
+
+    [ObservableProperty]
+    public partial ObservableCollection<OfzExternalFactorSeries> ExternalFactorSeries { get; set; } = [];
+
+    [ObservableProperty]
+    public partial OfzExternalFactorSeries? SelectedExternalFactorSeries { get; set; }
+
+    [ObservableProperty]
+    public partial ObservableCollection<OfzExternalFactorObservation> SelectedExternalFactorObservations { get; set; } = [];
+
+    [ObservableProperty]
+    public partial ObservableCollection<OfzExternalFactorActivityLink> ExternalFactorLinks { get; set; } = [];
+
+    [ObservableProperty]
+    public partial ObservableCollection<OfzDataLimitation> ExternalFactorLimitations { get; set; } = [];
+
+    [ObservableProperty]
+    public partial string ExternalFactorsStatusMessage { get; set; } = "Факторный контекст не рассчитан";
+
+    [ObservableProperty]
+    public partial string SelectedExternalFactorSummary { get; set; } = ExternalFactorPlaceholder;
 
     [ObservableProperty]
     public partial ObservableCollection<MarketBreadthContributor> SelectedBreadthContributors { get; set; } = [];
@@ -268,6 +290,21 @@ public partial class OfzActivityViewModel(OfzActivityService activityService) : 
     public partial bool HasSeasonalityLimitations { get; set; }
 
     [ObservableProperty]
+    public partial bool HasExternalFactorsContext { get; set; }
+
+    [ObservableProperty]
+    public partial bool HasExternalFactorSeries { get; set; }
+
+    [ObservableProperty]
+    public partial bool HasSelectedExternalFactorObservations { get; set; }
+
+    [ObservableProperty]
+    public partial bool HasExternalFactorLinks { get; set; }
+
+    [ObservableProperty]
+    public partial bool HasExternalFactorLimitations { get; set; }
+
+    [ObservableProperty]
     public partial bool HasSelectedBreadthContributors { get; set; }
 
     [ObservableProperty]
@@ -343,6 +380,7 @@ public partial class OfzActivityViewModel(OfzActivityService activityService) : 
     {
         ClearSelectedBreadthDay();
         ClearSelectedIndexContextDay();
+        ClearSelectedExternalFactorSeries();
     }
 
     [RelayCommand(CanExecute = nameof(CanCopySummaryJson))]
@@ -455,6 +493,11 @@ public partial class OfzActivityViewModel(OfzActivityService activityService) : 
             FocusIndexContextDay(indexDate, value);
         }
 
+        if (value.DrillDown?.Target == OfzSummaryDrillDownTarget.ExternalFactors)
+        {
+            FocusExternalFactor(value);
+        }
+
         var secId = value.DrillDown?.SecId ?? value.Evidence.SecId;
         if (!string.IsNullOrWhiteSpace(secId))
         {
@@ -507,6 +550,16 @@ public partial class OfzActivityViewModel(OfzActivityService activityService) : 
         }
     }
 
+    partial void OnSelectedExternalFactorSeriesChanged(OfzExternalFactorSeries? value)
+    {
+        ClearSelectedExternalFactorSeriesDetails();
+
+        if (value is not null)
+        {
+            ApplySelectedExternalFactorSeries(value);
+        }
+    }
+
     private void ClearResults()
     {
         _currentResult = null;
@@ -531,6 +584,10 @@ public partial class OfzActivityViewModel(OfzActivityService activityService) : 
         MonthSeasonalityBuckets.Clear();
         SeasonalityFindings.Clear();
         SeasonalityLimitations.Clear();
+        ExternalFactorSeries.Clear();
+        ExternalFactorLinks.Clear();
+        ExternalFactorLimitations.Clear();
+        ClearSelectedExternalFactorSeries();
         ClearSelectedBreadthDay();
         ClearSelectedIndexContextDay();
         MarketSummary = null;
@@ -563,6 +620,11 @@ public partial class OfzActivityViewModel(OfzActivityService activityService) : 
         HasMonthSeasonalityBuckets = false;
         HasSeasonalityFindings = false;
         HasSeasonalityLimitations = false;
+        HasExternalFactorsContext = false;
+        HasExternalFactorSeries = false;
+        HasSelectedExternalFactorObservations = false;
+        HasExternalFactorLinks = false;
+        HasExternalFactorLimitations = false;
         HasSelectedBreadthContributors = false;
         HasSelectedBreadthLimitations = false;
         HasSelectedIndexContextPoints = false;
@@ -579,6 +641,8 @@ public partial class OfzActivityViewModel(OfzActivityService activityService) : 
         IndexContextStatusMessage = "Индексный контекст не рассчитан";
         CashflowStatusMessage = "Календарь событий не рассчитан";
         SeasonalityStatusMessage = "Сезонный контекст не рассчитан";
+        ExternalFactorsStatusMessage = "Факторный контекст не рассчитан";
+        SelectedExternalFactorSummary = ExternalFactorPlaceholder;
         ClearIssueDetail();
     }
 
@@ -995,6 +1059,28 @@ public partial class OfzActivityViewModel(OfzActivityService activityService) : 
             }
         }
 
+        if (summary.ExternalFactorsContext is not null)
+        {
+            foreach (var series in summary.ExternalFactorsContext.FactorSeries
+                .OrderBy(item => item.Kind)
+                .ThenBy(item => item.Code, StringComparer.Ordinal))
+            {
+                ExternalFactorSeries.Add(series);
+            }
+
+            foreach (var link in summary.ExternalFactorsContext.Links
+                .OrderByDescending(item => item.TradeDate)
+                .ThenBy(item => item.FactorCode, StringComparer.Ordinal))
+            {
+                ExternalFactorLinks.Add(link);
+            }
+
+            foreach (var limitation in summary.ExternalFactorsContext.Limitations)
+            {
+                ExternalFactorLimitations.Add(limitation);
+            }
+        }
+
         StructuredSummaryJson = JsonSerializer.Serialize(summary, SummaryJsonOptions);
         HasStructuredSummaryJson = !string.IsNullOrWhiteSpace(StructuredSummaryJson);
         HasCashflowContext = summary.CashflowContext is not null &&
@@ -1017,7 +1103,15 @@ public partial class OfzActivityViewModel(OfzActivityService activityService) : 
         SeasonalityStatusMessage = summary.SeasonalityContext is not null
             ? $"{summary.SeasonalityContext.ObservationCount} наблюдений; weekday baseline {summary.SeasonalityContext.MinWeekdayBaselineObservations}, month baseline {summary.SeasonalityContext.MinMonthBaselineObservations}; пороги {summary.SeasonalityContext.LowActivityRatioThreshold:N2}x/{summary.SeasonalityContext.HighActivityRatioThreshold:N2}x"
             : "Сезонный контекст отсутствует";
-        HasMarketSummary = SummaryFindings.Count > 0 || summary.Limitations.Count > 0 || IndexContextDays.Count > 0 || HasCashflowContext || HasSeasonalityContext;
+        HasExternalFactorsContext = summary.ExternalFactorsContext is not null &&
+            (ExternalFactorSeries.Count > 0 || ExternalFactorLinks.Count > 0 || ExternalFactorLimitations.Count > 0);
+        HasExternalFactorSeries = ExternalFactorSeries.Count > 0;
+        HasExternalFactorLinks = ExternalFactorLinks.Count > 0;
+        HasExternalFactorLimitations = ExternalFactorLimitations.Count > 0;
+        ExternalFactorsStatusMessage = summary.ExternalFactorsContext is not null
+            ? $"факторов {ExternalFactorSeries.Count}; наблюдений {summary.ExternalFactorsContext.ObservationCount}; missing {summary.ExternalFactorsContext.MissingFactorCount}; связей {ExternalFactorLinks.Count}"
+            : "Факторный контекст отсутствует";
+        HasMarketSummary = SummaryFindings.Count > 0 || summary.Limitations.Count > 0 || IndexContextDays.Count > 0 || HasCashflowContext || HasSeasonalityContext || HasExternalFactorsContext;
         HasSegmentSummaries = SegmentSummaries.Count > 0;
         HasSummaryLimitations = SummaryLimitations.Count > 0;
         HasIndexContext = IndexContextDays.Any(day => day.Points.Count > 0);
@@ -1027,6 +1121,7 @@ public partial class OfzActivityViewModel(OfzActivityService activityService) : 
             : "Индексный контекст отсутствует: значения не заменяются нулями";
         SelectedSummaryFinding = SummaryFindings.FirstOrDefault();
         SelectedIndexContextDay = IndexContextDays.FirstOrDefault(day => day.Points.Count > 0) ?? IndexContextDays.FirstOrDefault();
+        SelectedExternalFactorSeries = ExternalFactorSeries.FirstOrDefault(series => series.HasValue) ?? ExternalFactorSeries.FirstOrDefault();
         CopySummaryJsonCommand.NotifyCanExecuteChanged();
         SaveSummaryJsonCommand.NotifyCanExecuteChanged();
     }
@@ -1078,6 +1173,18 @@ public partial class OfzActivityViewModel(OfzActivityService activityService) : 
         }
 
         SelectedIndexContextDay = day;
+    }
+
+    private void FocusExternalFactor(OfzSummaryFinding finding)
+    {
+        var factorCode = finding.Evidence.ExternalFactorCode;
+        var series = !string.IsNullOrWhiteSpace(factorCode)
+            ? ExternalFactorSeries.FirstOrDefault(item => string.Equals(item.Code, factorCode, StringComparison.Ordinal))
+            : null;
+        SelectedExternalFactorSeries = series ?? ExternalFactorSeries.FirstOrDefault();
+        SelectedExternalFactorSummary = finding.Evidence.ExternalFactorObservationDate.HasValue
+            ? $"{finding.Evidence.ExternalFactorObservationDate:yyyy-MM-dd}: {finding.Text}"
+            : finding.Text;
     }
 
     private void ApplySelectedBreadthDay(MarketBreadthDay day)
@@ -1158,6 +1265,34 @@ public partial class OfzActivityViewModel(OfzActivityService activityService) : 
         SelectedIndexContextDaySummary = IndexContextDayPlaceholder;
         HasSelectedIndexContextPoints = false;
         HasSelectedIndexLimitations = false;
+    }
+
+    private void ApplySelectedExternalFactorSeries(OfzExternalFactorSeries series)
+    {
+        var latest = series.LatestObservation;
+        SelectedExternalFactorSummary = latest is null
+            ? $"{series.Code}: {series.Label}; наблюдений нет; status {series.Availability}"
+            : $"{series.Code}: {series.Label}; {latest.TradeDate:yyyy-MM-dd}; value {latest.Value?.ToString("N2") ?? "n/a"}; source {latest.SourceLabel}";
+
+        foreach (var observation in series.Observations.OrderByDescending(item => item.TradeDate))
+        {
+            SelectedExternalFactorObservations.Add(observation);
+        }
+
+        HasSelectedExternalFactorObservations = SelectedExternalFactorObservations.Count > 0;
+    }
+
+    private void ClearSelectedExternalFactorSeries()
+    {
+        SelectedExternalFactorSeries = null;
+        ClearSelectedExternalFactorSeriesDetails();
+    }
+
+    private void ClearSelectedExternalFactorSeriesDetails()
+    {
+        SelectedExternalFactorObservations.Clear();
+        SelectedExternalFactorSummary = ExternalFactorPlaceholder;
+        HasSelectedExternalFactorObservations = false;
     }
 
     private void ApplyActivityIndex(IReadOnlyList<OfzActivityIndexPoint> points)

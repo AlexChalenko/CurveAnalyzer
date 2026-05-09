@@ -232,7 +232,7 @@ public class OfzMarketSummaryBuilderTests
         using var document = JsonDocument.Parse(json);
         var root = document.RootElement;
 
-        Assert.Equal("1.5", root.GetProperty("schemaVersion").GetString());
+        Assert.Equal("1.6", root.GetProperty("schemaVersion").GetString());
         AssertJsonDateOnly(root.GetProperty("startDate"));
         AssertJsonDateOnly(root.GetProperty("endDate"));
         AssertJsonDateOnly(root.GetProperty("insightStartDate"));
@@ -1031,7 +1031,7 @@ public class OfzMarketSummaryBuilderTests
         using var document = JsonDocument.Parse(JsonSerializer.Serialize(summary, JsonOptions));
         var root = document.RootElement;
 
-        Assert.Equal("1.5", root.GetProperty("schemaVersion").GetString());
+        Assert.Equal("1.6", root.GetProperty("schemaVersion").GetString());
         Assert.True(root.TryGetProperty("indexContextDays", out var days));
         Assert.True(days.GetArrayLength() > 0);
         Assert.True(root.TryGetProperty("indexSegments", out _));
@@ -1067,6 +1067,201 @@ public class OfzMarketSummaryBuilderTests
         Assert.Equal("RGBI", day.PriceIndexPoint.SecId);
         Assert.Equal(0.005, day.PriceIndexPoint.DailyChangePercent);
         Assert.Equal(4, summary.SourceCounts.IndexPoints);
+    }
+
+    [Fact]
+    public void BuildMarketSummary_AddsExternalFactorsContextAndFinding()
+    {
+        var seed = MinimalIndexInput(closeOnActiveDate: 100.5, previousClose: 100);
+        var input = new OfzMarketSummaryInput
+        {
+            StartDate = seed.StartDate,
+            EndDate = seed.EndDate,
+            Issues = seed.Issues,
+            Trades = seed.Trades,
+            ActivityMetrics = seed.ActivityMetrics,
+            LiquidityMetrics = seed.LiquidityMetrics,
+            IndexPoints = seed.IndexPoints,
+            CbrKeyRates =
+            [
+                new CbrKeyRate { Date = EndDate.AddDays(-2), Rate = 14.50 },
+                new CbrKeyRate { Date = EndDate.AddDays(1), Rate = 15.00 }
+            ]
+        };
+
+        var summary = BuildMarketSummary(input, new OfzMarketSummaryOptions { MaxFindings = 10 });
+        var context = Assert.IsType<OfzExternalFactorsContext>(summary.ExternalFactorsContext);
+        var finding = Assert.Single(summary.Findings, item =>
+            item.Kind == OfzSummaryFindingKind.ExternalFactorActivity &&
+            item.Evidence.ExternalFactorCode == "RGBI");
+
+        Assert.Contains(context.FactorSeries, series => series.Code == "cbr_key_rate");
+        Assert.Contains(context.FactorSeries, series => series.Code == "RGBI");
+        Assert.True(summary.SourceCounts.ExternalFactorObservations >= 2);
+        Assert.True(summary.SourceCounts.ExternalFactorSeries >= 2);
+        Assert.True(summary.SourceCounts.ExternalFactorLinks >= 1);
+        Assert.Equal(OfzSummaryScope.ExternalFactors, finding.Scope);
+        Assert.Equal(OfzSummaryDrillDownTarget.ExternalFactors, finding.DrillDown?.Target);
+        Assert.Equal("RGBI", finding.Evidence.ExternalFactorCode);
+        Assert.Equal(OfzExternalFactorKind.MarketIndex, finding.Evidence.ExternalFactorKind);
+        Assert.Equal(OfzExternalFactorSource.MoexIndex, finding.Evidence.ExternalFactorSource);
+        Assert.Equal(OfzExternalFactorLinkKind.YieldMoveWithFactorMove, finding.Evidence.ExternalFactorLinkKind);
+        Assert.True(finding.Evidence.ExternalFactorMoveIsMeaningful);
+    }
+
+    [Fact]
+    public void BuildMarketSummary_AddsExternalActivityWithoutFactorMoveFinding()
+    {
+        var seed = MinimalIndexInput(closeOnActiveDate: 100.05, previousClose: 100);
+        var input = new OfzMarketSummaryInput
+        {
+            StartDate = seed.StartDate,
+            EndDate = seed.EndDate,
+            Issues = seed.Issues,
+            Trades = seed.Trades,
+            ActivityMetrics = seed.ActivityMetrics,
+            LiquidityMetrics = seed.LiquidityMetrics,
+            IndexPoints = seed.IndexPoints,
+            CbrKeyRates = [new CbrKeyRate { Date = EndDate.AddDays(-2), Rate = 14.50 }]
+        };
+
+        var summary = BuildMarketSummary(input, new OfzMarketSummaryOptions { MaxFindings = 10 });
+        var finding = Assert.Single(summary.Findings, item =>
+            item.Kind == OfzSummaryFindingKind.ExternalFactorActivity &&
+            item.Evidence.ExternalFactorCode == "RGBI");
+
+        Assert.Equal(OfzExternalFactorLinkKind.ActivityWithoutFactorMove, finding.Evidence.ExternalFactorLinkKind);
+        Assert.False(finding.Evidence.ExternalFactorMoveIsMeaningful);
+        Assert.InRange(finding.Evidence.ExternalFactorDailyChangePercent!.Value, 0.0004, 0.0006);
+    }
+
+    [Fact]
+    public void BuildMarketSummary_ExternalFactorsHonorLastAvailableDaySignalScope()
+    {
+        var issue = Issue("SU26238RMFS4", "ОФЗ 26238", "Фикс с известным купоном");
+        var firstDate = EndDate.AddDays(-1);
+        var previousDate = EndDate.AddDays(-2);
+        var input = new OfzMarketSummaryInput
+        {
+            StartDate = previousDate,
+            EndDate = EndDate,
+            SignalScope = OfzSummarySignalScope.LastAvailableDay,
+            Issues = [issue],
+            Trades =
+            [
+                Trade(issue.SecId, previousDate, 1_000_000, 1, 12.0, 800),
+                Trade(issue.SecId, firstDate, 900_000_000, 600, 12.1, 810),
+                Trade(issue.SecId, EndDate, 2_000_000_000, 1_100, 12.4, 800)
+            ],
+            ActivityMetrics =
+            [
+                ActivityMetric(issue.SecId, firstDate, 4, 900_000_000, 600, yieldMove: -0.11),
+                ActivityMetric(issue.SecId, EndDate, 8, 2_000_000_000, 1_100, yieldMove: -0.35)
+            ],
+            LiquidityMetrics =
+            [
+                LiquidityMetric(
+                    issue.SecId,
+                    EndDate,
+                    spread: 0.12,
+                    OfzSpreadSource.Provided,
+                    OfzLiquidityBucket.Good,
+                    OfzLiquidityMetricStatus.Ready,
+                    value: 2_000_000_000,
+                    numTrades: 1_100)
+            ],
+            IndexPoints =
+            [
+                IndexPoint("RGBI", previousDate, 100, yield: 14.1),
+                IndexPoint("RGBI", firstDate, 100.5, yield: 14.0),
+                IndexPoint("RGBI", EndDate, 101, yield: 13.9),
+                IndexPoint("RGBITR", previousDate, 200),
+                IndexPoint("RGBITR", firstDate, 200.6),
+                IndexPoint("RGBITR", EndDate, 201.1)
+            ],
+            CbrKeyRates = [new CbrKeyRate { Date = previousDate, Rate = 14.50 }]
+        };
+
+        var summary = BuildMarketSummary(input, new OfzMarketSummaryOptions { MaxFindings = 10 });
+        var context = Assert.IsType<OfzExternalFactorsContext>(summary.ExternalFactorsContext);
+
+        Assert.NotEmpty(context.Links);
+        Assert.All(context.Links, link => Assert.Equal(EndDate, link.TradeDate));
+        Assert.All(
+            summary.Findings.Where(finding => finding.Scope == OfzSummaryScope.ExternalFactors),
+            finding => Assert.Equal(EndDate, finding.DrillDown?.TradeDate));
+    }
+
+    [Fact]
+    public void BuildMarketSummary_ExternalFactorFindingsAvoidRecommendationLanguage()
+    {
+        var seed = MinimalIndexInput(closeOnActiveDate: 100.5, previousClose: 100);
+        var input = new OfzMarketSummaryInput
+        {
+            StartDate = seed.StartDate,
+            EndDate = seed.EndDate,
+            Issues = seed.Issues,
+            Trades = seed.Trades,
+            ActivityMetrics = seed.ActivityMetrics,
+            LiquidityMetrics = seed.LiquidityMetrics,
+            IndexPoints = seed.IndexPoints,
+            CbrKeyRates = [new CbrKeyRate { Date = EndDate.AddDays(-2), Rate = 14.50 }]
+        };
+
+        var summary = BuildMarketSummary(input, new OfzMarketSummaryOptions { MaxFindings = 10 });
+        var factorFindings = summary.Findings
+            .Where(finding => finding.Scope == OfzSummaryScope.ExternalFactors)
+            .ToArray();
+
+        Assert.NotEmpty(factorFindings);
+        Assert.All(factorFindings, finding =>
+        {
+            Assert.False(ContainsRecommendationLanguage(finding.Title), finding.Title);
+            Assert.False(ContainsRecommendationLanguage(finding.Text), finding.Text);
+        });
+    }
+
+    [Fact]
+    public void BuildMarketSummary_SerializesExternalFactorsContractFields()
+    {
+        var seed = MinimalIndexInput(closeOnActiveDate: 100.5, previousClose: 100);
+        var input = new OfzMarketSummaryInput
+        {
+            StartDate = seed.StartDate,
+            EndDate = seed.EndDate,
+            Issues = seed.Issues,
+            Trades = seed.Trades,
+            ActivityMetrics = seed.ActivityMetrics,
+            LiquidityMetrics = seed.LiquidityMetrics,
+            IndexPoints = seed.IndexPoints,
+            CbrKeyRates = [new CbrKeyRate { Date = EndDate.AddDays(-2), Rate = 14.50 }]
+        };
+
+        var summary = BuildMarketSummary(input, new OfzMarketSummaryOptions { MaxFindings = 10 });
+        using var document = JsonDocument.Parse(JsonSerializer.Serialize(summary, JsonOptions));
+        var root = document.RootElement;
+
+        Assert.Equal("1.6", root.GetProperty("schemaVersion").GetString());
+        Assert.True(root.TryGetProperty("externalFactorsContext", out var context));
+        Assert.True(context.GetProperty("factorSeries").GetArrayLength() > 0);
+        Assert.True(context.GetProperty("links").GetArrayLength() > 0);
+        var series = context.GetProperty("factorSeries").EnumerateArray().First(item => item.GetProperty("code").GetString() == "cbr_key_rate");
+        Assert.Equal("PolicyRate", series.GetProperty("kind").GetString());
+        AssertJsonDateOnly(series.GetProperty("latestObservation").GetProperty("tradeDate"));
+
+        var evidence = root
+            .GetProperty("findings")
+            .EnumerateArray()
+            .First(item => item.GetProperty("kind").GetString() == "ExternalFactorActivity")
+            .GetProperty("evidence");
+        Assert.Equal("RGBI", evidence.GetProperty("externalFactorCode").GetString());
+        Assert.Equal("MoexIndex", evidence.GetProperty("externalFactorSource").GetString());
+        AssertJsonDateOnly(evidence.GetProperty("externalFactorObservationDate"));
+
+        var sourceCounts = root.GetProperty("sourceCounts");
+        Assert.True(sourceCounts.GetProperty("externalFactorObservations").GetInt32() > 0);
+        Assert.True(sourceCounts.GetProperty("externalFactorSeries").GetInt32() > 0);
+        Assert.True(sourceCounts.GetProperty("externalFactorLinks").GetInt32() > 0);
     }
 
     [Fact]
@@ -1130,7 +1325,7 @@ public class OfzMarketSummaryBuilderTests
         using var document = JsonDocument.Parse(JsonSerializer.Serialize(summary, JsonOptions));
         var root = document.RootElement;
 
-        Assert.Equal("1.5", root.GetProperty("schemaVersion").GetString());
+        Assert.Equal("1.6", root.GetProperty("schemaVersion").GetString());
         Assert.True(root.TryGetProperty("cashflowContext", out var context));
         AssertJsonDateOnly(context.GetProperty("startDate"));
         AssertJsonDateOnly(context.GetProperty("endDate"));
@@ -1261,7 +1456,7 @@ public class OfzMarketSummaryBuilderTests
         using var document = JsonDocument.Parse(JsonSerializer.Serialize(summary, JsonOptions));
         var root = document.RootElement;
 
-        Assert.Equal("1.5", root.GetProperty("schemaVersion").GetString());
+        Assert.Equal("1.6", root.GetProperty("schemaVersion").GetString());
         Assert.True(root.TryGetProperty("seasonalityContext", out var context));
         AssertJsonDateOnly(context.GetProperty("startDate"));
         AssertJsonDateOnly(context.GetProperty("endDate"));
@@ -1652,7 +1847,17 @@ public class OfzMarketSummaryBuilderTests
             evidence.SeasonalityValueRatio.HasValue ||
             evidence.SeasonalityActualNumTrades.HasValue ||
             evidence.SeasonalityBaselineMedianNumTrades.HasValue ||
-            evidence.SeasonalityBaselineObservationCount.HasValue;
+            evidence.SeasonalityBaselineObservationCount.HasValue ||
+            !string.IsNullOrWhiteSpace(evidence.ExternalFactorCode) ||
+            evidence.ExternalFactorKind.HasValue ||
+            evidence.ExternalFactorSource.HasValue ||
+            evidence.ExternalFactorLinkKind.HasValue ||
+            evidence.ExternalFactorObservationDate.HasValue ||
+            evidence.ExternalFactorValue.HasValue ||
+            evidence.ExternalFactorDailyChange.HasValue ||
+            evidence.ExternalFactorDailyChangePercent.HasValue ||
+            evidence.ExternalFactorDirection.HasValue ||
+            evidence.ExternalFactorMoveIsMeaningful;
     }
 
     private static bool ContainsRecommendationLanguage(string text)

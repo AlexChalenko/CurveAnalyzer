@@ -26,7 +26,9 @@ public enum OfzSummaryFindingKind
     UpcomingCashflowEvent = 17,
     CashflowDataLimitation = 18,
     SeasonalityActivity = 19,
-    SeasonalityDataLimitation = 20
+    SeasonalityDataLimitation = 20,
+    ExternalFactorActivity = 21,
+    ExternalFactorDataLimitation = 22
 }
 
 public enum OfzSummaryScope
@@ -42,7 +44,8 @@ public enum OfzSummaryScope
     SpecialMetric = 8,
     IndexContext = 9,
     Cashflow = 10,
-    Seasonality = 11
+    Seasonality = 11,
+    ExternalFactors = 12
 }
 
 public enum OfzDataLimitationKind
@@ -65,7 +68,8 @@ public enum OfzDataLimitationKind
     MissingPreviousIndexPoint = 15,
     MissingIndexField = 16,
     NoCashflowData = 17,
-    MissingCashflowField = 18
+    MissingCashflowField = 18,
+    MissingExternalFactor = 19
 }
 
 public enum OfzIssueFocusReason
@@ -92,12 +96,13 @@ public enum OfzSummaryDrillDownTarget
     ActivityTable = 4,
     MarketBreadthDay = 5,
     IndexContextDay = 6,
-    CashflowEvent = 7
+    CashflowEvent = 7,
+    ExternalFactors = 8
 }
 
 public class OfzMarketSummary
 {
-    public const string CurrentSchemaVersion = "1.5";
+    public const string CurrentSchemaVersion = "1.6";
 
     public string SchemaVersion { get; init; } = CurrentSchemaVersion;
     [JsonConverter(typeof(OfzDateJsonConverter))]
@@ -119,6 +124,7 @@ public class OfzMarketSummary
     public IReadOnlyList<OfzIndexSegmentContext> IndexSegments { get; init; } = [];
     public OfzCashflowContext? CashflowContext { get; init; }
     public OfzSeasonalityContext? SeasonalityContext { get; init; }
+    public OfzExternalFactorsContext? ExternalFactorsContext { get; init; }
     public IReadOnlyList<OfzSpecialSummaryMetric> SpecialMetrics { get; init; } = [];
     public IReadOnlyList<OfzDataLimitation> Limitations { get; init; } = [];
     public OfzSummarySourceCounts SourceCounts { get; init; } = new();
@@ -219,6 +225,17 @@ public class OfzFindingEvidence
     public int? SeasonalityActualNumTrades { get; init; }
     public double? SeasonalityBaselineMedianNumTrades { get; init; }
     public int? SeasonalityBaselineObservationCount { get; init; }
+    public string? ExternalFactorCode { get; init; }
+    public OfzExternalFactorKind? ExternalFactorKind { get; init; }
+    public OfzExternalFactorSource? ExternalFactorSource { get; init; }
+    public OfzExternalFactorLinkKind? ExternalFactorLinkKind { get; init; }
+    [JsonConverter(typeof(OfzDateJsonConverter))]
+    public DateTime? ExternalFactorObservationDate { get; init; }
+    public double? ExternalFactorValue { get; init; }
+    public double? ExternalFactorDailyChange { get; init; }
+    public double? ExternalFactorDailyChangePercent { get; init; }
+    public OfzMarketIndexDirection? ExternalFactorDirection { get; init; }
+    public bool ExternalFactorMoveIsMeaningful { get; init; }
     public bool IsSnapshot { get; init; }
     public bool IsProvisional { get; init; }
 }
@@ -316,6 +333,9 @@ public class OfzSummarySourceCounts
     public int CashflowEvents { get; init; }
     public int CashflowIssues { get; init; }
     public int SeasonalityObservations { get; init; }
+    public int ExternalFactorObservations { get; init; }
+    public int ExternalFactorSeries { get; init; }
+    public int ExternalFactorLinks { get; init; }
     public int Dates { get; init; }
 }
 

@@ -8,44 +8,44 @@ findings и JSON contract.
 
 ## Phase 1: Setup
 
-- [ ] T001 Создать domain read-model `OfzExternalFactors.cs` в `src/CurveAnalyzer.Core/Domain/`
-- [ ] T002 Расширить `OfzMarketSummary` external factor context/evidence fields, limitations и schema version `1.6` в `src/CurveAnalyzer.Core/Domain/OfzMarketSummary.cs`
-- [ ] T003 Добавить options/input shape для `OfzExternalFactorsContextBuilder` в `src/CurveAnalyzer.Core/Services/OfzExternalFactorsContextBuilder.cs`
+- [x] T001 Создать domain read-model `OfzExternalFactors.cs` в `src/CurveAnalyzer.Core/Domain/`
+- [x] T002 Расширить `OfzMarketSummary` external factor context/evidence fields, limitations и schema version `1.6` в `src/CurveAnalyzer.Core/Domain/OfzMarketSummary.cs`
+- [x] T003 Добавить options/input shape для `OfzExternalFactorsContextBuilder` в `src/CurveAnalyzer.Core/Services/OfzExternalFactorsContextBuilder.cs`
 
 ## Phase 2: Foundational
 
-- [ ] T004 [P] Добавить Core tests для CBR latest-on-or-before, no future lookup, missing-as-limitation и snapshot/provisional propagation в `tests/CurveAnalyzer.Core.Tests/Services/OfzExternalFactorsContextBuilderTests.cs`
-- [ ] T005 [P] Добавить summary tests для `externalFactorsContext`, source counts и JSON schema `1.6` в `tests/CurveAnalyzer.Core.Tests/Services/OfzMarketSummaryBuilderTests.cs`
-- [ ] T006 Реализовать `OfzExternalFactorsContextBuilder` для CBR key rate, MOEX index context и OFZ-derived special metrics
-- [ ] T007 Подключить factor context к `OfzMarketSummaryBuilder.Build()` без новых сетевых операций и без новой persistence schema
-- [ ] T008 Добавить external factor source counts в `OfzSummarySourceCounts`
+- [x] T004 [P] Добавить Core tests для CBR latest-on-or-before, no future lookup, missing-as-limitation и snapshot/provisional propagation в `tests/CurveAnalyzer.Core.Tests/Services/OfzExternalFactorsContextBuilderTests.cs`
+- [x] T005 [P] Добавить summary tests для `externalFactorsContext`, source counts и JSON schema `1.6` в `tests/CurveAnalyzer.Core.Tests/Services/OfzMarketSummaryBuilderTests.cs`
+- [x] T006 Реализовать `OfzExternalFactorsContextBuilder` для CBR key rate, MOEX index context и OFZ-derived special metrics
+- [x] T007 Подключить factor context к `OfzMarketSummaryBuilder.Build()` без новых сетевых операций и без новой persistence schema
+- [x] T008 Добавить external factor source counts в `OfzSummarySourceCounts`
 
 ## Phase 3: User Story 1 - Внешний фон периода
 
-- [ ] T009 [US1] Добавить ViewModel collections/status для factor series и limitations в `src/CurveAnalyzer.Presentation.WPF/ViewModels/OfzActivityViewModel.cs`
-- [ ] T010 [US1] Добавить вкладку `Факторы` в `src/CurveAnalyzer.Presentation.WPF/Views/OfzActivityOverviewControl.xaml`
-- [ ] T011 [US1] Добавить formatting converters для factor kind/source/value/change/status в `src/CurveAnalyzer.Presentation.WPF/Converters/OfzExternalFactorsConverters.cs`
+- [x] T009 [US1] Добавить ViewModel collections/status для factor series и limitations в `src/CurveAnalyzer.Presentation.WPF/ViewModels/OfzActivityViewModel.cs`
+- [x] T010 [US1] Добавить вкладку `Факторы` в `src/CurveAnalyzer.Presentation.WPF/Views/OfzActivityOverviewControl.xaml`
+- [x] T011 [US1] Добавить formatting converters для factor kind/source/value/change/status в `src/CurveAnalyzer.Presentation.WPF/Converters/OfzExternalFactorsConverters.cs`
 
 ## Phase 4: User Story 2 - Связь активности с факторами
 
-- [ ] T012 [P] [US2] Добавить tests для activity-with-factor-move, activity-without-factor-move, yield move link и `SignalScope = LastDay` в `tests/CurveAnalyzer.Core.Tests/Services/OfzMarketSummaryBuilderTests.cs`
-- [ ] T013 [US2] Реализовать external factor findings в `OfzMarketSummaryBuilder`
-- [ ] T014 [US2] Добавить factor evidence fields и drill-down target mapping в `OfzMarketSummary`
-- [ ] T015 [US2] Проверить neutral/no-recommendation wording для factor findings в tests
+- [x] T012 [P] [US2] Добавить tests для activity-with-factor-move, activity-without-factor-move, yield move link и `SignalScope = LastDay` в `tests/CurveAnalyzer.Core.Tests/Services/OfzMarketSummaryBuilderTests.cs`
+- [x] T013 [US2] Реализовать external factor findings в `OfzMarketSummaryBuilder`
+- [x] T014 [US2] Добавить factor evidence fields и drill-down target mapping в `OfzMarketSummary`
+- [x] T015 [US2] Проверить neutral/no-recommendation wording для factor findings в tests
 
 ## Phase 5: User Story 3 - Structured JSON и contracts
 
-- [ ] T016 [US3] Обновить JSON contract expectations по `contracts/ofz-external-factors.schema.json` и `tests/CurveAnalyzer.Core.Tests/Domain/OfzExternalFactorsContractTests.cs`
-- [ ] T017 [US3] Добавить serialization/roundtrip tests для `externalFactorsContext` в `tests/CurveAnalyzer.Core.Tests/Services/OfzMarketSummaryBuilderTests.cs`
-- [ ] T018 [US3] Отобразить external factor limitations в UI вкладке `Факторы`
+- [x] T016 [US3] Обновить JSON contract expectations по `contracts/ofz-external-factors.schema.json` и `tests/CurveAnalyzer.Core.Tests/Domain/OfzExternalFactorsContractTests.cs`
+- [x] T017 [US3] Добавить serialization/roundtrip tests для `externalFactorsContext` в `tests/CurveAnalyzer.Core.Tests/Services/OfzMarketSummaryBuilderTests.cs`
+- [x] T018 [US3] Отобразить external factor limitations в UI вкладке `Факторы`
 
 ## Phase 6: Polish & Verification
 
-- [ ] T019 Обновить `specs/ofz-analytics-roadmap.md`: `012` переведен из кандидата в активный этап
-- [ ] T020 Выполнить `dotnet restore`
-- [ ] T021 Выполнить `dotnet build CurveAnalyzer.sln -c Release`
-- [ ] T022 Выполнить `dotnet test -c Release`
-- [ ] T023 Выполнить manual quickstart smoke из `specs/012-ofz-external-factors/quickstart.md`
+- [x] T019 Обновить `specs/ofz-analytics-roadmap.md`: `012` переведен из кандидата в активный этап
+- [x] T020 Выполнить `dotnet restore`
+- [x] T021 Выполнить `dotnet build CurveAnalyzer.sln -c Release`
+- [x] T022 Выполнить `dotnet test -c Release`
+- [x] T023 Выполнить manual quickstart smoke из `specs/012-ofz-external-factors/quickstart.md`
 
 ## Dependencies
 
