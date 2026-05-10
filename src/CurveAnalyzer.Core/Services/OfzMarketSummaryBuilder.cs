@@ -118,7 +118,7 @@ public static class OfzMarketSummaryBuilder
             .Concat(externalFactorsContext.Limitations)
             .ToList();
         var segments = BuildSegments(signalMetrics, signalLiquidityMetrics, issuesBySecId, options);
-        var findings = BuildFindings(
+        var findings = SelectSummaryFindings(BuildFindings(
                 signalMetrics,
                 signalLiquidityMetrics,
                 signalBreadthDays,
@@ -131,11 +131,8 @@ public static class OfzMarketSummaryBuilder
                 limitations,
                 issuesBySecId,
                 input.CouponTypeFilter,
-                options)
-            .OrderByDescending(finding => finding.Priority)
-            .ThenBy(finding => finding.Id, StringComparer.Ordinal)
-            .Take(options.MaxFindings)
-            .ToList();
+                options),
+            options.MaxFindings);
 
         return new OfzMarketSummary
         {
@@ -196,6 +193,38 @@ public static class OfzMarketSummaryBuilder
         AddDataQualityFinding(findings, metrics, liquidityMetrics, marketLimitations);
 
         return findings;
+    }
+
+    private static IReadOnlyList<OfzSummaryFinding> SelectSummaryFindings(
+        IEnumerable<OfzSummaryFinding> findings,
+        int maxFindings)
+    {
+        var ordered = findings
+            .OrderByDescending(finding => finding.Priority)
+            .ThenBy(finding => finding.Id, StringComparer.Ordinal)
+            .ToList();
+        var selected = ordered.Take(maxFindings).ToList();
+        if (selected.Any(IsExternalFactorFinding) || selected.Count < maxFindings)
+        {
+            return selected;
+        }
+
+        var externalFactorFinding = ordered.FirstOrDefault(IsExternalFactorFinding);
+        if (externalFactorFinding is null)
+        {
+            return selected;
+        }
+
+        selected[^1] = externalFactorFinding;
+        return selected
+            .OrderByDescending(finding => finding.Priority)
+            .ThenBy(finding => finding.Id, StringComparer.Ordinal)
+            .ToList();
+    }
+
+    private static bool IsExternalFactorFinding(OfzSummaryFinding finding)
+    {
+        return finding.Kind == OfzSummaryFindingKind.ExternalFactorActivity;
     }
 
     private static OfzSeasonalityContextOptions CreateSeasonalityOptions(
