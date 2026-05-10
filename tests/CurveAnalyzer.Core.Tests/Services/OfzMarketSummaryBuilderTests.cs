@@ -1110,6 +1110,33 @@ public class OfzMarketSummaryBuilderTests
     }
 
     [Fact]
+    public void BuildMarketSummary_KeepsExternalFactorFindingWhenDefaultLimitWouldTrimIt()
+    {
+        var seed = SeedInput();
+        var input = new OfzMarketSummaryInput
+        {
+            StartDate = seed.StartDate,
+            EndDate = seed.EndDate,
+            Issues = seed.Issues,
+            Trades = seed.Trades,
+            ActivityMetrics = seed.ActivityMetrics,
+            LiquidityMetrics = seed.LiquidityMetrics,
+            IndexPoints = WholeMarketIndexPoints(closeOnActiveDate: 100.05, previousClose: 100),
+            CbrKeyRates = [new CbrKeyRate { Date = EndDate.AddDays(-2), Rate = 14.50 }]
+        };
+
+        var summary = BuildMarketSummary(input);
+        var factorFinding = Assert.Single(summary.Findings, item => item.Kind == OfzSummaryFindingKind.ExternalFactorActivity);
+
+        Assert.Equal(7, summary.Findings.Count);
+        Assert.Equal(
+            summary.Findings.OrderByDescending(finding => finding.Priority).ThenBy(finding => finding.Id).Select(finding => finding.Id),
+            summary.Findings.Select(finding => finding.Id));
+        Assert.Equal(OfzExternalFactorLinkKind.ActivityWithoutFactorMove, factorFinding.Evidence.ExternalFactorLinkKind);
+        Assert.False(factorFinding.Evidence.ExternalFactorMoveIsMeaningful);
+    }
+
+    [Fact]
     public void BuildMarketSummary_AddsExternalActivityWithoutFactorMoveFinding()
     {
         var seed = MinimalIndexInput(closeOnActiveDate: 100.05, previousClose: 100);
