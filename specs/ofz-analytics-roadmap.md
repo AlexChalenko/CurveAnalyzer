@@ -1,9 +1,9 @@
 # Roadmap аналитики ОФЗ
 
-**Дата обновления**: 2026-05-09
+**Дата обновления**: 2026-05-10
 **Контекст**: идеи из `Curve Analyzer.md`, `Curve Analyzer v2.md`,
 реализованный экран `Активность ОФЗ`, проверки доступных полей MOEX ISS и
-закрытые Spec Kit features до `012-ofz-external-factors`.
+закрытые Spec Kit features до `013-ofz-summary-quality-gates`.
 
 ## Что уже реализовано
 
@@ -37,6 +37,9 @@
 - Structured summary JSON schema `1.6`: date-only поля для торговых дат,
   index context, breadth, special metrics, cashflow context, seasonality
   context, external factors context, source counts.
+- Quality gates для summary/export contract: автоматические проверки обязательных
+  JSON-разделов, `sourceCounts`, date-only дат, сохранения важных findings и
+  политики missing/snapshot/provisional данных.
 - UX для JSON: копирование в clipboard и сохранение structured summary JSON в
   `.json` файл.
 
@@ -56,6 +59,8 @@
    заглядывания в будущее и structured `seasonalityContext`.
 9. `012-ofz-external-factors`: внешний факторный слой для активности ОФЗ,
    `externalFactorsContext`, factor-backed findings и JSON schema `1.6`.
+10. `013-ofz-summary-quality-gates`: тестовый quality-gate слой для
+    `OfzMarketSummary`/JSON export после 006-012 без изменения боевой аналитики.
 
 ## Кандидаты на следующие этапы
 
@@ -75,8 +80,8 @@
 
 ## Рекомендуемый порядок
 
-1. После `012-ofz-external-factors` стабилизировать UI/JSON контракт на реальных
-   выгрузках.
+1. После `013-ofz-summary-quality-gates` использовать новый test gate как
+   обязательную проверку перед следующими расширениями summary/export.
 2. Рейтинг/прогнозы/стресс-тесты оставить за пределами ближайшего roadmap.
 
 ## Проверенные источники данных

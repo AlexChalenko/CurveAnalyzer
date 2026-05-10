@@ -2,7 +2,7 @@
 
 <!-- SPECKIT START -->
 Для текущей feature сначала читай активный план:
-`specs/012-ofz-external-factors/plan.md`.
+`specs/013-ofz-summary-quality-gates/plan.md`.
 <!-- SPECKIT END -->
 
 ## Язык документации
